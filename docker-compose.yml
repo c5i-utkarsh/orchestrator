@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: orchestrator_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-orchestrator}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-orchestrator_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-orchestrator}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-orchestrator}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: orchestrator_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: orchestrator_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - slm_store:/app/slm_store
+      - corpus_store:/app/corpus_store
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-orchestrator}:${POSTGRES_PASSWORD:-orchestrator_secret}@postgres:5432/${POSTGRES_DB:-orchestrator}
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - FRED_API_KEY=${FRED_API_KEY:-}
+      - SLM_STORE_PATH=/app/slm_store
+      - CORPUS_STORE_PATH=/app/corpus_store
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: orchestrator_celery
+    command: celery -A app.worker worker --loglevel=info --concurrency=2
+    volumes:
+      - ./backend:/app
+      - slm_store:/app/slm_store
+      - corpus_store:/app/corpus_store
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-orchestrator}:${POSTGRES_PASSWORD:-orchestrator_secret}@postgres:5432/${POSTGRES_DB:-orchestrator}
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - SLM_STORE_PATH=/app/slm_store
+      - CORPUS_STORE_PATH=/app/corpus_store
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: orchestrator_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  slm_store:
+  corpus_store:
