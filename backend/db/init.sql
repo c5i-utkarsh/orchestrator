@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS slm_registry (
     model_id              TEXT PRIMARY KEY,
     domain_label          TEXT NOT NULL,
-    domain_embedding      VECTOR(1536) NOT NULL,
+    domain_embedding      VECTOR(768),
     coverage_topics       TEXT[] NOT NULL,
     training_corpus_hash  TEXT NOT NULL,
     base_model            TEXT NOT NULL,

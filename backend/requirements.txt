@@ -16,7 +16,7 @@ torch==2.4.1
 transformers==4.45.2
 peft==0.13.0
 bitsandbytes==0.44.1
-accelerate==0.34.2
+accelerate==1.0.1
 datasets==3.0.2
 trl==0.11.4
 sentencepiece==0.2.0
@@ -30,12 +30,18 @@ pdfplumber==0.11.4
 python-docx==1.1.2
 pandas==2.2.3
 numpy==1.26.4
-scipy==1.12.0
+scipy==1.14.1
 networkx==3.4.2
 graspologic==3.4.1
+# Ingestion extras (chunking / FAISS / scraping)
+faiss-cpu>=1.7.4
+sentence-transformers>=2.7.0
+beautifulsoup4>=4.12.0
+readability-lxml>=0.8.1
 
 # Graph / Knowledge
 graphifyy==0.5.3
+graphify==0.1.4
 
 # LLM / Inference
 ollama==0.3.3
@@ -59,3 +65,8 @@ python-dotenv==1.0.1
 yt-dlp==2024.10.22
 faster-whisper==1.0.3
 fredapi==0.5.2
+
+# Knowledge graph pipeline dependencies
+pypdf>=3.0.0
+openpyxl>=3.1.0
+pymysql>=1.1.0

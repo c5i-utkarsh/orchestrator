@@ -6,8 +6,8 @@
 
 body {
   font-family: 'Sora', 'Inter', 'Segoe UI', sans-serif;
-  background: #0e0e14;
-  color: #e8e6f0;
+  background: #ffffff;
+  color: #18181c;
   font-size: 13px;
   min-height: 100vh;
 }
@@ -128,7 +128,7 @@ body {
     @apply flex items-center gap-3 p-3 bg-card2 border border-dborder rounded-sm
            mb-2 transition-all duration-150 cursor-pointer;
   }
-  .model-row:hover { @apply border-dborder2 bg-bg4; }
+  .model-row:hover { @apply border-dborder2 bg-bg3; }
 
   .tl-item { @apply flex gap-3.5 pb-5 relative; }
   .tl-item:not(:last-child)::before {
@@ -153,10 +153,16 @@ body {
            text-sm text-t1 resize-y min-h-24 outline-none transition-colors
            duration-200 leading-relaxed font-dm;
   }
-  .prompt-box:focus { @apply border-accent; box-shadow: 0 0 0 3px rgba(124,106,248,.08); }
+  .prompt-box:focus { @apply border-accent; box-shadow: 0 0 0 3px rgba(108,92,247,.10); }
   .prompt-box::placeholder { @apply text-t3; }
 }
 
 @keyframes pillpulse { 0%,100%{opacity:1}50%{opacity:.5} }
 @keyframes blink { 0%,100%{opacity:1}50%{opacity:.12} }
+@keyframes flowPulse { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+@keyframes slideInRight { from{transform:translateX(120%);opacity:0} to{transform:translateX(0);opacity:1} }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 .animate-blink { animation: blink 1.3s infinite; }
+.animate-slide-in { animation: slideInRight 0.35s ease-out forwards; }
+.animate-fade-in { animation: fadeIn 0.25s ease-out forwards; }
+.flow-pulse-anim { animation: flowPulse 1.5s ease-in-out infinite; }

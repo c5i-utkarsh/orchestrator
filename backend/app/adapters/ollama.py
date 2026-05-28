@@ -58,6 +58,32 @@ class OllamaAdapter(ModelAdapter):
         except Exception:
             return []
 
+    async def is_model_installed(self, model_id: str) -> bool:
+        """Return True if the model is already present in Ollama."""
+        try:
+            models = await self.list_models()
+            return any(m.model_id == model_id for m in models)
+        except Exception:
+            return False
+
+    async def pull_model(self, model_id: str) -> bool:
+        """Pull a model from the Ollama registry. Returns True on success."""
+        try:
+            async with self._client.stream(
+                "POST", "/api/pull", json={"name": model_id, "stream": True}
+            ) as resp:
+                async for _ in resp.aiter_lines():
+                    pass  # consume stream; pull completes when stream closes
+            return True
+        except Exception:
+            return False
+
+    async def ensure_model(self, model_id: str) -> bool:
+        """Install model_id if not already present. Returns True when ready."""
+        if await self.is_model_installed(model_id):
+            return True
+        return await self.pull_model(model_id)
+
     async def get_model_info(self, model_id: str) -> ModelInfo | None:
         try:
             r = await self._client.post("/api/show", json={"name": model_id})

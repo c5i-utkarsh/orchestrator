@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Topbar from "./components/Topbar";
+import LayoutShell from "./components/LayoutShell";
 
 export const metadata: Metadata = {
   title: "AI Fine-Tuning Orchestrator",
@@ -17,9 +18,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="bg-bg text-t1 min-h-screen font-sora">
         <Topbar />
-        <div className="pt-14">
+        <LayoutShell>
           {children}
-        </div>
+        </LayoutShell>
       </body>
     </html>
   );

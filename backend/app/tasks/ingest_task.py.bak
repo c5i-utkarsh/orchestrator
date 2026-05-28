@@ -1,0 +1,481 @@
+"""
+Celery task: run the full ingest → graph → distill pipeline for a job.
+Writes granular progress into ingest_jobs.progress (JSONB) so the UI
+can poll /api/v1/data/status/{job_id} and show per-step progress + ETA.
+
+Progress schema written to DB:
+{
+  "steps": [
+    {"id": "parse",   "label": "Parsing & normalizing files",  "status": "done|running|pending|error", "pct": 100, "detail": "..."},
+    {"id": "dedup",   "label": "Deduplication (MinHash LSH)",  ...},
+    {"id": "quality", "label": "Quality scoring & filtering",  ...},
+    {"id": "graph",   "label": "Building knowledge graph",     ...},
+    {"id": "done",    "label": "Pipeline complete",            ...}
+  ],
+  "current_step": 2,
+  "overall_pct": 45,
+  "eta_seconds": 120,
+  "started_at": 1234567890.0
+}
+"""
+import json
+import time
+import asyncio
+from pathlib import Path
+
+from app.tasks import celery_app
+
+# Approximate time weights per step (used for ETA estimation)
+_STEP_WEIGHTS = {
+    "parse": 0.10, "dedup": 0.07, "quality": 0.06,
+    "chunk": 0.05, "nlp": 0.08, "schema": 0.10,
+    "graph": 0.44, "embed": 0.10,
+}
+
+
+@celery_app.task(name="run_ingest_pipeline", bind=True, max_retries=2)
+def run_ingest_pipeline(
+    self,
+    job_id: str,
+    corpus_dir: str,
+    domain_label: str,
+    db_creds: dict,
+):
+    asyncio.run(_ingest(job_id, corpus_dir, domain_label, db_creds))
+
+
+async def _update_progress(db, text_fn, job_id: str, steps: list, current_idx: int,
+                           started_at: float, status: str, extra: dict | None = None):
+    """Write progress JSON and status to DB atomically."""
+    from sqlalchemy import text
+    done_weight = sum(
+        _STEP_WEIGHTS.get(s["id"], 0)
+        for s in steps[:current_idx]
+    )
+    current_weight = _STEP_WEIGHTS.get(steps[current_idx]["id"] if current_idx < len(steps) else "", 0)
+    step_pct = steps[current_idx].get("pct", 0) / 100.0 if current_idx < len(steps) else 1.0
+    overall_pct = int((done_weight + current_weight * step_pct) * 100)
+
+    elapsed = time.time() - started_at
+    eta_seconds = None
+    if overall_pct > 5:
+        total_estimated = elapsed / (overall_pct / 100)
+        eta_seconds = max(0, int(total_estimated - elapsed))
+
+    progress = {
+        "steps": steps,
+        "current_step": current_idx,
+        "overall_pct": overall_pct,
+        "eta_seconds": eta_seconds,
+        "started_at": started_at,
+    }
+
+    params = {
+        "id": job_id,
+        "status": status,
+        "progress": json.dumps(progress),
+    }
+    if extra:
+        params.update(extra)
+
+    set_extra = ""
+    if extra:
+        set_extra = ", " + ", ".join(f"{k}=:{k}" for k in extra)
+
+    await db.execute(
+        text(f"UPDATE ingest_jobs SET status=:status, progress=(:progress)::jsonb{set_extra} WHERE job_id=:id"),
+        params,
+    )
+    await db.commit()
+
+
+async def _ingest(job_id: str, corpus_dir: str, domain_label: str, db_creds: dict):
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+    from sqlalchemy.pool import NullPool
+    from sqlalchemy import text
+    from app.config import get_settings
+
+    # Create a fresh engine with NullPool for this task.
+    # Each Celery task runs inside asyncio.run() which creates a NEW event loop.
+    # Reusing a pooled engine from a previous event loop causes asyncpg to raise
+    # "Future attached to a different loop". NullPool creates fresh connections
+    # every time and never caches them, so the loop mismatch can never occur.
+    _settings = get_settings()
+    _task_engine = create_async_engine(
+        _settings.database_url,
+        echo=False,
+        poolclass=NullPool,
+    )
+    async_session_factory = async_sessionmaker(
+        _task_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    from app.modules.data_curation.ingester import Ingester
+    from app.modules.data_curation.graphify_engine.graphify_runner import GraphifyRunner
+    from app.modules.data_curation.deduplicator import Deduplicator
+    from app.modules.data_curation.quality_scorer import QualityScorer
+
+    started_at = time.time()
+    steps = [
+        {"id": "parse",   "label": "1 · Parsing & normalizing files",        "status": "pending", "pct": 0, "detail": ""},
+        {"id": "dedup",   "label": "2 · Deduplication (MinHash LSH)",         "status": "pending", "pct": 0, "detail": ""},
+        {"id": "quality", "label": "3 · Quality scoring & filtering",         "status": "pending", "pct": 0, "detail": ""},
+        {"id": "chunk",   "label": "4 · Chunking text",                       "status": "pending", "pct": 0, "detail": ""},
+        {"id": "nlp",     "label": "5 · NLP entity extraction",               "status": "pending", "pct": 0, "detail": ""},
+        {"id": "schema",  "label": "6 · Schema enrichment (structured data)", "status": "pending", "pct": 0, "detail": ""},
+        {"id": "graph",   "label": "7 · Building knowledge graph",            "status": "pending", "pct": 0, "detail": ""},
+        {"id": "embed",   "label": "8 · Embedding & indexing chunks",         "status": "pending", "pct": 0, "detail": ""},
+        {"id": "done",    "label": "9 · Pipeline complete",                   "status": "pending", "pct": 0, "detail": ""},
+    ]
+
+    async with async_session_factory() as db:
+
+        # ── Step 1: Parse files ─────────────────────────────────────────────
+        steps[0]["status"] = "running"
+        steps[0]["pct"] = 0
+        await _update_progress(db, text, job_id, steps, 0, started_at, "ingesting")
+
+        ingester = Ingester()
+        try:
+            docs = await ingester.ingest_directory(corpus_dir)
+        except Exception as exc:
+            steps[0]["status"] = "error"
+            steps[0]["detail"] = str(exc)
+            await _update_progress(db, text, job_id, steps, 0, started_at, "failed",
+                                   {"error_message": str(exc)})
+            return
+
+        steps[0]["status"] = "done"
+        steps[0]["pct"] = 100
+        steps[0]["detail"] = f"{len(docs)} documents parsed"
+        await _update_progress(db, text, job_id, steps, 1, started_at, "ingesting",
+                               {"file_count": len(docs)})
+
+        # ── Step 1.5: Extract DB data if credentials provided ───────────────
+        if db_creds.get("db_type"):
+            try:
+                from app.modules.data_curation.db_adapter import DBAdapter
+                db_graph = await DBAdapter().extract({
+                    "type": db_creds["db_type"],
+                    "host": db_creds.get("host", "localhost"),
+                    "port": db_creds.get("port", 5432),
+                    "database": db_creds.get("database", ""),
+                    "username": db_creds.get("username", ""),
+                    "connection_string": db_creds.get("connection_string", ""),
+                })
+                if db_graph.entities:
+                    docs.extend(db_graph.entities)
+                    steps[0]["detail"] += (
+                        f" + {len(db_graph.entities)} DB records"
+                        f" ({len(db_graph.table_names)} tables)"
+                    )
+                    await _update_progress(db, text, job_id, steps, 1, started_at, "ingesting",
+                                           {"file_count": len(docs)})
+            except Exception as db_exc:
+                # DB extraction is non-fatal — continue with file corpus only
+                steps[0]["detail"] += f" (DB skipped: {db_exc})"
+                await _update_progress(db, text, job_id, steps, 1, started_at, "ingesting")
+
+        # ── Step 2: Deduplication ───────────────────────────────────────────
+        steps[1]["status"] = "running"
+        steps[1]["pct"] = 10
+        await _update_progress(db, text, job_id, steps, 1, started_at, "deduplicating")
+
+        deduper = Deduplicator()
+        doc_dicts = [{"id": d.id, "text": d.text} for d in docs]
+        kept_docs, dedup_result = deduper.deduplicate(doc_dicts)
+
+        steps[1]["status"] = "done"
+        steps[1]["pct"] = 100
+        steps[1]["detail"] = (
+            f"{dedup_result.kept_count}/{dedup_result.original_count} kept "
+            f"({dedup_result.removed_count} duplicates removed)"
+        )
+        await _update_progress(db, text, job_id, steps, 2, started_at, "quality_scoring")
+
+        # ── Step 3: Quality filter ──────────────────────────────────────────
+        steps[2]["status"] = "running"
+        steps[2]["pct"] = 10
+        await _update_progress(db, text, job_id, steps, 2, started_at, "quality_scoring")
+
+        scorer = QualityScorer()
+        quality_scores = scorer.score_batch(kept_docs)
+        passed_ids = {s.doc_id for s in quality_scores if s.passed}
+        final_doc_dicts = [d for d in kept_docs if d["id"] in passed_ids]
+        final_docs = [d for d in docs if d.id in passed_ids]
+
+        # Save canonical corpus JSONL
+        ingester.save_to_corpus_dir(final_docs, corpus_dir)
+
+        steps[2]["status"] = "done"
+        steps[2]["pct"] = 100
+        steps[2]["detail"] = (
+            f"{len(final_docs)} docs passed quality filter "
+            f"(removed {len(kept_docs) - len(final_docs)} low-quality)"
+        )
+        await _update_progress(db, text, job_id, steps, 3, started_at, "graph_building",
+                               {"file_count": len(final_docs)})
+
+        # ── Step 4: Chunk text ──────────────────────────────────────────────
+        steps[3]["status"] = "running"
+        steps[3]["pct"] = 0
+        steps[3]["detail"] = "Splitting documents into word-window chunks…"
+        await _update_progress(db, text, job_id, steps, 3, started_at, "chunking")
+
+        try:
+            from app.modules.data_curation.chunker import clean_text, chunk_text, validate_chunking
+            all_chunks: list[dict] = []  # [{file_id, idx, text}]
+            for doc in final_docs:
+                cleaned = clean_text(doc["text"])
+                chunks = chunk_text(cleaned)
+                for c in chunks:
+                    all_chunks.append({"file_id": doc["id"], "idx": c["idx"], "text": c["text"]})
+            validation = validate_chunking(
+                " ".join(d["text"] for d in final_docs), all_chunks
+            )
+            steps[3]["status"] = "done"
+            steps[3]["pct"] = 100
+            steps[3]["detail"] = (
+                f"{len(all_chunks)} chunks from {len(final_docs)} docs "
+                f"(avg {validation.get('avg_chunk_words', 0):.0f} words/chunk)"
+            )
+        except Exception as chunk_exc:
+            steps[3]["status"] = "done"
+            steps[3]["pct"] = 100
+            steps[3]["detail"] = f"Skipped ({chunk_exc})"
+            all_chunks = []
+
+        await _update_progress(db, text, job_id, steps, 4, started_at, "nlp_extracting")
+
+        # ── Step 5: NLP entity extraction ───────────────────────────────────
+        steps[4]["status"] = "running"
+        steps[4]["pct"] = 0
+        steps[4]["detail"] = "Extracting named entities (spaCy / regex)…"
+        await _update_progress(db, text, job_id, steps, 4, started_at, "nlp_extracting")
+
+        nlp_entity_count = 0
+        nlp_relation_count = 0
+        try:
+            from app.modules.data_curation.nlp_entity_extractor import (
+                extract_entities, extract_relationships,
+            )
+            import json as _json
+            nlp_results: list[dict] = []
+            for doc in final_docs:
+                entities = extract_entities(doc["text"])
+                relations = extract_relationships(doc["text"], entities)
+                nlp_entity_count += len(entities)
+                nlp_relation_count += len(relations)
+                nlp_results.append({"file_id": doc["id"], "entities": entities, "relations": relations})
+
+            # Persist per-job NLP artifact
+            nlp_path = Path(corpus_dir) / "nlp_entities.json"
+            nlp_path.write_text(_json.dumps(nlp_results, ensure_ascii=False, indent=2))
+
+            steps[4]["status"] = "done"
+            steps[4]["pct"] = 100
+            steps[4]["detail"] = f"{nlp_entity_count} entities, {nlp_relation_count} relations"
+        except Exception as nlp_exc:
+            steps[4]["status"] = "done"
+            steps[4]["pct"] = 100
+            steps[4]["detail"] = f"Skipped ({nlp_exc})"
+
+        await _update_progress(db, text, job_id, steps, 5, started_at, "schema_enriching",
+                               {"file_count": len(final_docs)})
+
+        # ── Step 6: Schema enrichment (structured files) ────────────────
+        steps[5]["status"] = "running"
+        steps[5]["pct"] = 0
+        steps[5]["detail"] = "Checking for structured files…"
+        await _update_progress(db, text, job_id, steps, 5, started_at, "schema_enriching")
+
+        try:
+            from app.modules.data_curation.schema_enricher import SchemaEnricher
+            from app.adapters.registry import get_adapter_registry
+            enricher = SchemaEnricher(
+                corpus_dir,
+                adapter_registry=get_adapter_registry(),
+            )
+            schema_stats = await enricher.run(
+                final_docs,
+                progress_callback=_make_graph_progress_cb(db, text, job_id, steps, 5, started_at),
+            )
+            steps[5]["status"] = "done"
+            steps[5]["pct"] = 100
+            if schema_stats["tables_enriched"] > 0:
+                steps[5]["detail"] = (
+                    f"{schema_stats['tables_enriched']} tables enriched, "
+                    f"{schema_stats['columns_processed']} columns processed"
+                )
+            else:
+                steps[5]["detail"] = "No structured files detected — skipped"
+        except Exception as enrich_exc:
+            # Non-fatal: schema enrichment failure does not stop the pipeline
+            steps[5]["status"] = "done"
+            steps[5]["pct"] = 100
+            steps[5]["detail"] = f"Skipped ({enrich_exc})"
+
+        await _update_progress(db, text, job_id, steps, 6, started_at, "graph_building")
+
+        # ── Step 7: Build knowledge graph ───────────────────────────────
+        steps[6]["status"] = "running"
+        steps[6]["pct"] = 5
+        steps[6]["detail"] = "Extracting entities & relationships…"
+        await _update_progress(db, text, job_id, steps, 6, started_at, "graph_building")
+
+        graphify = GraphifyRunner(corpus_dir)
+        try:
+            stats = await graphify.run(progress_callback=_make_graph_progress_cb(
+                db, text, job_id, steps, 6, started_at
+            ))
+            graph_path = str(graphify.graph_json_path)
+        except Exception as exc:
+            steps[6]["status"] = "error"
+            steps[6]["detail"] = str(exc)
+            await _update_progress(db, text, job_id, steps, 6, started_at, "failed",
+                                   {"error_message": str(exc)})
+            return
+
+        steps[6]["status"] = "done"
+        steps[6]["pct"] = 100
+        steps[6]["detail"] = (
+            f"{stats.get('entity_count', 0)} entities, "
+            f"{stats.get('edge_count', 0)} edges, "
+            f"{stats.get('community_count', 0)} communities"
+        )
+
+        # ── Step 7.5: Serialize wiki → Karpathy train.bin / val.bin ────────
+        try:
+            from app.modules.data_curation.graphify_engine.wiki_serializer import WikiSerializer
+            wiki_articles = graphify.get_wiki_articles()
+            if wiki_articles:
+                serializer = WikiSerializer(str(graphify.output_dir))
+                wiki_stats = serializer.serialize(wiki_articles)
+                stats["wiki_train_tokens"] = wiki_stats.get("train_tokens", 0)
+                stats["wiki_val_tokens"] = wiki_stats.get("val_tokens", 0)
+        except Exception:
+            pass  # non-fatal
+
+        await _update_progress(db, text, job_id, steps, 7, started_at, "embedding")
+
+        # ── Step 8: Embed & index chunks ────────────────────────────────────
+        steps[7]["status"] = "running"
+        steps[7]["pct"] = 0
+        steps[7]["detail"] = "Building per-corpus FAISS index…"
+        await _update_progress(db, text, job_id, steps, 7, started_at, "embedding")
+
+        embed_count = 0
+        try:
+            from app.modules.data_curation.faiss_store import FaissStore
+            from itertools import groupby as _groupby
+            faiss_store = FaissStore(corpus_dir)
+            if all_chunks:
+                sorted_chunks = sorted(all_chunks, key=lambda c: c["file_id"])
+                for fid_key, file_chunks in _groupby(sorted_chunks, key=lambda c: c["file_id"]):
+                    batch = [{"idx": c["idx"], "text": c["text"]} for c in file_chunks]
+                    embed_count += faiss_store.add_chunks(fid_key, batch)
+            steps[7]["status"] = "done"
+            steps[7]["pct"] = 100
+            steps[7]["detail"] = f"{embed_count} chunks indexed (FAISS)"
+        except Exception as embed_exc:
+            steps[7]["status"] = "done"
+            steps[7]["pct"] = 100
+            steps[7]["detail"] = f"Skipped ({embed_exc})"
+
+        # ── Step 9: Done ────────────────────────────────────────────────────
+        steps[8]["status"] = "done"
+        steps[8]["pct"] = 100
+        steps[8]["detail"] = f"Completed in {int(time.time() - started_at)}s"
+
+        await _update_progress(db, text, job_id, steps, 8, started_at, "graph_done", {
+            "entity_count": stats.get("entity_count", 0),
+            "community_count": stats.get("community_count", 0),
+            "graph_path": graph_path,
+        })
+
+
+def _make_graph_progress_cb(db, text_fn, job_id, steps, step_idx, started_at):
+    """Return an async callback that graphify can call to report sub-progress."""
+    async def cb(pct: int, detail: str = ""):
+        steps[step_idx]["pct"] = pct
+        steps[step_idx]["detail"] = detail
+        await _update_progress(db, text_fn, job_id, steps, step_idx, started_at, "graph_building")
+    return cb
+
+
+# ── Reindex-only task (retry when graph already exists) ───────────────────────
+
+@celery_app.task(name="reindex_pipeline", bind=True, max_retries=2)
+def reindex_pipeline(self, job_id: str, corpus_dir: str):
+    """Re-chunk and re-embed an existing corpus without rebuilding the graph."""
+    asyncio.run(_reindex(job_id, corpus_dir))
+
+
+async def _reindex(job_id: str, corpus_dir: str):
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+    from sqlalchemy.pool import NullPool
+    from sqlalchemy import text
+    from app.config import get_settings
+
+    _settings = get_settings()
+    _task_engine = create_async_engine(_settings.database_url, echo=False, poolclass=NullPool)
+    async_session_factory = async_sessionmaker(
+        _task_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    started_at = time.time()
+    steps = [
+        {"id": "parse",  "label": "1 · Re-parsing corpus files",   "status": "pending", "pct": 0, "detail": ""},
+        {"id": "chunk",  "label": "2 · Chunking text",             "status": "pending", "pct": 0, "detail": ""},
+        {"id": "embed",  "label": "3 · Embedding & indexing chunks","status": "pending", "pct": 0, "detail": ""},
+        {"id": "done",   "label": "4 · Re-index complete",         "status": "pending", "pct": 0, "detail": ""},
+    ]
+
+    async with async_session_factory() as db:
+        steps[0]["status"] = "running"
+        await _update_progress(db, text, job_id, steps, 0, started_at, "ingesting")
+
+        from app.modules.data_curation.ingester import Ingester
+        ingester = Ingester()
+        try:
+            docs = await ingester.ingest_directory(corpus_dir)
+        except Exception as exc:
+            steps[0]["status"] = "error"
+            steps[0]["detail"] = str(exc)
+            await _update_progress(db, text, job_id, steps, 0, started_at, "failed",
+                                   {"error_message": str(exc)})
+            return
+
+        steps[0]["status"] = "done"
+        steps[0]["pct"] = 100
+        steps[0]["detail"] = f"{len(docs)} documents"
+        await _update_progress(db, text, job_id, steps, 1, started_at, "chunking")
+
+        from app.modules.data_curation.chunker import clean_text, chunk_text
+        all_chunks: list[dict] = []
+        for doc in docs:
+            for c in chunk_text(clean_text(doc.text if hasattr(doc, "text") else doc.get("text", ""))):
+                all_chunks.append({"file_id": doc.id if hasattr(doc, "id") else doc.get("id"), "idx": c["idx"], "text": c["text"]})
+
+        steps[1]["status"] = "done"
+        steps[1]["pct"] = 100
+        steps[1]["detail"] = f"{len(all_chunks)} chunks"
+        await _update_progress(db, text, job_id, steps, 2, started_at, "embedding")
+
+        from app.modules.data_curation.faiss_store import FaissStore
+        from itertools import groupby as _groupby
+        faiss_store = FaissStore(corpus_dir)
+        embed_count = 0
+        if all_chunks:
+            sorted_chunks = sorted(all_chunks, key=lambda c: c["file_id"])
+            for fid_key, file_chunks in _groupby(sorted_chunks, key=lambda c: c["file_id"]):
+                batch = [{"idx": c["idx"], "text": c["text"]} for c in file_chunks]
+                embed_count += faiss_store.add_chunks(fid_key, batch)
+
+        steps[2]["status"] = "done"
+        steps[2]["pct"] = 100
+        steps[2]["detail"] = f"{embed_count} chunks indexed"
+        steps[3]["status"] = "done"
+        steps[3]["pct"] = 100
+        steps[3]["detail"] = f"Re-indexed in {int(time.time() - started_at)}s"
+        await _update_progress(db, text, job_id, steps, 3, started_at, "graph_done")

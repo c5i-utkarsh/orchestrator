@@ -1,0 +1,95 @@
+REFRESHCO TRADE PROMOTION POLICY & GUIDELINES — FY2026
+Finance & Revenue Management Department
+
+1. OVERVIEW
+────────────
+RefreshCo's trade promotion spending represents approximately 18% of gross revenue.
+Effective trade promotion management is critical to maintaining retail relationships,
+driving volume, and achieving profitable growth. This document establishes the policies,
+approval thresholds, and post-event analysis requirements for all promotional activity.
+
+2. PROMOTION TYPES AND CODES
+──────────────────────────────
+The following promotion types are recognized in the trade promotion management system:
+
+  TPR   — Temporary Price Reduction: shelf price reduction funded by RefreshCo
+  FEAT  — Feature Advertisement: inclusion in retailer weekly circular or digital ad
+  DISP  — Display: off-shelf display (end-cap, shipper, floor stand)
+  COMBO — Multi-product bundle deal (e.g., Chips + Dip)
+  BOGOF — Buy One Get One Free (or at reduced price)
+
+Promotions can be combined (e.g., TPR + FEAT + DISP = "Full Program"). Full programs
+generate the highest lift but also the highest trade spend. ROI must be evaluated
+for each program type separately.
+
+3. APPROVAL LEVELS
+───────────────────
+  Trade spend ≤ $10,000:     Account Manager approval
+  Trade spend $10,001–$50,000: Regional Sales Director approval
+  Trade spend $50,001–$200,000: VP Sales approval
+  Trade spend > $200,000:    Chief Revenue Officer approval
+
+All BOGOF promotions: VP Sales or higher regardless of trade spend amount.
+All promotions involving SKUs with GM < 30% require Finance co-approval.
+
+4. FINANCIAL HURDLES
+─────────────────────
+Every promotion must pass financial screening before submission for approval:
+
+  Minimum ROI (Return on Investment): 1.20x
+  Formula: ROI = Incremental Gross Profit / Trade Spend
+    where Incremental Gross Profit = (Incremental Units × Gross Profit Per Unit)
+    and Trade Spend = Discount Funded by RefreshCo × Units Sold on Promotion
+
+  Payback period: incremental volume must recover trade spend within 8 weeks
+  post-promotion. Volume borrowed from future weeks (forward buying by retailers)
+  counts against the promotion ROI calculation.
+
+5. FORECASTING REQUIREMENTS
+────────────────────────────
+Before a promotion is approved, the demand planning team must provide:
+  (a) Baseline demand (HIST_AVG_QTY_4WK from the weekly demand file)
+  (b) Incremental volume forecast (INCRMNTL_SO_QTY in promotion record)
+  (c) Post-promotion demand trough estimate (weeks of depressed demand following
+      promotional period — typically 2–4 weeks for TPR promotions)
+  (d) Adjusted demand forecast for the promotional week (ADJSTD_DMND_QTY_WK)
+
+The ADJSTD_DMND_QTY_WK4_FCST column must be updated to reflect any approved
+promotion landing within the 4-week forward-looking forecast window.
+
+6. POST-EVENT ANALYSIS (PEA)
+─────────────────────────────
+Post-event analysis is mandatory for all promotions with trade spend > $25,000.
+PEA must be completed within 4 weeks of promotion end date. PEA template includes:
+
+  Metric              Target              Actual    Variance
+  ───────────────────────────────────────────────────────────
+  Lift Factor         Per benchmark       LIFT_FCTR   YOY_DELTA_PCT
+  Incremental Units   Forecast INCRMNTL   Actual      Variance %
+  ROI                 ≥ 1.20x             ROI_VAL     Pass/Fail
+  GM%                 ≥ 25%               GM_PCT      Pass/Fail
+  OTIF (supply)       ≥ 95%               OTIF_PCT    Pass/Fail
+
+When a promotion fails ROI or GM% thresholds in PEA, the account team must
+present a corrective action plan to the Revenue Management team within 2 weeks.
+
+7. VENDOR SUPPLY READINESS
+───────────────────────────
+Before approving a promotion, supply chain must confirm:
+  - Sufficient inventory (OH_STK_QTY + OPEN_PO_QTY) to cover TOT_SO_QTY
+  - Vendor OTIF_PCT ≥ 90% in the prior 4-week period (from vendor scorecard)
+  - No active material risk flags for primary packaging vendors
+
+If the primary vendor (VNDOR_ID) has OTIF_PCT < 90% or CRTCL_MATL_FLG = Y,
+supply chain may place the promotion on hold pending vendor corrective action.
+
+8. SKU LIFECYCLE AND PROMOTION ELIGIBILITY
+────────────────────────────────────────────
+New items (NEW_ITM_FLG = Y in demand file) are eligible for distribution-building
+promotions (display, feature) but not TPR in the first 16 weeks after launch.
+Promotions on new items do not count against the maximum annual promotion frequency.
+
+Inactive SKUs (ACTV_FLG = N) are not eligible for any promotional activity.
+
+The PRMO_STS_CD field tracks promotion status: PNDNG (awaiting approval),
+APRVD (approved), ACTV (currently running), CMPLTD (finished), CNCLD (cancelled).

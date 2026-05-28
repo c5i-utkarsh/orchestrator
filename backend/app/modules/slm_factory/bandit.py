@@ -52,12 +52,20 @@ class LinUCB:
         self.d = feature_dim
         self._arms: dict[str, dict] = {}  # model_id -> {A, b}
 
-    def _init_arm(self, model_id: str) -> None:
+    def _init_arm(self, model_id: str, benchmark_prior: float = 0.5) -> None:
         if model_id not in self._arms:
+            # Warm-start: set b so the initial θ estimate ≈ benchmark_prior.
+            # scale=10 means ~10 pseudo-observations — moderate prior confidence.
+            scale = 10.0
             self._arms[model_id] = {
-                "A": np.eye(self.d),
-                "b": np.zeros(self.d),
+                "A": np.eye(self.d) * scale,
+                "b": np.ones(self.d) * benchmark_prior * scale,
             }
+
+    def warm_start_arm(self, model_id: str, benchmark_prior: float) -> None:
+        """Seed a cold arm with a benchmark prior.  No-op if already observed."""
+        if model_id not in self._arms:
+            self._init_arm(model_id, benchmark_prior)
 
     def _build_feature_vector(
         self,
@@ -128,26 +136,50 @@ class LinUCB:
         )
 
     def save(self, path: str) -> None:
-        state = {
-            model_id: {
-                "A": arm["A"].tolist(),
-                "b": arm["b"].tolist(),
-            }
-            for model_id, arm in self._arms.items()
+        """Save arm state as compressed numpy binary (.npz) — much faster than JSON."""
+        npz_path = Path(path).with_suffix(".npz")
+        # Store model_id index as a JSON-encoded string array
+        model_ids = list(self._arms.keys())
+        arrays: dict[str, np.ndarray] = {
+            "__index__": np.array(json.dumps(model_ids).encode()),
         }
-        Path(path).write_text(json.dumps(state))
+        for i, (model_id, arm) in enumerate(self._arms.items()):
+            arrays[f"A_{i}"] = arm["A"].astype(np.float32)  # float32 halves file size
+            arrays[f"b_{i}"] = arm["b"].astype(np.float32)
+        np.savez_compressed(str(npz_path), **arrays)
 
     def load(self, path: str) -> None:
-        if not Path(path).exists():
+        """Load from .npz binary (fast) or legacy .json (backward compat)."""
+        npz_path = Path(path).with_suffix(".npz")
+        if npz_path.exists():
+            try:
+                data = np.load(str(npz_path), allow_pickle=False)
+                model_ids = json.loads(bytes(data["__index__"]).decode())
+                self._arms = {
+                    model_id: {
+                        "A": data[f"A_{i}"].astype(np.float64),
+                        "b": data[f"b_{i}"].astype(np.float64),
+                    }
+                    for i, model_id in enumerate(model_ids)
+                }
+                return
+            except Exception:
+                pass
+        # Legacy JSON fallback
+        json_path = Path(path)
+        if not json_path.exists():
             return
-        state = json.loads(Path(path).read_text())
-        self._arms = {
-            model_id: {
-                "A": np.array(data["A"]),
-                "b": np.array(data["b"]),
+        try:
+            state = json.loads(json_path.read_text())
+            self._arms = {
+                model_id: {
+                    "A": np.array(data["A"]),
+                    "b": np.array(data["b"]),
+                }
+                for model_id, data in state.items()
             }
-            for model_id, data in state.items()
-        }
+        except Exception:
+            pass
 
 
 # Module-level singleton

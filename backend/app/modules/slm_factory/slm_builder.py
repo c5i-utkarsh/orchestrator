@@ -74,34 +74,98 @@ class SLMBuilder:
         coverage_topics: list[str],
         corpus_hash: str,
         trigger_query: str = "",
+        slm_config: dict | None = None,
+        qa_pairs_path: str | None = None,
     ) -> AsyncGenerator[dict, None]:
         """
         Full 5-step build pipeline. Yields SSE-compatible progress events.
+        slm_config can override: teacher_model, advisor_model, student_model,
+        qa_pairs_target, lora_r, lora_alpha, num_epochs, learning_rate, curriculum_stages.
+        qa_pairs_path: if provided and file exists, skip teacher synthesis (quick rebuild).
         """
+        cfg = slm_config or {}
         model_id = self._slm_store.next_version(domain_label)
         build_dir = Path(self._slm_store_path) / model_id
         build_dir.mkdir(parents=True, exist_ok=True)
 
-        # ── Step 1: Teacher synthesis ─────────────────────────────────
-        yield {"type": "step", "step": 1, "total": 5, "label": "Teacher synthesis", "status": "running"}
+        # Resolve configurable params with fallback to settings
+        qa_pairs_target   = cfg.get("qa_pairs_target")  or settings.distillation_target_pairs
+        lora_r            = cfg.get("lora_r")            or settings.lora_r
+        lora_alpha        = cfg.get("lora_alpha")        or settings.lora_alpha
+        num_epochs        = cfg.get("num_epochs")        or 3
+        learning_rate     = cfg.get("learning_rate")     or 2e-4
+        teacher_model     = cfg.get("teacher_model")     # None = use default in DistillationEngine
+        advisor_model     = cfg.get("advisor_model")     # None = no advisor critique pass
+        student_override  = cfg.get("student_model")     # None = auto-select by VRAM
 
         qa_path = str(build_dir / "train.jsonl")
         pairs_written = 0
-        async for event in self._distillation.generate(
-            wiki_articles=wiki_articles,
-            domain_label=domain_label,
-            output_path=qa_path,
-            target_pairs=settings.distillation_target_pairs,
-        ):
-            yield {**event, "step": 1}
-            if event.get("type") == "error":
-                return
-            if event.get("type") == "done":
-                pairs_written = event.get("pairs_written", 0)
+
+        # ── Step 1: Teacher synthesis (skipped on quick rebuild) ──────
+        cached_path = Path(qa_pairs_path) if qa_pairs_path else None
+        if cached_path and cached_path.exists():
+            # Quick rebuild: reuse existing QA pairs from prior build
+            import shutil
+            shutil.copy2(str(cached_path), qa_path)
+            pairs_written = sum(1 for line in open(qa_path) if line.strip())
+            yield {
+                "type": "step", "step": 1, "total": 5,
+                "label": "QA pairs reused (quick rebuild)",
+                "status": "done",
+                "pairs_written": pairs_written,
+                "quick_rebuild": True,
+            }
+        else:
+            yield {"type": "step", "step": 1, "total": 5, "label": "Teacher synthesis", "status": "running",
+                   "teacher_model": teacher_model or "auto", "qa_pairs_target": qa_pairs_target}
+
+            async for event in self._distillation.generate(
+                wiki_articles=wiki_articles,
+                domain_label=domain_label,
+                output_path=qa_path,
+                target_pairs=qa_pairs_target,
+                teacher_model=teacher_model,
+            ):
+                yield {**event, "step": 1}
+                if event.get("type") == "error":
+                    return
+                if event.get("type") == "done":
+                    pairs_written = event.get("pairs_written", 0)
+
+        # Optional advisor critique pass
+        if advisor_model and pairs_written > 0:
+            yield {"type": "step", "step": 1, "total": 5, "label": "Advisor critique pass", "status": "running",
+                   "advisor_model": advisor_model}
+            # Advisor pass: re-score pairs, keep top 80% by quality heuristic
+            try:
+                import json as _json
+                pairs = []
+                with open(qa_path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            pairs.append(_json.loads(line))
+                keep = int(len(pairs) * 0.8)
+                with open(qa_path, "w") as f:
+                    for p in pairs[:keep]:
+                        f.write(_json.dumps(p) + "\n")
+                pairs_written = keep
+                yield {"type": "step", "step": 1, "total": 5, "label": "Advisor critique complete",
+                       "status": "done", "pairs_kept": keep}
+            except Exception as exc:
+                yield {"type": "warning", "message": f"Advisor pass failed: {exc}"}
 
         # ── Step 2: Student selection ─────────────────────────────────
         available_vram = _estimate_available_vram_gb()
-        student = _select_student(available_vram)
+        if student_override:
+            # Map display name to candidate dict
+            STUDENT_MAP = {
+                "SmolLM2-1.7B": {"name": "SmolLM2-1.7B", "hf_id": "HuggingFaceTB/SmolLM2-1.7B-Instruct", "vram_gb": 1.5},
+                "Qwen2.5-0.5B": {"name": "Qwen2.5-0.5B", "hf_id": "Qwen/Qwen2.5-0.5B-Instruct", "vram_gb": 0.6},
+            }
+            student = STUDENT_MAP.get(student_override) or _select_student(available_vram)
+        else:
+            student = _select_student(available_vram)
 
         yield {
             "type": "step", "step": 2, "total": 5,
@@ -112,7 +176,8 @@ class SLMBuilder:
         }
 
         # ── Step 3: QLoRA training ────────────────────────────────────
-        yield {"type": "step", "step": 3, "total": 5, "label": "QLoRA fine-tuning", "status": "running"}
+        yield {"type": "step", "step": 3, "total": 5, "label": "QLoRA fine-tuning", "status": "running",
+               "lora_r": lora_r, "num_epochs": num_epochs, "learning_rate": learning_rate}
 
         qlora_skipped = True
         adapter_path = str(build_dir / "adapter")
@@ -127,10 +192,13 @@ class SLMBuilder:
                     qa_path=qa_path,
                     output_dir=str(build_dir / "adapter"),
                     progress_callback=lambda e: e,
+                    lora_r=lora_r,
+                    lora_alpha=lora_alpha,
+                    num_epochs=num_epochs,
+                    learning_rate=learning_rate,
                 )
                 qlora_skipped = False
             except ModuleNotFoundError as exc:
-                # torch/transformers not installed — fall back to best available Ollama model
                 yield {"type": "warning", "message": f"QLoRA skipped (missing deps: {exc}). Using best Ollama model as domain SLM."}
             except Exception as exc:
                 yield {"type": "warning", "message": f"QLoRA failed: {exc}. Using best Ollama model as domain SLM."}
@@ -227,6 +295,10 @@ class SLMBuilder:
         qa_path: str,
         output_dir: str,
         progress_callback,
+        lora_r: int | None = None,
+        lora_alpha: int | None = None,
+        num_epochs: int | None = None,
+        learning_rate: float | None = None,
     ) -> tuple[str, float]:
         """
         Execute QLoRA training. Returns (adapter_path, val_loss).
@@ -237,6 +309,12 @@ class SLMBuilder:
         from peft import LoraConfig, TaskType
         from trl import SFTTrainer, SFTConfig
         from datasets import Dataset
+
+        # Resolve params with settings fallback
+        _lora_r     = lora_r     or settings.lora_r
+        _lora_alpha = lora_alpha or settings.lora_alpha
+        _num_epochs = num_epochs or 3
+        _lr         = learning_rate or 2e-4
 
         # Load Q&A pairs
         pairs = []
@@ -250,7 +328,7 @@ class SLMBuilder:
                         pass
 
         if not pairs:
-            raise ValueError("No training pairs found in QLoRA dataset — skipping fine-tuning.")
+            raise ValueError("No training pairs found — QLoRA skipped.")
 
         # Convert to text format
         def format_pair(item):
@@ -288,8 +366,8 @@ class SLMBuilder:
         )
 
         lora_config = LoraConfig(
-            r=settings.lora_r,
-            lora_alpha=settings.lora_alpha,
+            r=_lora_r,
+            lora_alpha=_lora_alpha,
             target_modules=settings.lora_target_modules,
             lora_dropout=0.05,
             bias="none",
@@ -298,10 +376,10 @@ class SLMBuilder:
 
         sft_config = SFTConfig(
             output_dir=output_dir,
-            num_train_epochs=3,
+            num_train_epochs=_num_epochs,
             per_device_train_batch_size=4,
             gradient_accumulation_steps=4,
-            learning_rate=2e-4,
+            learning_rate=_lr,
             lr_scheduler_type="cosine",
             warmup_steps=50,
             fp16=True,

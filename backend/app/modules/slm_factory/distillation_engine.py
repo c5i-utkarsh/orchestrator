@@ -57,16 +57,21 @@ class DistillationEngine:
         domain_label: str,
         output_path: str,
         target_pairs: int = 12000,
+        teacher_model: str | None = None,
     ) -> AsyncGenerator[dict, None]:
         """
         Yields progress events: {type: "progress"|"done"|"error", ...}
         Writes JSONL to output_path.
+        teacher_model: optional override — if None, uses best available local model.
         """
-        teacher_info = await self._registry.get_best_local_model()
-        if not teacher_info:
-            yield {"type": "error", "message": "No local teacher model available"}
-            return
-        teacher = teacher_info.model_id
+        if teacher_model:
+            teacher = teacher_model
+        else:
+            teacher_info = await self._registry.get_best_local_model()
+            if not teacher_info:
+                yield {"type": "error", "message": "No local teacher model available"}
+                return
+            teacher = teacher_info.model_id
 
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)

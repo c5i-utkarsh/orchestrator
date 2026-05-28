@@ -51,3 +51,9 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Corpus data
+corpus_store/
+
+# Nested repos
+AI_Orchestrator/

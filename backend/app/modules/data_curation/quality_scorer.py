@@ -27,6 +27,8 @@ class QualityScorer:
     PASS_THRESHOLD = 0.50
 
     def score_batch(self, documents: list[dict]) -> list[QualityScore]:
+        if not documents:
+            return []
         lengths = [len(d.get("text", "")) for d in documents]
         p10 = sorted(lengths)[max(0, int(len(lengths) * 0.10))]
         p90 = sorted(lengths)[min(len(lengths) - 1, int(len(lengths) * 0.90))]

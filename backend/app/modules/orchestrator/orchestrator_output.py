@@ -23,6 +23,7 @@ class ModelRecommendationCard(BaseModel):
     task_type: str
     benchmark_score: float
     composite_score: float
+    speed_score: float = 0.0
     why_primary: str
     why_not_alternatives: list[str] = Field(default_factory=list)
     is_primary: bool = False

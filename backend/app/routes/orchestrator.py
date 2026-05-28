@@ -22,6 +22,31 @@ settings = get_settings()
 router = APIRouter(prefix="/orchestrator", tags=["orchestrator"])
 
 
+class ModelWeights(BaseModel):
+    """User-configurable composite scoring weights. Must sum to 1.0 (enforced by normalisation)."""
+    benchmark: float = Field(0.30, ge=0.0, le=1.0)
+    availability: float = Field(0.20, ge=0.0, le=1.0)
+    bandit: float = Field(0.20, ge=0.0, le=1.0)
+    speed: float = Field(0.15, ge=0.0, le=1.0)
+    ctx_fit: float = Field(0.10, ge=0.0, le=1.0)
+    task_fit: float = Field(0.05, ge=0.0, le=1.0)
+
+    def normalised(self) -> "ModelWeights":
+        """Return a copy with weights re-normalised to sum to 1.0."""
+        total = self.benchmark + self.availability + self.bandit + self.speed + self.ctx_fit + self.task_fit
+        if total <= 0:
+            return ModelWeights()
+        f = 1.0 / total
+        return ModelWeights(
+            benchmark=self.benchmark * f,
+            availability=self.availability * f,
+            bandit=self.bandit * f,
+            speed=self.speed * f,
+            ctx_fit=self.ctx_fit * f,
+            task_fit=self.task_fit * f,
+        )
+
+
 class AskRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=4096)
     session_id: str | None = None
@@ -31,19 +56,23 @@ class AskRequest(BaseModel):
     domain_label: str = "general"
     coverage_topics: list[str] = Field(default_factory=list)
     corpus_hash: str = ""
+    system_prompt: str = ""           # optional user-defined persona / constraints
+    model_overrides: dict | None = None  # optional {task_type: model_name} overrides from SLM Studio
+    scoring_weights: ModelWeights = Field(default_factory=ModelWeights)  # user-tunable LLM scoring
 
 
 async def _get_embedding(text: str) -> list[float]:
     """Use nomic-embed-text via Ollama if available, else zero vector."""
     try:
         registry = get_adapter_registry()
-        adapter = registry.get_adapter("ollama")
+        adapter = registry.get_ollama()
         if adapter:
-            result = await adapter._client.embeddings(
-                model="nomic-embed-text",
-                prompt=text,
+            r = await adapter._client.post(
+                "/api/embeddings",
+                json={"model": "nomic-embed-text", "prompt": text},
             )
-            return result.get("embedding", [0.0] * settings.embedding_dim)
+            r.raise_for_status()
+            return r.json().get("embedding", [0.0] * settings.embedding_dim)
     except Exception:
         pass
     return [0.0] * settings.embedding_dim
@@ -108,7 +137,59 @@ async def ask(request: AskRequest, db: AsyncSession = Depends(get_db)):
         embed_fn=_get_embedding,
     )
 
+    query_embedding = await _get_embedding(request.query)
+
     async def event_stream():
+        # ── Pre-stream: emit model_context so the UI knows what state the AI is in ──
+        # This is the probabilistic transparency layer: every consumer of this stream
+        # can see (a) whether semantic embeddings were available, (b) how many real
+        # queries each model has seen, and (c) whether the system is still exploring.
+        import numpy as np
+        from app.modules.slm_factory.bandit import get_bandit
+        embedding_available = any(v != 0.0 for v in query_embedding)
+        if not embedding_available:
+            _warn = json.dumps({
+                "type": "warning",
+                "code": "embedding_unavailable",
+                "message": (
+                    "Semantic similarity unavailable — results ranked by keyword match only. "
+                    "Install nomic-embed-text via: ollama pull nomic-embed-text"
+                ),
+            })
+            yield f"data: {_warn}\n\n"
+        bandit = get_bandit()
+        arm_context = []
+        for m in available:
+            arm = bandit._arms.get(m.model_id)
+            if arm:
+                try:
+                    A_inv = np.linalg.inv(arm["A"])
+                    theta = A_inv @ arm["b"]
+                    # Observations = excess on A diagonal beyond identity scale=10
+                    obs = max(0, round(float(np.mean(np.diag(arm["A"]))) - 10.0))
+                    explore = float(np.sqrt(float(np.mean(np.diag(A_inv)))))
+                    est_reward = round(float(np.mean(theta)), 4)
+                    state = "Exploring" if obs < 20 else "Learning" if obs < 50 else "Confident"
+                    arm_context.append({
+                        "model_id": m.model_id,
+                        "provider": m.provider,
+                        "observations": obs,
+                        "explore_width": round(explore, 5),
+                        "estimated_reward": est_reward,
+                        "state": state,
+                    })
+                except Exception:
+                    pass  # singular matrix or other; skip this arm
+        _ctx = json.dumps({
+            "type": "model_context",
+            "data": {
+                "embedding_available": embedding_available,
+                "arms": arm_context,
+                "available_model_count": len(available),
+            },
+        })
+        yield f"data: {_ctx}\n\n"
+
         async for event in orchestrator.run(
             query=request.query,
             session_id=request.session_id or str(uuid.uuid4()),
@@ -118,6 +199,8 @@ async def ask(request: AskRequest, db: AsyncSession = Depends(get_db)):
             coverage_topics=coverage_topics,
             corpus_hash=corpus_hash,
             available_models=available_names,
+            system_prompt=request.system_prompt,
+            scoring_weights=request.scoring_weights.normalised(),
         ):
             yield f"data: {json.dumps(event)}\n\n"
 

@@ -1,13 +1,17 @@
 """
 Task Classifier — fires before coverage_checker on every query.
 
+Primary path  (zero latency):  keyword matching against curated signal lists.
+Fallback path (when no keywords match + embed_fn provided):
+    Zero-shot embedding cosine similarity against pre-computed task-type
+    centroid phrases (lazily cached per worker lifetime).
+
 Classifies query intent into:
   DOMAIN     — answerable by domain SLM (knowledge Q&A, entity lookups)
   CAPABILITY — needs specialist model (code gen, UI building, time series, etc.)
   HYBRID     — both domain context AND specialist model needed
-
-Uses keyword signals + embedding cosine match against task-type centroids.
 """
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -55,6 +59,24 @@ DOMAIN_KEYWORDS = [
     "our company", "our project", "our system",
 ]
 
+_SUPPLY_CHAIN_SIGNALS = [
+    "supply chain", "procurement", "demand forecast", "inventory",
+    "supplier", "tariff", "logistics", "cpg", "event trigger",
+]
+
+# Representative phrases for embedding-based fallback.
+# Each string describes the semantic centre of that task type.
+_TASK_PHRASES: dict[str, str] = {
+    "code_generation":  "write code implement function class debug refactor script algorithm unit test",
+    "ui_building":      "user interface component react vue html css frontend dashboard design layout",
+    "time_series":      "forecast time series predict trend anomaly seasonality arima chronos",
+    "data_analysis":    "analyze data statistics correlation distribution aggregate chart plot pandas",
+    "financial":        "stock price portfolio risk valuation financial model dcf earnings revenue",
+    "geospatial":       "map coordinates geospatial gps latitude longitude shapefile polygon topology",
+    "general_reasoning":"explain compare summarize difference trade-off pros cons how does work",
+    "domain_qa":        "according to our data documents records corpus domain knowledge what does",
+}
+
 
 @dataclass
 class ClassificationResult:
@@ -66,19 +88,48 @@ class ClassificationResult:
 
 
 class TaskClassifier:
-    def classify(self, query: str) -> ClassificationResult:
-        q = query.lower()
+    def __init__(self, embed_fn=None):
+        self._embed = embed_fn
+        # Centroid embeddings cached lazily — populated on first embedding fallback call
+        self._centroid_cache: dict[str, list[float]] = {}
 
+    async def classify(
+        self,
+        query: str,
+        query_embedding: list[float] | None = None,
+    ) -> ClassificationResult:
+        """Classify query intent.
+
+        Tries keyword matching first (free).  When no keywords match and an
+        embed_fn + pre-computed query_embedding are available, falls back to
+        zero-shot embedding similarity against task centroid phrases.
+        """
+        result = self._keyword_classify(query)
+        if result is not None:
+            return result
+
+        # Embedding fallback
+        if self._embed is not None and query_embedding is not None:
+            try:
+                return await self._embedding_classify(query, query_embedding)
+            except Exception:
+                pass
+
+        return ClassificationResult(
+            intent=TaskIntent.DOMAIN,
+            primary_task_type="domain_qa",
+            confidence=0.75,
+            detected_capability=None,
+            reasoning="No keyword match; defaulting to domain Q&A",
+        )
+
+    def _keyword_classify(self, query: str) -> ClassificationResult | None:
+        """Keyword scan.  Returns None (not a default) when nothing matches,
+        signalling the caller to try embedding classification."""
+        q = query.lower()
         has_domain = any(kw in q for kw in DOMAIN_KEYWORDS)
 
-        # Supply chain / system-building queries should be treated as domain + general reasoning
-        SUPPLY_CHAIN_SIGNALS = [
-            "supply chain", "procurement", "demand forecast", "inventory",
-            "supplier", "tariff", "logistics", "cpg", "event trigger",
-        ]
-        has_supply_chain = any(sig in q for sig in SUPPLY_CHAIN_SIGNALS)
-        if has_supply_chain:
-            # Treat as DOMAIN query about supply chain system design
+        if any(sig in q for sig in _SUPPLY_CHAIN_SIGNALS):
             return ClassificationResult(
                 intent=TaskIntent.DOMAIN,
                 primary_task_type="general_reasoning",
@@ -89,22 +140,18 @@ class TaskClassifier:
 
         capability_hits: dict[str, int] = {}
         for cap_type, keywords in CAPABILITY_KEYWORDS.items():
-            # Use whole-phrase matching to avoid substring false positives (e.g. "ui" in "build")
-            hits = sum(1 for kw in keywords if f" {kw} " in f" {q} " or q.startswith(kw) or q.endswith(kw))
+            hits = sum(
+                1 for kw in keywords
+                if f" {kw} " in f" {q} " or q.startswith(kw) or q.endswith(kw)
+            )
             if hits > 0:
                 capability_hits[cap_type] = hits
 
         if not capability_hits:
-            return ClassificationResult(
-                intent=TaskIntent.DOMAIN,
-                primary_task_type="domain_qa",
-                confidence=0.85,
-                detected_capability=None,
-                reasoning="No capability keywords detected; treating as domain Q&A",
-            )
+            return None   # → embedding fallback
 
-        best_cap = max(capability_hits, key=capability_hits.get)
-        cap_score = capability_hits[best_cap]
+        best_cap   = max(capability_hits, key=capability_hits.get)
+        cap_score  = capability_hits[best_cap]
 
         if has_domain:
             return ClassificationResult(
@@ -121,4 +168,44 @@ class TaskClassifier:
             confidence=min(0.65 + cap_score * 0.05, 0.95),
             detected_capability=best_cap,
             reasoning=f"Capability task detected: {best_cap} (hits: {cap_score})",
+        )
+
+    async def _embedding_classify(
+        self,
+        query: str,
+        query_embedding: list[float],
+    ) -> ClassificationResult:
+        """Zero-shot task classification via cosine similarity to centroid phrases.
+
+        Centroid embeddings are computed once per worker lifetime and cached.
+        This adds one embed() call per uncached task type on first invocation only.
+        """
+        def _cos(a: list[float], b: list[float]) -> float:
+            dot   = sum(x * y for x, y in zip(a, b))
+            norm_a = math.sqrt(sum(x * x for x in a))
+            norm_b = math.sqrt(sum(x * x for x in b))
+            return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
+
+        best_task = "domain_qa"
+        best_sim  = 0.0
+
+        for task_type, phrase in _TASK_PHRASES.items():
+            if task_type not in self._centroid_cache:
+                self._centroid_cache[task_type] = await self._embed(phrase)
+            sim = _cos(query_embedding, self._centroid_cache[task_type])
+            if sim > best_sim:
+                best_sim  = sim
+                best_task = task_type
+
+        intent = (
+            TaskIntent.DOMAIN
+            if best_task in ("domain_qa", "general_reasoning")
+            else TaskIntent.CAPABILITY
+        )
+        return ClassificationResult(
+            intent=intent,
+            primary_task_type=best_task,
+            confidence=round(best_sim, 3),
+            detected_capability=best_task if intent == TaskIntent.CAPABILITY else None,
+            reasoning=f"Embedding classification: {best_task} (similarity: {best_sim:.3f})",
         )

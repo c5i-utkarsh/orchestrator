@@ -18,13 +18,23 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# Supply-chain aware entity patterns (proper nouns + domain terms)
+# spaCy entity types to keep (filters out DATE, CARDINAL, PERCENT, MONEY, etc.)
+_KEPT_TYPES = {
+    "ORG",      # companies, agencies, institutions
+    "GPE",      # countries, cities, states
+    "LOC",      # non-GPE locations (mountain ranges, bodies of water)
+    "PRODUCT",  # objects, vehicles, foods, products
+    "PERSON",   # people
+    "EVENT",    # named hurricanes, battles, wars, sports events
+    "FAC",      # facilities (airports, bridges, hospitals)
+    "NORP",     # nationalities, religious or political groups
+    "LAW",      # named laws and regulations
+}
+
+# Regex fallback patterns (used only if spaCy is unavailable)
 _ENTITY_PATTERNS = [
-    # Capitalized multi-word proper nouns
     r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4})\b",
-    # ALL-CAPS acronyms  
     r"\b([A-Z]{2,8})\b",
-    # Domain terms: tariff, route, port, supplier, etc.
     r"\b(tariff\s+\w+|trade\s+\w+|supply\s+chain\s+\w*|port\s+of\s+\w+|"
     r"route\s+\w+|vendor\s+\w*|carrier\s+\w*|warehouse\s+\w*|SKU[-\s]?\w*|"
     r"lead\s+time\s*\w*|demand\s+forecast\s*\w*|inventory\s+\w*)\b",
@@ -34,7 +44,7 @@ _COMPILED = [re.compile(p, re.IGNORECASE) for p in _ENTITY_PATTERNS]
 # Co-occurrence window (sentences within which two entities are related)
 _CO_WINDOW = 3
 
-# Supply-chain event trigger keywords to tag on nodes
+# Event trigger keywords to tag on nodes
 _EVENT_TRIGGERS = {
     "tariff", "sanction", "war", "conflict", "closure", "strike", "shortage",
     "disruption", "delay", "congestion", "pandemic", "earthquake", "flood",
@@ -42,6 +52,29 @@ _EVENT_TRIGGERS = {
     "embargo", "blockade", "route closure", "port closure", "price surge",
     "demand spike", "inventory shortage", "lead time increase",
 }
+
+# Module-level NLP cache (loaded once per process)
+_NLP_CACHE: dict = {}
+
+
+def _get_nlp():
+    """Load spaCy model once and cache it. Returns None if spaCy is unavailable."""
+    if "nlp" in _NLP_CACHE:
+        return _NLP_CACHE["nlp"]
+    try:
+        import spacy
+        for model_name in ("en_core_web_lg", "en_core_web_md", "en_core_web_sm"):
+            try:
+                nlp = spacy.load(model_name, disable=["parser", "senter", "lemmatizer"])
+                nlp.max_length = 2_000_000
+                _NLP_CACHE["nlp"] = nlp
+                return nlp
+            except OSError:
+                continue
+    except ImportError:
+        pass
+    _NLP_CACHE["nlp"] = None
+    return None
 
 
 class GraphifyRunner:
@@ -163,7 +196,53 @@ class GraphifyRunner:
         return docs
 
     def _extract_entities(self, docs: list[dict]) -> dict[str, dict]:
-        """Extract named entities from all docs. Returns {entity_text: {count, is_event_trigger}}."""
+        """Extract named entities. Uses spaCy NER if available, regex fallback otherwise."""
+        nlp = _get_nlp()
+        if nlp is not None:
+            return self._extract_entities_spacy(docs, nlp)
+        return self._extract_entities_regex(docs)
+
+    def _extract_entities_spacy(self, docs: list[dict], nlp) -> dict[str, dict]:
+        """spaCy NER: extracts typed real-world entities (ORG, GPE, PRODUCT, EVENT, etc.)."""
+        entity_counts: dict[str, int] = collections.Counter()
+        entity_types: dict[str, str] = {}
+
+        # Collect text chunks — keep within spaCy's safe max_length
+        chunks = []
+        for doc in docs:
+            text = doc.get("text", "")
+            for i in range(0, len(text), 100_000):
+                chunk = text[i:i + 100_000].strip()
+                if chunk:
+                    chunks.append(chunk)
+
+        # Batch NER (disable unneeded components for speed)
+        for spacy_doc in nlp.pipe(chunks, batch_size=32):
+            for ent in spacy_doc.ents:
+                if ent.label_ not in _KEPT_TYPES:
+                    continue
+                key = ent.text.strip()
+                if not (3 <= len(key) <= 80):
+                    continue
+                lower = key.lower()
+                entity_counts[lower] += 1
+                if lower not in entity_types:
+                    entity_types[lower] = ent.label_
+
+        min_count = max(2, len(docs) // 50)
+        entity_map = {}
+        for ent_lower, cnt in entity_counts.items():
+            if cnt >= min_count:
+                is_trigger = any(t in ent_lower for t in _EVENT_TRIGGERS)
+                entity_map[ent_lower] = {
+                    "count": cnt,
+                    "type": entity_types.get(ent_lower, "ENTITY"),
+                    "is_event_trigger": is_trigger,
+                }
+        return entity_map
+
+    def _extract_entities_regex(self, docs: list[dict]) -> dict[str, dict]:
+        """Regex fallback when spaCy is unavailable."""
         entity_counts: dict[str, int] = collections.Counter()
         for doc in docs:
             text = doc.get("text", "")
@@ -173,14 +252,16 @@ class GraphifyRunner:
                     if 2 < len(ent) < 80:
                         entity_counts[ent.lower()] += 1
 
-        # Keep entities that appear at least twice (reduces noise)
         min_count = max(2, len(docs) // 50)
         entity_map = {}
         for ent, cnt in entity_counts.items():
             if cnt >= min_count:
-                lower = ent.lower()
-                is_trigger = any(t in lower for t in _EVENT_TRIGGERS)
-                entity_map[ent] = {"count": cnt, "is_event_trigger": is_trigger}
+                is_trigger = any(t in ent for t in _EVENT_TRIGGERS)
+                entity_map[ent] = {
+                    "count": cnt,
+                    "type": "ENTITY",
+                    "is_event_trigger": is_trigger,
+                }
         return entity_map
 
     def _build_graph(self, docs: list[dict], entity_map: dict) -> "nx.Graph":
@@ -190,7 +271,9 @@ class GraphifyRunner:
 
         # Add nodes
         for ent, props in entity_map.items():
-            G.add_node(ent, count=props["count"],
+            G.add_node(ent,
+                       count=props["count"],
+                       type=props.get("type", "ENTITY"),
                        is_event_trigger=props["is_event_trigger"],
                        label=ent)
 
@@ -242,6 +325,7 @@ class GraphifyRunner:
             nodes.append({
                 "id": node,
                 "label": data.get("label", node),
+                "type": data.get("type", "ENTITY"),
                 "count": data.get("count", 1),
                 "community": data.get("community", 0),
                 "is_event_trigger": data.get("is_event_trigger", False),
@@ -252,33 +336,59 @@ class GraphifyRunner:
         return {"nodes": nodes, "edges": edges}
 
     def _write_wiki(self, G: "nx.Graph", communities: list[set], docs: list[dict]) -> None:
-        """Write one markdown article per community summarizing its entities."""
+        """Write one markdown wiki article per community, entities grouped by type."""
         self.wiki_dir.mkdir(parents=True, exist_ok=True)
-        doc_texts = {d.get("id", str(i)): d.get("text", "") for i, d in enumerate(docs)}
+        doc_texts = [d.get("text", "") for d in docs]
+
+        _TYPE_LABELS = {
+            "ORG": "Organizations", "GPE": "Countries & Cities",
+            "LOC": "Locations", "PRODUCT": "Products & Goods",
+            "PERSON": "People", "EVENT": "Events",
+            "FAC": "Facilities", "NORP": "Groups & Nationalities",
+            "LAW": "Regulations & Laws", "ENTITY": "Other Entities",
+        }
+        _TYPE_ORDER = ["ORG", "GPE", "LOC", "PRODUCT", "PERSON",
+                       "EVENT", "FAC", "NORP", "LAW", "ENTITY"]
 
         for comm_id, members in enumerate(communities):
             members_list = sorted(members)
-            triggers = [m for m in members_list
-                        if G.nodes[m].get("is_event_trigger", False)]
+            triggers = [m for m in members_list if G.nodes[m].get("is_event_trigger", False)]
 
-            # Find top sentences mentioning these entities
-            snippets = []
-            for text in list(doc_texts.values())[:20]:
+            # Group entities by spaCy type
+            by_type: dict[str, list[str]] = collections.defaultdict(list)
+            for m in members_list:
+                etype = G.nodes[m].get("type", "ENTITY")
+                by_type[etype].append(m)
+
+            # Title: most-connected nodes (hub entities = most informative)
+            hub_nodes = sorted(members_list, key=lambda n: G.degree(n), reverse=True)[:3]
+
+            # Find sentences mentioning ≥2 entities from this community
+            search_terms = set(m.lower() for m in members_list[:20])
+            scored_snippets = []
+            for text in doc_texts[:40]:
                 for sent in re.split(r"(?<=[.!?])\s+", text):
-                    if any(m.lower() in sent.lower() for m in members_list[:5]):
-                        snippets.append(sent.strip())
-                        if len(snippets) >= 5:
-                            break
-                if len(snippets) >= 5:
+                    sent_lower = sent.lower()
+                    hits = sum(1 for t in search_terms if t in sent_lower)
+                    if hits >= 2 and 8 <= len(sent.split()) <= 60:
+                        scored_snippets.append((hits, sent.strip()))
+                if len(scored_snippets) >= 10:
                     break
+            scored_snippets.sort(reverse=True)
+            top_snippets = [s for _, s in scored_snippets[:6]]
 
-            md = f"# Community {comm_id}: {', '.join(members_list[:5])}\n\n"
-            md += f"**Key entities ({len(members_list)}):** {', '.join(members_list[:20])}\n\n"
+            # Build article
+            md = f"# {', '.join(hub_nodes)}\n\n"
+            for etype in _TYPE_ORDER:
+                if etype in by_type:
+                    label = _TYPE_LABELS.get(etype, etype)
+                    entities = by_type[etype][:25]
+                    md += f"**{label}:** {', '.join(entities)}\n\n"
             if triggers:
-                md += f"**Event triggers:** {', '.join(triggers[:10])}\n\n"
-            if snippets:
+                md += f"**Disruption signals:** {', '.join(triggers[:10])}\n\n"
+            if top_snippets:
                 md += "## Key passages\n\n"
-                for s in snippets[:5]:
+                for s in top_snippets:
                     md += f"> {s}\n\n"
 
             wiki_path = self.wiki_dir / f"community_{comm_id:04d}.md"
@@ -299,7 +409,7 @@ class GraphifyRunner:
         return articles
 
     def query_graph(self, query: str, token_budget: int = 50000) -> str:
-        """Return graph context relevant to query (keyword match on node labels)."""
+        """Return typed graph context relevant to query (keyword match on node labels)."""
         if not self.graph_json_path.exists():
             return ""
         data = self.get_graph_data()
@@ -310,7 +420,11 @@ class GraphifyRunner:
         ]
         if not relevant_nodes:
             return ""
-        context = "Relevant graph entities:\n"
-        for n in relevant_nodes[:30]:
-            context += f"- {n['label']} (community {n.get('community', '?')}, count {n.get('count', 1)})\n"
+        # Group by entity type for cleaner, more informative context
+        by_type: dict[str, list[str]] = collections.defaultdict(list)
+        for n in relevant_nodes[:80]:
+            by_type[n.get("type", "ENTITY")].append(n["label"])
+        context = "Relevant knowledge graph entities:\n"
+        for etype, labels in sorted(by_type.items()):
+            context += f"  [{etype}] {', '.join(labels[:20])}\n"
         return context

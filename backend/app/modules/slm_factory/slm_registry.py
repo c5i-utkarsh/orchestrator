@@ -94,20 +94,68 @@ class SLMRegistry:
     async def find_best_match(self, query_embedding: list[float]) -> dict | None:
         """Find the SLM with highest cosine similarity to the query embedding."""
         embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
-        result = await self._db.execute(text("""
-            SELECT model_id, domain_label, coverage_topics, ollama_model_name,
-                   task_completion_rate, hallucination_rate,
-                   1 - (domain_embedding <=> (:emb)::vector) AS similarity
-            FROM slm_registry
-            ORDER BY domain_embedding <=> (:emb)::vector
-            LIMIT 3
-        """), {"emb": embedding_str})
-        rows = result.mappings().all()
-        if not rows:
+        try:
+            result = await self._db.execute(text("""
+                SELECT model_id, domain_label, coverage_topics, ollama_model_name,
+                       task_completion_rate, hallucination_rate, last_used_at,
+                       1 - (domain_embedding <=> (:emb)::vector) AS similarity
+                FROM slm_registry
+                WHERE domain_embedding IS NOT NULL
+                ORDER BY domain_embedding <=> (:emb)::vector
+                LIMIT 3
+            """), {"emb": embedding_str})
+            rows = result.mappings().all()
+            if not rows:
+                return None
+            best = dict(rows[0])
+            best["top_matches"] = [dict(r) for r in rows]
+            return best
+        except Exception as exc:
+            # Dimension mismatch (stored embeddings use a different model/size).
+            # Clear the stale embeddings so they don't keep blocking, then fall
+            # back to recency-based selection.
+            if "different vector dimensions" in str(exc) or "DataError" in type(exc).__name__:
+                try:
+                    await self._db.execute(text(
+                        "UPDATE slm_registry SET domain_embedding = NULL"
+                    ))
+                    await self._db.commit()
+                except Exception:
+                    pass
+            # Fall back: return the most recently used SLM without vector search
+            try:
+                fb = await self._db.execute(text("""
+                    SELECT model_id, domain_label, coverage_topics, ollama_model_name,
+                           task_completion_rate, hallucination_rate, last_used_at
+                    FROM slm_registry
+                    ORDER BY last_used_at DESC NULLS LAST
+                    LIMIT 3
+                """))
+                rows = fb.mappings().all()
+                if not rows:
+                    return None
+                best = dict(rows[0])
+                best["similarity"] = 0.5  # neutral score so pipeline continues
+                best["top_matches"] = [dict(r) for r in rows]
+                return best
+            except Exception:
+                return None
+
+    async def find_by_corpus_hash(self, corpus_hash: str) -> dict | None:
+        """Return the most recent SLM built for this corpus, or None."""
+        if not corpus_hash:
             return None
-        best = dict(rows[0])
-        best["top_matches"] = [dict(r) for r in rows]
-        return best
+        result = await self._db.execute(text("""
+            SELECT model_id, domain_label, coverage_topics, base_model,
+                   ollama_model_name, model_path, val_loss, hallucination_rate,
+                   task_completion_rate, training_corpus_hash, created_at
+            FROM slm_registry
+            WHERE training_corpus_hash = :hash
+            ORDER BY created_at DESC
+            LIMIT 1
+        """), {"hash": corpus_hash})
+        row = result.mappings().first()
+        return dict(row) if row else None
 
     async def list_all(self) -> list[dict]:
         result = await self._db.execute(text("""

@@ -66,16 +66,9 @@ class SLMStore:
         dest = self.model_dir(model_id)
         dest.mkdir(parents=True, exist_ok=True)
 
-        if not src.exists():
-            # Adapter was never produced (e.g. training skipped or failed).
-            # Log and return gracefully instead of raising.
-            import logging
-            logging.getLogger(__name__).warning(
-                "save_adapter: path %s does not exist, skipping copy.", src
-            )
-            return str(dest)
-
         import shutil
+        if not src.exists():
+            return str(dest)
         if src.is_dir():
             shutil.copytree(src, dest / "adapter", dirs_exist_ok=True)
         else:

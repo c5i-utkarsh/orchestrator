@@ -1,0 +1,93 @@
+REFRESHCO CATEGORY MANAGEMENT PLAYBOOK 2026
+Sales & Category Development Team
+
+PURPOSE
+────────
+This playbook defines RefreshCo's category management principles, planogram
+standards, assortment recommendations, and shelf space guidelines for key
+retail channels. Category captaincy is held by RefreshCo in the energy drink
+sub-category at 14 key national grocery retailers.
+
+CARBONATED SOFT DRINKS — SHELF STRATEGY
+─────────────────────────────────────────
+Recommended facings by SKU tier:
+  Tier 1 (Cola, Lemon-Lime): minimum 4 facings in 355mL can, 3 facings in 2L
+  Tier 2 (Orange Burst, Root Beer): 2 facings in 355mL can
+  Tier 3 (Ginger Ale): 1 facing, positioned in premium adjacency
+
+The 355mL can format drives the highest velocity and must occupy eye-level shelf
+positions (shelf heights 48"–60"). The 2L bottle should be positioned on the
+bottom shelf near category entry for value shoppers.
+
+Seasonal inventory buildups are required for Cola and Lemon-Lime in the
+4-week period before Memorial Day, July 4th, and Labor Day. Recommended
+safety stock increase: +40% above normal safety stock levels during holiday
+pre-build periods.
+
+ENERGY DRINKS — PLANOGRAM & DISTRIBUTION
+──────────────────────────────────────────
+ZingEnergy Original Surge must be distributed in all channels. Recommended
+minimum shelf standards:
+  Grocery:          4 facings, cold vault preferred
+  Convenience:      6 facings in cold vault (door 1–3), 2 facings ambient
+  Club:             12-count case only, end-cap display
+  Drug:             2 facings ambient
+  Ecommerce:        12-count and 24-count case listings required
+
+ZingEnergy Sugar-Free Surge should be merchandised adjacent to Original Surge.
+Recommend a "Better Choice" shelf talker at the Sugar-Free facing.
+
+ZingEnergy Berry Rush is in distribution build phase. Target for 2026:
+  - Gain distribution in 1,200 new convenience store doors per quarter
+  - Secure grocery authorization at 8 new regional chains by Q3 2026
+  - Club store authorization at 2 national club retailers by Q2 2026
+
+SALTY SNACKS — ASSORTMENT OPTIMIZATION
+────────────────────────────────────────
+Category assortment recommendation by channel:
+
+  Grocery (large format):
+    Must-stock: Potato Chips 200g, Tortilla Chips 200g, Cheese Puffs 100g
+    Recommended: Popcorn Butter 100g, Pretzels 100g
+    Opportunity: NatureNosh Oat Crackers (cross-category in health aisle)
+
+  Convenience Store:
+    Must-stock: Potato Chips 28g, Tortilla Chips 56g, Cheese Puffs 56g
+    Recommended: Fruit Chews 56g (register counter display)
+    DO NOT stock: 200g formats (low velocity in conv. format)
+
+  Club Store:
+    Must-stock: Potato Chips 200g, Tortilla Chips 200g (Club exclusive bundle)
+    Recommended: Mixed variety packs (Chips + Puffs + Pretzels 6-count)
+
+TRADE PROMOTION GUIDELINES (SUMMARY)
+──────────────────────────────────────
+Maximum promotional frequency per SKU:
+  - Tier 1 CSD SKUs: maximum 6 promotional periods per year
+  - Energy drinks: maximum 4 promotional periods per year
+  - Snacks: maximum 8 promotional periods per year (higher velocity)
+
+Minimum ROI threshold for promotion approval: 1.2x
+Approved promotion types: TPR (Temporary Price Reduction), Feature Ad,
+  Display (DISP), Combo Multi-Pack, BOGOF (Buy One Get One Free).
+BOGOF promotions require VP Sales approval for all SKUs.
+
+Promotional lift benchmarks by SKU type:
+  - Cola 355mL (TPR -15%): expected lift 1.6x–2.0x
+  - Energy drink (Feature Ad): expected lift 2.2x–3.1x
+  - Chips 200g (Feature + Display): expected lift 2.8x–3.5x
+  - Cookies (BOGOF): expected lift 3.0x–4.2x
+
+DEMAND PLANNING INTEGRATION
+─────────────────────────────
+All approved promotions must be entered in the trade promotion management system
+at least 6 weeks before start date. The demand planning team uses the PRMO_FLG
+indicator in the weekly demand file to adjust unconstrained forecasts. The
+ADJSTD_DMND_QTY_WK and ADJSTD_DMND_QTY_WK4_FCST columns are the primary inputs
+to production scheduling at all four manufacturing plants (PLNT_CHI, PLNT_DAL,
+PLNT_ATL, PLNT_LAX).
+
+Forecast accuracy KPIs:
+  - MAPE (Mean Absolute Percentage Error) target: < 12% at SKU/week level
+  - BIAS target: between -3% and +3% (systematic over/under-forecast)
+  - Review cycle: weekly on Tuesdays for rolling 13-week horizon

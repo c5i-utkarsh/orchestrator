@@ -3,33 +3,55 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
+const DOMAIN_PRESETS = [
+  { id: "manufacturing",  label: "Manufacturing",   icon: "🏭", desc: "Production, supply chain, quality control" },
+  { id: "it-industry",    label: "IT Industry",     icon: "💻", desc: "Software, infrastructure, DevOps" },
+  { id: "healthcare",     label: "Healthcare",      icon: "🏥", desc: "Clinical, patient care, medical devices" },
+  { id: "finance",        label: "Finance",         icon: "💹", desc: "Banking, investment, risk management" },
+  { id: "legal",          label: "Legal",           icon: "⚖️",  desc: "Contracts, compliance, case research" },
+  { id: "retail",         label: "Retail",          icon: "🛍️",  desc: "E-commerce, inventory, customer data" },
+  { id: "logistics",      label: "Logistics",       icon: "🚚", desc: "Supply chain, fleet, warehouse ops" },
+  { id: "energy",         label: "Energy",          icon: "⚡", desc: "Oil & gas, renewables, grid management" },
+  { id: "pharma",         label: "Pharma",          icon: "💊", desc: "Drug development, regulatory, trials" },
+  { id: "research",       label: "Research",        icon: "🔬", desc: "Scientific analysis, literature review" },
+  { id: "custom",         label: "Other / Custom",  icon: "🗂️",  desc: "Enter your own domain below" },
+];
+
 interface DBCredentials {
-  db_type: string;
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  password: string;
+  db_type: string; host: string; port: number;
+  database: string; username: string; password: string;
 }
 
-export default function HomePage() {
+export default function WorkspacePage() {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [domainLabel, setDomainLabel] = useState("general");
-  const [files, setFiles] = useState<File[]>([]);
-  const [dbCreds, setDbCreds] = useState<DBCredentials>({
+  const [selectedDomain, setSelectedDomain] = useState("");
+  const [customDomain, setCustomDomain]     = useState("");
+  const [files, setFiles]                   = useState<File[]>([]);
+  const [dbOpen, setDbOpen]                 = useState(false);
+  const [dbCreds, setDbCreds]               = useState<DBCredentials>({
     db_type: "", host: "localhost", port: 5432,
     database: "", username: "", password: "",
   });
-  const [schemaPreview, setSchemaPreview] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [schemaPreview, setSchemaPreview]   = useState<string | null>(null);
+  const [isConnecting, setIsConnecting]     = useState(false);
+  const [isSubmitting, setIsSubmitting]     = useState(false);
+  const [error, setError]                   = useState("");
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    setFiles(Array.from(e.dataTransfer.files));
+    setFiles(prev => {
+      const existing = new Set(prev.map(f => f.name));
+      return [...prev, ...Array.from(e.dataTransfer.files).filter(f => !existing.has(f.name))];
+    });
   }, []);
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const incoming = Array.from(e.target.files ?? []);
+    setFiles(prev => {
+      const existing = new Set(prev.map(f => f.name));
+      return [...prev, ...incoming.filter(f => !existing.has(f.name))];
+    });
+  };
 
   const testConnection = async () => {
     if (!dbCreds.db_type) return;
@@ -38,8 +60,7 @@ export default function HomePage() {
     try {
       const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
       const res = await fetch(`${API}/api/v1/data/test-connection`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dbCreds),
       });
       const data = await res.json();
@@ -51,164 +72,229 @@ export default function HomePage() {
     }
   };
 
+  const effectiveDomain = selectedDomain === "custom"
+    ? customDomain.trim()
+    : selectedDomain;
+
   const handleSubmit = async () => {
-    if (!query.trim()) { setError("Please enter a question or goal"); return; }
+    if (!effectiveDomain)                       { setError("Please select a domain"); return; }
+    if (files.length === 0 && !dbCreds.db_type) { setError("Please upload files or connect a database"); return; }
     setIsSubmitting(true);
     setError("");
-
     try {
       const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
       const form = new FormData();
       for (const f of files) form.append("files", f);
-      form.append("domain_label", domainLabel);
+      form.append("domain_label", effectiveDomain);
       if (dbCreds.db_type) {
-        form.append("db_type", dbCreds.db_type);
-        form.append("host", dbCreds.host);
-        form.append("port", String(dbCreds.port));
+        form.append("db_type",  dbCreds.db_type);
+        form.append("host",     dbCreds.host);
+        form.append("port",     String(dbCreds.port));
         form.append("database", dbCreds.database);
         form.append("username", dbCreds.username);
         form.append("password", dbCreds.password);
       }
-
-      const res = await fetch(`${API}/api/v1/data/ingest`, { method: "POST", body: form });
+      const res  = await fetch(`${API}/api/v1/data/ingest`, { method: "POST", body: form });
       const data = await res.json();
-
-      // Store query + job_id in session storage for Step 2
-      sessionStorage.setItem("job_id", data.job_id);
-      sessionStorage.setItem("query", query);
-      sessionStorage.setItem("domain_label", domainLabel);
-
+      sessionStorage.setItem("job_id",       data.job_id);
+      sessionStorage.setItem("domain_label", effectiveDomain);
+      sessionStorage.removeItem("query");
+      sessionStorage.removeItem("reuse_corpus");
       router.push("/processing");
     } catch (e: any) {
-      setError(e.message ?? "Failed to start");
+      setError(e.message ?? "Failed to start ingestion");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-12">
-      <div className="mb-10 text-center">
-        <h1 className="text-3xl font-bold text-brand-500 mb-2">AI Fine-Tuning Orchestrator</h1>
-        <p className="text-gray-400 text-sm">Build domain SLMs from your corpus. Ask anything — the system routes to the right model.</p>
+    <div>
+      {/* Header */}
+      <div className="bg-card border-b border-dborder px-0 py-7 mb-7">
+        <div className="w-full px-8">
+          <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
+            <span className="inline-block w-4 h-px bg-accent" />
+            Step 1 · Workspace
+          </div>
+          <div className="font-sora text-2xl font-semibold text-t1">Set up your workspace</div>
+          <div className="text-[12px] text-t2 mt-1">Choose your domain and upload your knowledge corpus</div>
+        </div>
       </div>
 
-      {/* Step indicator */}
-      <div className="flex gap-2 mb-8 text-xs text-gray-500">
-        {["1 · Setup", "2 · Processing", "3 · Recommendations"].map((s, i) => (
-          <span key={i} className={`px-3 py-1 rounded-full ${i === 0 ? "bg-brand-600 text-white" : "bg-gray-800"}`}>{s}</span>
-        ))}
-      </div>
+      <div className="w-full px-8">
 
-      {/* Query */}
-      <section className="mb-6">
-        <label className="block text-sm font-medium text-gray-300 mb-2">Your question or goal</label>
-        <textarea
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-gray-100 focus:outline-none focus:border-brand-500 resize-none"
-          rows={3}
-          placeholder="e.g. Analyze customer churn patterns and suggest retention strategies..."
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-        />
-      </section>
+        {/* ── Domain selector ─────────────────────────────────── */}
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-t3 mb-3">Select domain</div>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {DOMAIN_PRESETS.map(d => (
+            <button
+              key={d.id}
+              onClick={() => setSelectedDomain(d.id)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-card border text-left transition-all ${
+                selectedDomain === d.id
+                  ? "bg-accent/10 border-accent/50 shadow-sm"
+                  : "bg-card2 border-dborder hover:border-accent/30 hover:bg-accent/5"
+              }`}
+            >
+              <span className="text-xl flex-shrink-0">{d.icon}</span>
+              <div className="min-w-0">
+                <div className={`text-[12px] font-semibold leading-tight ${
+                  selectedDomain === d.id ? "text-accent" : "text-t1"
+                }`}>{d.label}</div>
+                <div className="text-[10px] text-t3 mt-0.5 leading-snug line-clamp-1">{d.desc}</div>
+              </div>
+              {selectedDomain === d.id && (
+                <span className="ml-auto text-accent font-bold flex-shrink-0">✓</span>
+              )}
+            </button>
+          ))}
+        </div>
 
-      <section className="mb-6">
-        <label className="block text-sm font-medium text-gray-300 mb-2">Domain label</label>
-        <input
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-gray-100 focus:outline-none focus:border-brand-500"
-          placeholder="e.g. customer_analytics, medical_research, legal_contracts"
-          value={domainLabel}
-          onChange={e => setDomainLabel(e.target.value)}
-        />
-      </section>
+        {/* Custom domain text field */}
+        {selectedDomain === "custom" && (
+          <div className="mb-4">
+            <input
+              autoFocus
+              className="w-full bg-bg3 border border-dborder2 rounded-card px-4 py-2.5 text-[12px] text-t1 outline-none transition-colors focus:border-accent font-dm"
+              placeholder="e.g. aerospace, telecom, government-procurement…"
+              value={customDomain}
+              onChange={e => setCustomDomain(e.target.value)}
+            />
+          </div>
+        )}
 
-      {/* Corpus upload */}
-      <section className="mb-6">
-        <label className="block text-sm font-medium text-gray-300 mb-2">Corpus files (PDF, DOCX, CSV, JSON, Parquet)</label>
+        <div className="border-t border-dborder my-5" />
+
+        {/* ── File upload ─────────────────────────────────────── */}
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-t3 mb-3">
+          Upload corpus{" "}
+          <span className="font-normal normal-case">— PDF, DOCX, CSV, JSON, Parquet, TXT</span>
+        </div>
+
         <div
           onDrop={onDrop}
           onDragOver={e => e.preventDefault()}
-          className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center cursor-pointer hover:border-brand-500 transition-colors"
-          onClick={() => document.getElementById("file-input")?.click()}
+          onClick={() => document.getElementById("ws-file-input")?.click()}
+          className="border-2 border-dashed border-dborder rounded-card p-6 text-center cursor-pointer hover:border-accent/50 transition-all mb-4"
         >
           <input
-            id="file-input" type="file" multiple className="hidden"
-            onChange={e => setFiles(Array.from(e.target.files ?? []))}
+            id="ws-file-input" type="file" multiple className="hidden"
+            accept=".pdf,.docx,.doc,.csv,.json,.parquet,.txt,.md"
+            onChange={onFileChange}
           />
-          {files.length > 0 ? (
-            <ul className="text-left text-sm text-gray-300 space-y-1">
-              {files.map(f => <li key={f.name}>📄 {f.name} ({(f.size / 1024).toFixed(1)} KB)</li>)}
-            </ul>
+          {files.length === 0 ? (
+            <div>
+              <div className="text-3xl mb-2">📂</div>
+              <div className="text-[13px] text-t2 font-medium">Drop files here or click to browse</div>
+              <div className="text-[10px] text-t3 mt-1">Multiple files supported</div>
+            </div>
           ) : (
-            <p className="text-gray-500 text-sm">Drag & drop files here, or click to browse</p>
-          )}
-        </div>
-      </section>
-
-      {/* DB credentials */}
-      <section className="mb-6">
-        <label className="block text-sm font-medium text-gray-300 mb-2">Database connection (optional)</label>
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 space-y-3">
-          <select
-            className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-100 text-sm focus:outline-none"
-            value={dbCreds.db_type}
-            onChange={e => setDbCreds(p => ({ ...p, db_type: e.target.value }))}
-          >
-            <option value="">-- Select database type --</option>
-            <option value="postgresql">PostgreSQL</option>
-            <option value="mysql">MySQL</option>
-            <option value="sqlite">SQLite</option>
-            <option value="mongodb">MongoDB</option>
-          </select>
-
-          {dbCreds.db_type && (
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { key: "host", label: "Host" },
-                { key: "port", label: "Port" },
-                { key: "database", label: "Database" },
-                { key: "username", label: "Username" },
-              ].map(({ key, label }) => (
-                <input
-                  key={key} placeholder={label}
-                  className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-100 text-sm focus:outline-none"
-                  value={(dbCreds as any)[key]}
-                  onChange={e => setDbCreds(p => ({ ...p, [key]: e.target.value }))}
-                />
+            <div className="text-left space-y-1.5" onClick={e => e.stopPropagation()}>
+              {files.map(f => (
+                <div key={f.name} className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[14px]">📄</span>
+                    <span className="text-[11px] text-t2 truncate">{f.name}</span>
+                  </div>
+                  <span className="text-[10px] text-t3 flex-shrink-0">
+                    {(f.size / 1024).toFixed(0)} KB
+                  </span>
+                </div>
               ))}
-              <input
-                type="password" placeholder="Password"
-                className="bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-100 text-sm focus:outline-none col-span-2"
-                value={dbCreds.password}
-                onChange={e => setDbCreds(p => ({ ...p, password: e.target.value }))}
-              />
-              <button
-                onClick={testConnection}
-                disabled={isConnecting}
-                className="col-span-2 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition-colors disabled:opacity-50"
-              >
-                {isConnecting ? "Connecting…" : "Test Connection & Preview Schema"}
-              </button>
+              <div className="pt-2 border-t border-dborder mt-2 flex items-center justify-between">
+                <span className="text-[10px] text-t3">{files.length} file{files.length !== 1 ? "s" : ""} selected</span>
+                <button
+                  onClick={() => setFiles([])}
+                  className="text-[10px] text-t3 hover:text-coral transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
             </div>
           )}
+        </div>
 
-          {schemaPreview && (
-            <pre className="bg-gray-800 rounded p-3 text-xs text-green-400 overflow-auto max-h-48">
-              {schemaPreview}
-            </pre>
+        {/* ── DB connection (collapsible) ──────────────────────── */}
+        <div className="border border-dborder2 rounded-card mb-6">
+          <button
+            className="w-full flex items-center justify-between px-4 py-3 text-left"
+            onClick={() => setDbOpen(o => !o)}
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-t3">
+              Database connection{" "}
+              <span className="font-normal normal-case">(optional)</span>
+            </span>
+            <span className="text-[10px] text-t3">{dbOpen ? "▲ hide" : "▼ connect"}</span>
+          </button>
+
+          {dbOpen && (
+            <div className="px-4 pb-4 border-t border-dborder2 pt-3 space-y-3">
+              <select
+                className="w-full bg-bg3 border border-dborder2 rounded-card px-3 py-2 text-[12px] text-t1 outline-none focus:border-accent"
+                value={dbCreds.db_type}
+                onChange={e => setDbCreds(p => ({ ...p, db_type: e.target.value }))}
+              >
+                <option value="">-- Select database type --</option>
+                <option value="postgresql">PostgreSQL</option>
+                <option value="mysql">MySQL</option>
+                <option value="sqlite">SQLite</option>
+                <option value="mongodb">MongoDB</option>
+              </select>
+
+              {dbCreds.db_type && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["host", "port", "database", "username"] as const).map(k => (
+                      <input
+                        key={k}
+                        placeholder={k.charAt(0).toUpperCase() + k.slice(1)}
+                        className="bg-bg3 border border-dborder2 rounded-card px-3 py-2 text-[12px] text-t1 outline-none focus:border-accent"
+                        value={(dbCreds as any)[k]}
+                        onChange={e => setDbCreds(p => ({ ...p, [k]: e.target.value }))}
+                      />
+                    ))}
+                    <input
+                      type="password" placeholder="Password"
+                      className="col-span-2 bg-bg3 border border-dborder2 rounded-card px-3 py-2 text-[12px] text-t1 outline-none focus:border-accent"
+                      value={dbCreds.password}
+                      onChange={e => setDbCreds(p => ({ ...p, password: e.target.value }))}
+                    />
+                    <button
+                      onClick={testConnection} disabled={isConnecting}
+                      className="col-span-2 btn py-2 text-[12px] disabled:opacity-50"
+                    >
+                      {isConnecting ? "Connecting…" : "Test Connection & Preview Schema"}
+                    </button>
+                  </div>
+                  {schemaPreview && (
+                    <pre className="bg-bg3 rounded-card p-3 text-[10px] text-gg overflow-auto max-h-40 font-mono">
+                      {schemaPreview}
+                    </pre>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
-      </section>
 
-      {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-coral/10 border border-coral/30 rounded-sm text-[12px] text-coral mb-4">
+            ⚠ {error}
+          </div>
+        )}
 
-      <button
-        onClick={handleSubmit}
-        disabled={isSubmitting}
-        className="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
-      >
-        {isSubmitting ? "Starting pipeline…" : "Build Domain SLM & Get Recommendations →"}
-      </button>
-    </main>
+        {/* Submit */}
+        <button
+          onClick={handleSubmit}
+          disabled={isSubmitting || !effectiveDomain || (files.length === 0 && !dbCreds.db_type)}
+          className="btn btn-p btn-full py-3 text-sm disabled:opacity-40 mb-8"
+        >
+          {isSubmitting ? "Starting ingestion…" : "Start Ingestion →"}
+        </button>
+
+      </div>
+    </div>
   );
 }

@@ -1,0 +1,76 @@
+flowchart TD
+    subgraph SRC["① Raw Domain Data"]
+        direction LR
+        D1["📄 Documents\nPDF · DOCX · TXT"]
+        D2["📊 Structured Files\nCSV · Excel"]
+        D3["🗄️ Live Database\nPostgres · MySQL"]
+    end
+
+    subgraph CUR["② Data Curation Pipeline"]
+        direction LR
+        C1["Deduplication\nMinHash LSH"]
+        C2["Quality Scoring\nLanguage · Length · Noise"]
+        C3["Schema Enricher\nColumn Abbrev → Description"]
+        C1 --> C2 --> C3
+    end
+
+    subgraph KG["③ Knowledge Graph Construction"]
+        direction LR
+        G1["NER Extraction\nspaCy + Regex"]
+        G2["Graph Builder\nNodes + Edges"]
+        G3["Community Detection\nLouvain Algorithm"]
+        G4["Wiki Articles\nAuto-generated .md"]
+        G1 --> G2 --> G3 --> G4
+    end
+
+    subgraph SLMF["④ SLM Factory — Domain Training"]
+        direction LR
+        S1["Teacher LLM\nGenerate Q&A Pairs"]
+        S2["Self-Consistency Filter\n3 Repeats · ≥2 Agree"]
+        S3["Student Model\nnanoGPT / LoRA Fine-tune"]
+        S4[("SLM Registry\nDomain Embeddings")]
+        S1 --> S2 --> S3 --> S4
+    end
+
+    subgraph ORCH["⑤ Query Orchestration"]
+        direction LR
+        O1["Task Classification\nDomain · Capability · Hybrid"]
+        O2["Coverage Check\nRoute / Extend / Build New"]
+        O3["Query Decomposition\nSub-tasks"]
+        O4["Model Selection\nLinUCB Bandit"]
+        O5["Execute Sub-tasks\nPrimary + Fallback Chain"]
+        O6["Synthesize Answer\nHallucination Check"]
+        O1 --> O2 --> O3 --> O4 --> O5 --> O6
+    end
+
+    subgraph OUT["⑥ Answer + Continuous Learning"]
+        direction LR
+        R1["Final Answer\nMarkdown · Confidence Badge"]
+        R2["Model Choice Card\nWhy this model?"]
+        R3["User Feedback\n👍 Reward 0.9 · 👎 Reward 0.1"]
+        R4["Bandit Update\nLinUCB Arm Weights"]
+        R1 --> R2 --> R3 --> R4
+    end
+
+    SRC --> CUR
+    CUR --> KG
+    KG --> SLMF
+    SLMF --> ORCH
+    ORCH --> OUT
+
+    R4 -. "improves model selection" .-> O4
+    S4 -. "domain knowledge" .-> O2
+
+    classDef srcStyle fill:#1e3a5f,stroke:#4a90d9,color:#ffffff
+    classDef curStyle fill:#1a4a2e,stroke:#4caf50,color:#ffffff
+    classDef kgStyle fill:#3b2d6e,stroke:#9c7ee8,color:#ffffff
+    classDef slmStyle fill:#5a2d0c,stroke:#f0883e,color:#ffffff
+    classDef orchStyle fill:#1a3d4f,stroke:#00bcd4,color:#ffffff
+    classDef outStyle fill:#4a1a2e,stroke:#f06292,color:#ffffff
+
+    class D1,D2,D3 srcStyle
+    class C1,C2,C3 curStyle
+    class G1,G2,G3,G4 kgStyle
+    class S1,S2,S3,S4 slmStyle
+    class O1,O2,O3,O4,O5,O6 orchStyle
+    class R1,R2,R3,R4 outStyle

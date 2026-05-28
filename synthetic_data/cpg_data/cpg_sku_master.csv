@@ -1,0 +1,64 @@
+SKU_CD,UPC_CD,EAN_CD,PROD_DESC,BRAND_NM,CAT_NM,SUBCAT_NM,PACK_SZ_DESC,UOM_CD,WT_KG,VOL_ML,BASE_PRC_USD,ACTV_FLG,INTRD_DT,PLNT_CD
+RF01000,028138552030,2802754416809,ZingEnergy Cola 500mL Bottle,ZingEnergy,Carbonated Soft Drinks,Cola,500mL Bottle,EA,1.701,200,1.47,Y,2019-03-03,PLNT_CHI
+RF01001,079718747672,1466442118724,ZingEnergy Cola 355mL Can,ZingEnergy,Carbonated Soft Drinks,Cola,355mL Can,EA,1.416,200,3.3,Y,2020-07-23,PLNT_CHI
+RF01002,068833060730,5889134147702,ZingEnergy Cola 28g Bag,ZingEnergy,Carbonated Soft Drinks,Cola,28g Bag,EA,0.414,28,1.55,Y,2021-01-05,PLNT_ATL
+RF01003,025187984005,2384605262099,SweetWave Lemon-Lime 12x355mL Case,SweetWave,Carbonated Soft Drinks,Lemon-Lime,12x355mL Case,EA,1.394,28,4.17,Y,2019-04-04,PLNT_DAL
+RF01004,022821428812,5096777394726,CrunchBite Lemon-Lime 28g Bag,CrunchBite,Carbonated Soft Drinks,Lemon-Lime,28g Bag,EA,2.17,56,2.52,Y,2021-01-17,PLNT_DAL
+RF01005,037295679827,5697277634980,CrunchBite Lemon-Lime 355mL Can,CrunchBite,Carbonated Soft Drinks,Lemon-Lime,355mL Can,EA,1.763,500,4.34,Y,2023-02-02,PLNT_DAL
+RF01006,042456852025,6706656964911,CrunchBite Orange Burst 1L Bottle,CrunchBite,Carbonated Soft Drinks,Orange Burst,1L Bottle,EA,2.112,355,2.25,Y,2020-10-08,PLNT_LAX
+RF01007,036054081665,6535001295567,CrunchBite Orange Burst 200g Bag,CrunchBite,Carbonated Soft Drinks,Orange Burst,200g Bag,EA,0.555,100,3.17,Y,2021-07-28,PLNT_DAL
+RF01008,040664478749,5623699700328,CrunchBite Orange Burst 100g Bag,CrunchBite,Carbonated Soft Drinks,Orange Burst,100g Bag,EA,1.875,56,5.93,Y,2020-03-25,PLNT_DAL
+RF01009,026583310742,8428921099348,RefreshCo Root Beer 6x355mL Pack,RefreshCo,Carbonated Soft Drinks,Root Beer,6x355mL Pack,EA,1.503,56,3.09,N,2021-12-19,PLNT_ATL
+RF01010,025980378553,6985642353299,NatureNosh Root Beer 200g Bag,NatureNosh,Carbonated Soft Drinks,Root Beer,200g Bag,EA,0.306,56,1.86,Y,2023-01-18,PLNT_ATL
+RF01011,034747439214,6251135679598,NatureNosh Root Beer 500mL Bottle,NatureNosh,Carbonated Soft Drinks,Root Beer,500mL Bottle,EA,2.109,200,4.34,Y,2023-04-11,PLNT_DAL
+RF01012,075816749115,2967178673538,NatureNosh Ginger Ale 6x355mL Pack,NatureNosh,Carbonated Soft Drinks,Ginger Ale,6x355mL Pack,EA,2.325,2000,2.31,Y,2022-03-07,PLNT_CHI
+RF01013,077568028623,2218980537952,RefreshCo Ginger Ale 12x355mL Case,RefreshCo,Carbonated Soft Drinks,Ginger Ale,12x355mL Case,EA,2.446,200,5.2,Y,2021-08-31,PLNT_DAL
+RF01014,068439875878,4727878552768,CrunchBite Ginger Ale 355mL Can,CrunchBite,Carbonated Soft Drinks,Ginger Ale,355mL Can,EA,2.324,1000,4.91,Y,2022-10-07,PLNT_ATL
+RF01015,041129517597,6944509726812,RefreshCo Original Surge 200g Bag,RefreshCo,Energy Drinks,Original Surge,200g Bag,EA,0.082,200,2.26,Y,2019-05-26,PLNT_CHI
+RF01016,020009114172,5185506430032,ZingEnergy Original Surge 6x355mL Pack,ZingEnergy,Energy Drinks,Original Surge,6x355mL Pack,EA,0.718,100,2.17,Y,2022-03-15,PLNT_LAX
+RF01017,077794424223,8163178655645,ZingEnergy Original Surge 12x355mL Case,ZingEnergy,Energy Drinks,Original Surge,12x355mL Case,EA,0.5,500,4.61,Y,2021-04-21,PLNT_LAX
+RF01018,056077326507,5372746014247,SweetWave Sugar-Free Surge 355mL Can,SweetWave,Energy Drinks,Sugar-Free Surge,355mL Can,EA,0.503,200,3.46,Y,2020-07-24,PLNT_LAX
+RF01019,070453317778,1889478745061,ZingEnergy Sugar-Free Surge 500mL Bottle,ZingEnergy,Energy Drinks,Sugar-Free Surge,500mL Bottle,EA,1.641,200,5.59,N,2023-03-24,PLNT_DAL
+RF01020,076170044538,4760163802686,ZingEnergy Sugar-Free Surge 12x355mL Case,ZingEnergy,Energy Drinks,Sugar-Free Surge,12x355mL Case,EA,2.166,355,1.9,Y,2021-03-10,PLNT_ATL
+RF01021,029270107001,6219200869772,NatureNosh Citrus Blast 200g Bag,NatureNosh,Energy Drinks,Citrus Blast,200g Bag,EA,0.568,355,4.18,Y,2023-03-12,PLNT_ATL
+RF01022,087524771010,9845385453546,RefreshCo Citrus Blast 28g Bag,RefreshCo,Energy Drinks,Citrus Blast,28g Bag,EA,2.301,200,1.86,N,2019-06-14,PLNT_DAL
+RF01023,021145590913,8100591133334,RefreshCo Citrus Blast 100g Bag,RefreshCo,Energy Drinks,Citrus Blast,100g Bag,EA,0.326,1000,4.17,Y,2019-06-17,PLNT_LAX
+RF01024,056025693325,5669654599133,CrunchBite Berry Rush 12x355mL Case,CrunchBite,Energy Drinks,Berry Rush,12x355mL Case,EA,1.008,2000,3.5,N,2019-05-29,PLNT_CHI
+RF01025,019019350805,4751815571595,SweetWave Berry Rush 6x355mL Pack,SweetWave,Energy Drinks,Berry Rush,6x355mL Pack,EA,1.28,750,6.12,Y,2023-12-06,PLNT_DAL
+RF01026,032698848018,1139710736463,CrunchBite Berry Rush 56g Bag,CrunchBite,Energy Drinks,Berry Rush,56g Bag,EA,1.68,200,2.64,Y,2023-12-04,PLNT_DAL
+RF01027,045027382058,4579180417194,NatureNosh Classic Potato Chips 28g Bag,NatureNosh,Salty Snacks,Classic Potato Chips,28g Bag,EA,1.728,2000,3.77,Y,2023-09-29,PLNT_CHI
+RF01028,068558805795,5869759969308,RefreshCo Classic Potato Chips 500mL Bottle,RefreshCo,Salty Snacks,Classic Potato Chips,500mL Bottle,EA,0.139,28,5.23,Y,2020-06-20,PLNT_DAL
+RF01029,084851345353,2967136552614,SweetWave Classic Potato Chips 6x355mL Pack,SweetWave,Salty Snacks,Classic Potato Chips,6x355mL Pack,EA,0.216,750,3.99,Y,2022-04-07,PLNT_DAL
+RF01030,037306582726,5392386030646,CrunchBite Tortilla Chips 100g Bag,CrunchBite,Salty Snacks,Tortilla Chips,100g Bag,EA,1.677,28,5.28,Y,2021-04-12,PLNT_DAL
+RF01031,035188289684,4117333527642,ZingEnergy Tortilla Chips 1L Bottle,ZingEnergy,Salty Snacks,Tortilla Chips,1L Bottle,EA,2.207,355,1.98,N,2023-05-22,PLNT_LAX
+RF01032,032620758283,7726383052711,ZingEnergy Tortilla Chips 355mL Can,ZingEnergy,Salty Snacks,Tortilla Chips,355mL Can,EA,2.184,100,2.21,Y,2021-07-31,PLNT_ATL
+RF01033,038604624730,6774147444176,RefreshCo Cheese Puffs 28g Bag,RefreshCo,Salty Snacks,Cheese Puffs,28g Bag,EA,0.718,500,6.31,Y,2022-08-06,PLNT_LAX
+RF01034,023003445296,4140743004108,NatureNosh Cheese Puffs 2L Bottle,NatureNosh,Salty Snacks,Cheese Puffs,2L Bottle,EA,1.464,2000,1.2,Y,2020-12-08,PLNT_ATL
+RF01035,025081447213,4343960983085,SweetWave Cheese Puffs 6x355mL Pack,SweetWave,Salty Snacks,Cheese Puffs,6x355mL Pack,EA,0.659,56,1.0,N,2022-01-07,PLNT_DAL
+RF01036,055626105063,6286675445811,CrunchBite Popcorn Butter 56g Bag,CrunchBite,Salty Snacks,Popcorn Butter,56g Bag,EA,1.283,56,2.78,Y,2022-02-09,PLNT_DAL
+RF01037,065578438759,4061894235046,ZingEnergy Popcorn Butter 100g Bag,ZingEnergy,Salty Snacks,Popcorn Butter,100g Bag,EA,1.55,2000,3.22,Y,2020-09-14,PLNT_ATL
+RF01038,094095394278,6667873802666,ZingEnergy Popcorn Butter 500mL Bottle,ZingEnergy,Salty Snacks,Popcorn Butter,500mL Bottle,EA,1.179,100,4.71,Y,2023-06-14,PLNT_DAL
+RF01039,043290884804,6461793068608,RefreshCo Pretzels 500mL Bottle,RefreshCo,Salty Snacks,Pretzels,500mL Bottle,EA,0.585,1000,1.8,Y,2021-08-31,PLNT_CHI
+RF01040,090014233052,7754679408039,SweetWave Pretzels 28g Bag,SweetWave,Salty Snacks,Pretzels,28g Bag,EA,1.251,1000,1.8,Y,2023-03-18,PLNT_CHI
+RF01041,032414752007,1882463522262,SweetWave Pretzels 56g Bag,SweetWave,Salty Snacks,Pretzels,56g Bag,EA,1.407,500,3.5,Y,2022-09-29,PLNT_ATL
+RF01042,078124601904,5558893335961,NatureNosh Chocolate Chunk Cookies 200g Bag,NatureNosh,Sweet Snacks,Chocolate Chunk Cookies,200g Bag,EA,1.887,2000,5.2,Y,2022-07-07,PLNT_DAL
+RF01043,020479173015,6028176388187,CrunchBite Chocolate Chunk Cookies 6x355mL Pack,CrunchBite,Sweet Snacks,Chocolate Chunk Cookies,6x355mL Pack,EA,0.609,28,2.75,Y,2019-10-11,PLNT_DAL
+RF01044,019508855212,8170082261076,ZingEnergy Chocolate Chunk Cookies 100g Bag,ZingEnergy,Sweet Snacks,Chocolate Chunk Cookies,100g Bag,EA,0.847,100,3.28,Y,2021-05-10,PLNT_LAX
+RF01045,050165498236,7862298922749,SweetWave Granola Bars Honey 12x355mL Case,SweetWave,Sweet Snacks,Granola Bars Honey,12x355mL Case,EA,2.138,56,3.95,Y,2023-06-27,PLNT_DAL
+RF01046,045302147135,9544561853022,SweetWave Granola Bars Honey 355mL Can,SweetWave,Sweet Snacks,Granola Bars Honey,355mL Can,EA,0.102,28,4.67,Y,2023-01-23,PLNT_DAL
+RF01047,031129270378,1474740446108,SweetWave Granola Bars Honey 100g Bag,SweetWave,Sweet Snacks,Granola Bars Honey,100g Bag,EA,2.27,355,1.45,Y,2023-11-11,PLNT_LAX
+RF01048,037175772776,6748619160793,SweetWave Oat Crackers 1L Bottle,SweetWave,Sweet Snacks,Oat Crackers,1L Bottle,EA,0.864,56,2.52,N,2021-05-13,PLNT_ATL
+RF01049,012019952485,7158776599131,RefreshCo Oat Crackers 355mL Can,RefreshCo,Sweet Snacks,Oat Crackers,355mL Can,EA,0.584,500,5.29,Y,2023-03-25,PLNT_CHI
+RF01050,091691910134,5196837525387,ZingEnergy Oat Crackers 28g Bag,ZingEnergy,Sweet Snacks,Oat Crackers,28g Bag,EA,0.342,500,4.09,Y,2022-12-03,PLNT_ATL
+RF01051,052798149836,7605480054946,ZingEnergy Fruit Chews 56g Bag,ZingEnergy,Sweet Snacks,Fruit Chews,56g Bag,EA,1.01,1000,1.41,Y,2022-07-08,PLNT_DAL
+RF01052,094543248820,3129468527791,RefreshCo Fruit Chews 1L Bottle,RefreshCo,Sweet Snacks,Fruit Chews,1L Bottle,EA,1.997,355,2.9,Y,2021-01-28,PLNT_CHI
+RF01053,055730850060,2857531272173,NatureNosh Fruit Chews 500mL Bottle,NatureNosh,Sweet Snacks,Fruit Chews,500mL Bottle,EA,1.101,28,4.49,Y,2022-12-19,PLNT_DAL
+RF01054,072206148127,6670509580791,NatureNosh Orange Mango Blend 100g Bag,NatureNosh,RTD Juice,Orange Mango Blend,100g Bag,EA,2.134,500,2.52,Y,2023-03-17,PLNT_LAX
+RF01055,054577419627,9693137072641,NatureNosh Orange Mango Blend 1L Bottle,NatureNosh,RTD Juice,Orange Mango Blend,1L Bottle,EA,2.132,750,3.67,Y,2020-06-13,PLNT_ATL
+RF01056,095385324134,4362736323263,CrunchBite Orange Mango Blend 28g Bag,CrunchBite,RTD Juice,Orange Mango Blend,28g Bag,EA,0.241,56,3.68,Y,2022-11-15,PLNT_LAX
+RF01057,041328503269,6386933976899,RefreshCo Apple Cranberry 200g Bag,RefreshCo,RTD Juice,Apple Cranberry,200g Bag,EA,1.67,28,3.59,Y,2021-05-21,PLNT_ATL
+RF01058,073148281147,6391347533666,CrunchBite Apple Cranberry 12x355mL Case,CrunchBite,RTD Juice,Apple Cranberry,12x355mL Case,EA,0.651,500,4.96,Y,2023-03-02,PLNT_DAL
+RF01059,046439355458,6210629058713,ZingEnergy Apple Cranberry 355mL Can,ZingEnergy,RTD Juice,Apple Cranberry,355mL Can,EA,0.592,750,2.65,Y,2019-09-17,PLNT_ATL
+RF01060,077657727202,9256148371025,ZingEnergy Green Detox 355mL Can,ZingEnergy,RTD Juice,Green Detox,355mL Can,EA,1.212,28,2.0,Y,2023-10-31,PLNT_LAX
+RF01061,022120894428,9651785159491,RefreshCo Green Detox 12x355mL Case,RefreshCo,RTD Juice,Green Detox,12x355mL Case,EA,0.213,355,1.82,Y,2020-09-14,PLNT_CHI
+RF01062,083523189616,8321907531984,ZingEnergy Green Detox 28g Bag,ZingEnergy,RTD Juice,Green Detox,28g Bag,EA,1.528,1000,5.26,Y,2021-06-25,PLNT_ATL
