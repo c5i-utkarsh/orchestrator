@@ -1,0 +1,315 @@
+2026-04-30 12:08:37  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-04-30 12:08:37  INFO      data_engine.loader — Loaded 7 documents from 'data/raw'
+2026-04-30 12:08:37  INFO      data_engine.main — Stage 1 complete — loaded 7 documents
+2026-04-30 12:08:37  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-04-30 12:08:37  INFO      data_engine.dedup — Dedup complete — kept 6 / rejected 1
+2026-04-30 12:08:37  INFO      data_engine.main — Stage 3 complete — deduplication done
+2026-04-30 12:08:37  INFO      data_engine.quality — Quality scoring complete — 1 rejected
+2026-04-30 12:08:37  INFO      data_engine.main — Stage 4 complete — quality scoring done
+2026-04-30 12:08:37  INFO      data_engine.contamination — Relevance scoring complete — 1 rejected
+2026-04-30 12:08:37  INFO      data_engine.main — Stage 5 complete — relevance scoring done
+2026-04-30 12:08:37  INFO      data_engine.curator — Wrote 4 curated documents to 'data/curated'
+2026-04-30 12:08:37  INFO      data_engine.curator — Wrote 3 rejected documents to 'data/rejected'
+2026-04-30 12:08:37  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-04-30 12:08:37  INFO      data_engine.main — Stage 6 complete — curated and rejected corpora written
+2026-04-30 12:08:39  INFO      data_engine.graph_builder — Graph built — 20 nodes, 190 edges
+2026-04-30 12:08:39  INFO      data_engine.graph_builder — graph.json written to 'data/graph/graph.json'
+2026-04-30 12:08:39  INFO      data_engine.graph_builder — graph.graphml written to 'data/graph/graph.graphml'
+2026-04-30 12:08:39  INFO      data_engine.main — Stage 7 complete — graph built
+2026-04-30 12:08:39  INFO      data_engine.report — Summary report written to 'output/summary_report.json'
+2026-04-30 12:08:39  INFO      data_engine.main — === Pipeline finished in 2.21s — accepted=4 rejected=3 ===
+2026-05-04 12:27:01  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-05-04 12:27:01  INFO      data_engine.loader — Loaded 7 documents from 'data/raw'
+2026-05-04 12:27:01  INFO      data_engine.main — Stage 1 complete — loaded 7 documents
+2026-05-04 12:27:01  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-05-04 12:27:01  INFO      data_engine.dedup — Dedup complete — kept 6 / rejected 1
+2026-05-04 12:27:01  INFO      data_engine.main — Stage 3 complete — deduplication done
+2026-05-04 12:27:01  INFO      data_engine.quality — Quality scoring complete — 1 rejected
+2026-05-04 12:27:01  INFO      data_engine.main — Stage 4 complete — quality scoring done
+2026-05-04 12:27:01  INFO      data_engine.contamination — Relevance scoring complete — 1 rejected
+2026-05-04 12:27:01  INFO      data_engine.main — Stage 5 complete — relevance scoring done
+2026-05-04 12:27:01  INFO      data_engine.curator — Wrote 4 curated documents to 'data/curated'
+2026-05-04 12:27:01  INFO      data_engine.curator — Wrote 3 rejected documents to 'data/rejected'
+2026-05-04 12:27:01  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-05-04 12:27:01  INFO      data_engine.main — Stage 6 complete — curated and rejected corpora written
+2026-05-04 12:27:04  INFO      data_engine.graph_builder — Graph built — 20 nodes, 190 edges
+2026-05-04 12:27:04  INFO      data_engine.graph_builder — graph.json written to 'data/graph/graph.json'
+2026-05-04 12:27:04  INFO      data_engine.graph_builder — graph.graphml written to 'data/graph/graph.graphml'
+2026-05-04 12:27:04  INFO      data_engine.main — Stage 7 complete — graph built
+2026-05-04 12:27:04  INFO      data_engine.report — Summary report written to 'output/summary_report.json'
+2026-05-04 12:27:04  INFO      data_engine.main — === Pipeline finished in 3.18s — accepted=4 rejected=3 ===
+2026-05-04 18:08:29  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-05-04 18:08:29  INFO      data_engine.loader — Loaded 7 documents from 'data/raw'
+2026-05-04 18:08:29  INFO      data_engine.main — Stage 1 complete — loaded 7 documents
+2026-05-04 18:08:29  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-05-04 18:08:29  INFO      data_engine.language — Language detection complete — 0 rejected
+2026-05-04 18:08:29  INFO      data_engine.main — Stage 3 complete — language detection done
+2026-05-04 18:08:30  INFO      data_engine.dedup — Dedup complete — kept 7 / rejected 0
+2026-05-04 18:08:30  INFO      data_engine.main — Stage 4 complete — deduplication done
+2026-05-04 18:08:30  INFO      data_engine.quality — Quality scoring complete — 1 rejected
+2026-05-04 18:08:30  INFO      data_engine.main — Stage 5 complete — quality scoring done
+2026-05-04 18:08:30  INFO      data_engine.contamination — Relevance scoring complete — 1 rejected
+2026-05-04 18:08:30  INFO      data_engine.main — Stage 6 complete — relevance scoring done
+2026-05-04 18:08:30  INFO      data_engine.chunker — Chunking complete — 12 total chunks across 5 accepted docs
+2026-05-04 18:08:30  INFO      data_engine.main — Stage 7 complete — chunking done
+2026-05-04 18:08:30  INFO      data_engine.curator — Wrote 5 curated documents to 'data/curated'
+2026-05-04 18:08:30  INFO      data_engine.curator — Wrote 2 rejected documents to 'data/rejected'
+2026-05-04 18:08:30  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-05-04 18:08:30  INFO      data_engine.main — Stage 8 complete — curated and rejected corpora written
+2026-05-04 18:08:34  INFO      data_engine.graph_builder — Louvain detected 3 communities
+2026-05-04 18:08:34  INFO      data_engine.graph_builder — Graph built — 25 nodes, 276 edges, 3 communities
+2026-05-04 18:08:34  INFO      data_engine.graph_builder — graph.json and graph.graphml written to 'data/graph'
+2026-05-04 18:08:34  INFO      data_engine.main — Stage 9 complete — graph built
+2026-05-04 18:08:34  INFO      data_engine.report — JSON report written to 'output/summary_report.json'
+2026-05-04 18:08:34  INFO      data_engine.report — HTML report written to 'output/report.html'
+2026-05-04 18:08:34  INFO      data_engine.main — === Pipeline finished in 4.81s — accepted=5 rejected=2 ===
+2026-05-04 18:52:36  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-05-04 18:52:36  INFO      data_engine.loader — Loaded 7 documents from 'data/raw'
+2026-05-04 18:52:36  INFO      data_engine.main — Stage 1 complete — loaded 7 documents
+2026-05-04 18:52:36  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-05-04 18:52:36  INFO      data_engine.language — Language detection complete — 0 rejected
+2026-05-04 18:52:36  INFO      data_engine.main — Stage 3 complete — language detection done
+2026-05-04 18:52:37  INFO      data_engine.dedup — Dedup complete — kept 7 / rejected 0
+2026-05-04 18:52:37  INFO      data_engine.main — Stage 4 complete — deduplication done
+2026-05-04 18:52:37  INFO      data_engine.quality — Quality scoring complete — 1 rejected
+2026-05-04 18:52:37  INFO      data_engine.main — Stage 5 complete — quality scoring done
+2026-05-04 18:52:37  INFO      data_engine.contamination — Relevance scoring complete — 1 rejected
+2026-05-04 18:52:37  INFO      data_engine.main — Stage 6 complete — relevance scoring done
+2026-05-04 18:52:37  INFO      data_engine.chunker — Chunking complete — 12 total chunks across 5 accepted docs
+2026-05-04 18:52:37  INFO      data_engine.main — Stage 7 complete — chunking done
+2026-05-04 18:52:37  INFO      data_engine.curator — Wrote 5 curated documents to 'data/curated'
+2026-05-04 18:52:37  INFO      data_engine.curator — Wrote 2 rejected documents to 'data/rejected'
+2026-05-04 18:52:37  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-05-04 18:52:37  INFO      data_engine.main — Stage 8 complete — curated and rejected corpora written
+2026-05-04 18:52:40  INFO      data_engine.graph_builder — Louvain detected 3 communities
+2026-05-04 18:52:40  INFO      data_engine.graph_builder — Graph built — 25 nodes, 278 edges, 3 communities
+2026-05-04 18:52:40  INFO      data_engine.graph_builder — graph.json and graph.graphml written to 'data/graph'
+2026-05-04 18:52:40  INFO      data_engine.main — Stage 9 complete — graph built
+2026-05-04 18:52:40  INFO      data_engine.report — JSON report written to 'output/summary_report.json'
+2026-05-04 18:52:40  INFO      data_engine.report — HTML report written to 'output/report.html'
+2026-05-04 18:52:40  INFO      data_engine.main — === Pipeline finished in 3.47s — accepted=5 rejected=2 ===
+2026-05-04 18:55:32  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-05-04 18:55:32  INFO      data_engine.loader — Loaded 7 documents from 'data/raw'
+2026-05-04 18:55:32  INFO      data_engine.main — Stage 1 complete — loaded 7 documents
+2026-05-04 18:55:32  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-05-04 18:55:32  INFO      data_engine.language — Language detection complete — 0 rejected
+2026-05-04 18:55:32  INFO      data_engine.main — Stage 3 complete — language detection done
+2026-05-04 18:55:33  INFO      data_engine.dedup — Dedup complete — kept 7 / rejected 0
+2026-05-04 18:55:33  INFO      data_engine.main — Stage 4 complete — deduplication done
+2026-05-04 18:55:33  INFO      data_engine.quality — Quality scoring complete — 1 rejected
+2026-05-04 18:55:33  INFO      data_engine.main — Stage 5 complete — quality scoring done
+2026-05-04 18:55:33  INFO      data_engine.contamination — Relevance scoring complete — 1 rejected
+2026-05-04 18:55:33  INFO      data_engine.main — Stage 6 complete — relevance scoring done
+2026-05-04 18:55:33  INFO      data_engine.chunker — Chunking complete — 12 total chunks across 5 accepted docs
+2026-05-04 18:55:33  INFO      data_engine.main — Stage 7 complete — chunking done
+2026-05-04 18:55:33  INFO      data_engine.curator — Wrote 5 curated documents to 'data/curated'
+2026-05-04 18:55:33  INFO      data_engine.curator — Wrote 2 rejected documents to 'data/rejected'
+2026-05-04 18:55:33  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-05-04 18:55:33  INFO      data_engine.main — Stage 8 complete — curated and rejected corpora written
+2026-05-04 18:55:36  INFO      data_engine.graph_builder — Louvain detected 3 communities
+2026-05-04 18:55:36  INFO      data_engine.graph_builder — Graph built — 25 nodes, 274 edges, 3 communities
+2026-05-04 18:55:36  INFO      data_engine.graph_builder — graph.json and graph.graphml written to 'data/graph'
+2026-05-04 18:55:36  INFO      data_engine.main — Stage 9 complete — graph built
+2026-05-04 18:55:36  INFO      data_engine.report — JSON report written to 'output/summary_report.json'
+2026-05-04 18:55:36  INFO      data_engine.report — HTML report written to 'output/report.html'
+2026-05-04 18:55:36  INFO      data_engine.main — === Pipeline finished in 4.50s — accepted=5 rejected=2 ===
+2026-05-04 18:55:37  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:55:37] "POST /run HTTP/1.1" 200 -
+2026-05-04 18:55:37  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:55:37] "GET /report-html?1777901137878 HTTP/1.1" 200 -
+2026-05-04 18:55:37  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:55:37] "GET /graph-html?1777901137878 HTTP/1.1" 200 -
+2026-05-04 18:55:37  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:55:37] "GET /report-html?1777901137878 HTTP/1.1" 200 -
+2026-05-04 18:55:37  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:55:37] "GET /graph-html?1777901137878 HTTP/1.1" 200 -
+2026-05-04 18:57:20  INFO      data_engine.loader — Loaded 23 documents from 'data/curated'
+2026-05-04 18:57:20  INFO      data_engine.chunker — Chunking complete — 58 total chunks across 23 accepted docs
+2026-05-04 18:57:20  INFO      data_engine.search — Search index built — 58 chunks from 23 documents
+2026-05-04 18:57:20  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:57:20] "POST /search HTTP/1.1" 200 -
+2026-05-04 18:57:27  INFO      data_engine.loader — Loaded 23 documents from 'data/curated'
+2026-05-04 18:57:27  INFO      data_engine.chunker — Chunking complete — 58 total chunks across 23 accepted docs
+2026-05-04 18:57:27  INFO      data_engine.search — Search index built — 58 chunks from 23 documents
+2026-05-04 18:57:27  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:57:27] "POST /search HTTP/1.1" 200 -
+2026-05-04 18:57:33  INFO      data_engine.loader — Loaded 23 documents from 'data/curated'
+2026-05-04 18:57:33  INFO      data_engine.chunker — Chunking complete — 58 total chunks across 23 accepted docs
+2026-05-04 18:57:33  INFO      data_engine.search — Search index built — 58 chunks from 23 documents
+2026-05-04 18:57:33  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:57:33] "POST /search HTTP/1.1" 200 -
+2026-05-04 18:58:27  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:58:27] "GET / HTTP/1.1" 200 -
+2026-05-04 18:58:27  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:58:27] "GET /raw-files HTTP/1.1" 200 -
+2026-05-04 18:58:30  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-05-04 18:58:30  INFO      data_engine.loader — Loaded 7 documents from 'data/raw'
+2026-05-04 18:58:30  INFO      data_engine.main — Stage 1 complete — loaded 7 documents
+2026-05-04 18:58:30  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-05-04 18:58:31  INFO      data_engine.language — Language detection complete — 0 rejected
+2026-05-04 18:58:31  INFO      data_engine.main — Stage 3 complete — language detection done
+2026-05-04 18:58:31  INFO      data_engine.dedup — Dedup complete — kept 7 / rejected 0
+2026-05-04 18:58:31  INFO      data_engine.main — Stage 4 complete — deduplication done
+2026-05-04 18:58:31  INFO      data_engine.quality — Quality scoring complete — 1 rejected
+2026-05-04 18:58:31  INFO      data_engine.main — Stage 5 complete — quality scoring done
+2026-05-04 18:58:31  INFO      data_engine.contamination — Relevance scoring complete — 1 rejected
+2026-05-04 18:58:31  INFO      data_engine.main — Stage 6 complete — relevance scoring done
+2026-05-04 18:58:31  INFO      data_engine.chunker — Chunking complete — 12 total chunks across 5 accepted docs
+2026-05-04 18:58:31  INFO      data_engine.main — Stage 7 complete — chunking done
+2026-05-04 18:58:31  INFO      data_engine.curator — Wrote 5 curated documents to 'data/curated'
+2026-05-04 18:58:31  INFO      data_engine.curator — Wrote 2 rejected documents to 'data/rejected'
+2026-05-04 18:58:31  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-05-04 18:58:31  INFO      data_engine.main — Stage 8 complete — curated and rejected corpora written
+2026-05-04 18:58:31  INFO      data_engine.graph_builder — Louvain detected 3 communities
+2026-05-04 18:58:31  INFO      data_engine.graph_builder — Graph built — 25 nodes, 274 edges, 3 communities
+2026-05-04 18:58:31  INFO      data_engine.graph_builder — graph.json and graph.graphml written to 'data/graph'
+2026-05-04 18:58:31  INFO      data_engine.main — Stage 9 complete — graph built
+2026-05-04 18:58:31  INFO      data_engine.report — JSON report written to 'output/summary_report.json'
+2026-05-04 18:58:31  INFO      data_engine.report — HTML report written to 'output/report.html'
+2026-05-04 18:58:31  INFO      data_engine.main — === Pipeline finished in 0.92s — accepted=5 rejected=2 ===
+2026-05-04 18:58:31  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:58:31] "POST /run HTTP/1.1" 200 -
+2026-05-04 18:58:31  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:58:31] "GET /report-html?1777901311916 HTTP/1.1" 200 -
+2026-05-04 18:58:31  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:58:31] "GET /graph-html?1777901311916 HTTP/1.1" 200 -
+2026-05-04 18:58:31  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:58:31] "GET /report-html?1777901311916 HTTP/1.1" 200 -
+2026-05-04 18:58:31  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:58:31] "GET /graph-html?1777901311916 HTTP/1.1" 200 -
+2026-05-04 18:58:50  INFO      data_engine.loader — Loaded 28 documents from 'data/curated'
+2026-05-04 18:58:50  INFO      data_engine.chunker — Chunking complete — 70 total chunks across 28 accepted docs
+2026-05-04 18:58:50  INFO      data_engine.search — Search index built — 70 chunks from 28 documents
+2026-05-04 18:58:50  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 18:58:50] "POST /search HTTP/1.1" 200 -
+2026-05-04 21:26:50  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-05-04 21:26:50  INFO      data_engine.loader — Loaded 7 documents from 'data/raw'
+2026-05-04 21:26:50  INFO      data_engine.main — Stage 1 complete — loaded 7 documents
+2026-05-04 21:26:50  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-05-04 21:26:50  INFO      data_engine.language — Language detection complete — 0 rejected
+2026-05-04 21:26:50  INFO      data_engine.main — Stage 3 complete — language detection done
+2026-05-04 21:26:50  INFO      data_engine.dedup — Dedup complete — kept 7 / rejected 0
+2026-05-04 21:26:50  INFO      data_engine.main — Stage 4 complete — deduplication done
+2026-05-04 21:26:50  INFO      data_engine.quality — Quality scoring complete — 1 rejected
+2026-05-04 21:26:50  INFO      data_engine.main — Stage 5 complete — quality scoring done
+2026-05-04 21:26:50  INFO      data_engine.contamination — Relevance scoring complete — 1 rejected
+2026-05-04 21:26:50  INFO      data_engine.main — Stage 6 complete — relevance scoring done
+2026-05-04 21:26:50  INFO      data_engine.chunker — Chunking complete — 12 total chunks across 5 accepted docs
+2026-05-04 21:26:50  INFO      data_engine.main — Stage 7 complete — chunking done
+2026-05-04 21:26:50  INFO      data_engine.curator — Wrote 5 curated documents to 'data/curated'
+2026-05-04 21:26:50  INFO      data_engine.curator — Wrote 2 rejected documents to 'data/rejected'
+2026-05-04 21:26:50  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-05-04 21:26:50  INFO      data_engine.main — Stage 8 complete — curated and rejected corpora written
+2026-05-04 21:26:50  INFO      data_engine.graph_builder — Louvain detected 2 communities
+2026-05-04 21:26:50  INFO      data_engine.graph_builder — Graph built — 25 nodes, 280 edges, 2 communities
+2026-05-04 21:26:50  INFO      data_engine.graph_builder — graph.json and graph.graphml written to 'data/graph'
+2026-05-04 21:26:50  INFO      data_engine.main — Stage 9 complete — graph built
+2026-05-04 21:26:50  INFO      data_engine.report — JSON report written to 'output/summary_report.json'
+2026-05-04 21:26:50  INFO      data_engine.report — HTML report written to 'output/report.html'
+2026-05-04 21:26:50  INFO      data_engine.main — === Pipeline finished in 0.63s — accepted=5 rejected=2 ===
+2026-05-04 21:26:50  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 21:26:50] "POST /run HTTP/1.1" 200 -
+2026-05-04 21:26:50  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 21:26:50] "GET /report-html?1777910210810 HTTP/1.1" 200 -
+2026-05-04 21:26:50  INFO      werkzeug — 127.0.0.1 - - [04/May/2026 21:26:50] "GET /graph-html?1777910210811 HTTP/1.1" 200 -
+2026-05-05 11:31:45  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-05-05 11:31:45  INFO      data_engine.loader — Loaded 13 documents from 'data/raw'
+2026-05-05 11:31:45  INFO      data_engine.main — Stage 1 complete — loaded 13 documents
+2026-05-05 11:31:45  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-05-05 11:31:46  INFO      data_engine.language — Language detection complete — 0 rejected
+2026-05-05 11:31:46  INFO      data_engine.main — Stage 3 complete — language detection done
+2026-05-05 11:31:46  INFO      data_engine.dedup — Dedup complete — kept 13 / rejected 0
+2026-05-05 11:31:46  INFO      data_engine.main — Stage 4 complete — deduplication done
+2026-05-05 11:31:46  INFO      data_engine.quality — Quality scoring complete — 1 rejected
+2026-05-05 11:31:46  INFO      data_engine.main — Stage 5 complete — quality scoring done
+2026-05-05 11:31:46  INFO      data_engine.contamination — Relevance scoring complete — 1 rejected
+2026-05-05 11:31:46  INFO      data_engine.main — Stage 6 complete — relevance scoring done
+2026-05-05 11:31:46  INFO      data_engine.chunker — Chunking complete — 230 total chunks across 11 accepted docs
+2026-05-05 11:31:46  INFO      data_engine.main — Stage 7 complete — chunking done
+2026-05-05 11:31:46  INFO      data_engine.curator — Wrote 11 curated documents to 'data/curated'
+2026-05-05 11:31:46  INFO      data_engine.curator — Wrote 2 rejected documents to 'data/rejected'
+2026-05-05 11:31:46  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-05-05 11:31:46  INFO      data_engine.main — Stage 8 complete — curated and rejected corpora written
+2026-05-05 11:31:51  INFO      data_engine.graph_builder — Louvain detected 2 communities
+2026-05-05 11:31:51  INFO      data_engine.graph_builder — Graph built — 25 nodes, 300 edges, 2 communities
+2026-05-05 11:31:51  INFO      data_engine.graph_builder — graph.json and graph.graphml written to 'data/graph'
+2026-05-05 11:31:51  INFO      data_engine.main — Stage 9 complete — graph built
+2026-05-05 11:31:51  INFO      data_engine.report — JSON report written to 'output/summary_report.json'
+2026-05-05 11:31:51  INFO      data_engine.report — HTML report written to 'output/report.html'
+2026-05-05 11:31:51  INFO      data_engine.main — === Pipeline finished in 5.93s — accepted=11 rejected=2 ===
+2026-05-05 11:31:51  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:31:51] "POST /run HTTP/1.1" 200 -
+2026-05-05 11:31:51  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:31:51] "GET /report-html?1777960911687 HTTP/1.1" 200 -
+2026-05-05 11:31:51  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:31:51] "GET /graph-html?1777960911687 HTTP/1.1" 200 -
+2026-05-05 11:31:51  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:31:51] "[33mGET /lib/bindings/utils.js HTTP/1.1[0m" 404 -
+2026-05-05 11:33:15  INFO      data_engine.loader — Loaded 65 documents from 'data/curated'
+2026-05-05 11:33:15  INFO      data_engine.chunker — Chunking complete — 567 total chunks across 65 accepted docs
+2026-05-05 11:33:15  INFO      data_engine.search — Search index built — 567 chunks from 65 documents
+2026-05-05 11:33:15  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:33:15] "POST /search HTTP/1.1" 200 -
+2026-05-05 11:44:05  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-05-05 11:44:05  INFO      data_engine.loader — Loaded 6 documents from 'data/raw'
+2026-05-05 11:44:05  INFO      data_engine.main — Stage 1 complete — loaded 6 documents
+2026-05-05 11:44:05  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-05-05 11:44:05  INFO      data_engine.language — Language detection complete — 0 rejected
+2026-05-05 11:44:05  INFO      data_engine.main — Stage 3 complete — language detection done
+2026-05-05 11:44:05  INFO      data_engine.dedup — Dedup complete — kept 6 / rejected 0
+2026-05-05 11:44:05  INFO      data_engine.main — Stage 4 complete — deduplication done
+2026-05-05 11:44:05  INFO      data_engine.quality — Quality scoring complete — 0 rejected
+2026-05-05 11:44:05  INFO      data_engine.main — Stage 5 complete — quality scoring done
+2026-05-05 11:44:05  INFO      data_engine.contamination — Relevance scoring complete — 0 rejected
+2026-05-05 11:44:05  INFO      data_engine.main — Stage 6 complete — relevance scoring done
+2026-05-05 11:44:05  INFO      data_engine.chunker — Chunking complete — 219 total chunks across 6 accepted docs
+2026-05-05 11:44:05  INFO      data_engine.main — Stage 7 complete — chunking done
+2026-05-05 11:44:05  INFO      data_engine.curator — Wrote 6 curated documents to 'data/curated'
+2026-05-05 11:44:05  INFO      data_engine.curator — Wrote 0 rejected documents to 'data/rejected'
+2026-05-05 11:44:05  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-05-05 11:44:05  INFO      data_engine.main — Stage 8 complete — curated and rejected corpora written
+2026-05-05 11:44:11  INFO      data_engine.graph_builder — Louvain detected 1 communities
+2026-05-05 11:44:11  INFO      data_engine.graph_builder — Graph built — 25 nodes, 300 edges, 1 communities
+2026-05-05 11:44:11  INFO      data_engine.graph_builder — graph.json and graph.graphml written to 'data/graph'
+2026-05-05 11:44:11  INFO      data_engine.main — Stage 9 complete — graph built
+2026-05-05 11:44:11  INFO      data_engine.report — JSON report written to 'output/summary_report.json'
+2026-05-05 11:44:11  INFO      data_engine.report — HTML report written to 'output/report.html'
+2026-05-05 11:44:11  INFO      data_engine.main — === Pipeline finished in 6.22s — accepted=6 rejected=0 ===
+2026-05-05 11:44:11  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:44:11] "POST /run HTTP/1.1" 200 -
+2026-05-05 11:44:11  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:44:11] "GET /report-html?1777961651648 HTTP/1.1" 200 -
+2026-05-05 11:44:11  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:44:11] "GET /graph-html?1777961651648 HTTP/1.1" 200 -
+2026-05-05 11:44:11  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:44:11] "[33mGET /lib/bindings/utils.js HTTP/1.1[0m" 404 -
+2026-05-05 11:44:53  INFO      data_engine.loader — Loaded 30 documents from 'data/curated'
+2026-05-05 11:44:53  INFO      data_engine.chunker — Chunking complete — 1095 total chunks across 30 accepted docs
+2026-05-05 11:44:53  INFO      data_engine.search — Search index built — 1095 chunks from 30 documents
+2026-05-05 11:44:53  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:44:53] "POST /search HTTP/1.1" 200 -
+2026-05-05 11:45:26  INFO      data_engine.loader — Loaded 30 documents from 'data/curated'
+2026-05-05 11:45:26  INFO      data_engine.chunker — Chunking complete — 1095 total chunks across 30 accepted docs
+2026-05-05 11:45:27  INFO      data_engine.search — Search index built — 1095 chunks from 30 documents
+2026-05-05 11:45:27  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:45:27] "POST /search HTTP/1.1" 200 -
+2026-05-05 11:45:51  INFO      data_engine.loader — Loaded 30 documents from 'data/curated'
+2026-05-05 11:45:51  INFO      data_engine.chunker — Chunking complete — 1095 total chunks across 30 accepted docs
+2026-05-05 11:45:51  INFO      data_engine.search — Search index built — 1095 chunks from 30 documents
+2026-05-05 11:45:51  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 11:45:51] "POST /search HTTP/1.1" 200 -
+2026-05-05 12:37:03  INFO      data_engine.main — === Data Readiness Pipeline starting ===
+2026-05-05 12:37:04  INFO      data_engine.loader — Loaded 6 documents from 'data/raw'
+2026-05-05 12:37:04  INFO      data_engine.main — Stage 1 complete — loaded 6 documents
+2026-05-05 12:37:04  INFO      data_engine.main — Stage 2 complete — text normalised
+2026-05-05 12:37:04  INFO      data_engine.language — Language detection complete — 0 rejected
+2026-05-05 12:37:04  INFO      data_engine.main — Stage 3 complete — language detection done
+2026-05-05 12:37:04  INFO      data_engine.dedup — Dedup complete — kept 6 / rejected 0
+2026-05-05 12:37:04  INFO      data_engine.main — Stage 4 complete — deduplication done
+2026-05-05 12:37:04  INFO      data_engine.quality — Quality scoring complete — 0 rejected
+2026-05-05 12:37:04  INFO      data_engine.main — Stage 5 complete — quality scoring done
+2026-05-05 12:37:04  INFO      data_engine.contamination — Relevance scoring complete — 0 rejected
+2026-05-05 12:37:04  INFO      data_engine.main — Stage 6 complete — relevance scoring done
+2026-05-05 12:37:04  INFO      data_engine.chunker — Chunking complete — 219 total chunks across 6 accepted docs
+2026-05-05 12:37:04  INFO      data_engine.main — Stage 7 complete — chunking done
+2026-05-05 12:37:04  INFO      data_engine.curator — Wrote 6 curated documents to 'data/curated'
+2026-05-05 12:37:04  INFO      data_engine.curator — Wrote 0 rejected documents to 'data/rejected'
+2026-05-05 12:37:04  INFO      data_engine.curator — Rejection manifest written to 'data/rejected/rejection_manifest.json'
+2026-05-05 12:37:04  INFO      data_engine.main — Stage 8 complete — curated and rejected corpora written
+2026-05-05 12:37:10  INFO      data_engine.graph_builder — Louvain detected 1 communities
+2026-05-05 12:37:10  INFO      data_engine.graph_builder — Graph built — 25 nodes, 300 edges, 1 communities
+2026-05-05 12:37:10  INFO      data_engine.graph_builder — graph.json and graph.graphml written to 'data/graph'
+2026-05-05 12:37:10  INFO      data_engine.main — Stage 9 complete — graph built
+2026-05-05 12:37:10  INFO      data_engine.report — JSON report written to 'output/summary_report.json'
+2026-05-05 12:37:10  INFO      data_engine.report — HTML report written to 'output/report.html'
+2026-05-05 12:37:10  INFO      data_engine.main — === Pipeline finished in 6.84s — accepted=6 rejected=0 ===
+2026-05-05 12:37:10  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 12:37:10] "POST /run HTTP/1.1" 200 -
+2026-05-05 12:37:10  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 12:37:10] "GET /report-html?1777964830630 HTTP/1.1" 200 -
+2026-05-05 12:37:10  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 12:37:10] "GET /graph-html?1777964830631 HTTP/1.1" 200 -
+2026-05-05 12:37:10  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 12:37:10] "[33mGET /lib/bindings/utils.js HTTP/1.1[0m" 404 -
+2026-05-05 12:37:55  INFO      data_engine.loader — Loaded 12 documents from 'data/curated'
+2026-05-05 12:37:55  INFO      data_engine.chunker — Chunking complete — 438 total chunks across 12 accepted docs
+2026-05-05 12:37:56  INFO      data_engine.search — Search index built — 438 chunks from 12 documents
+2026-05-05 12:37:56  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 12:37:56] "POST /search HTTP/1.1" 200 -
+2026-05-05 12:38:41  INFO      data_engine.loader — Loaded 12 documents from 'data/curated'
+2026-05-05 12:38:41  INFO      data_engine.chunker — Chunking complete — 438 total chunks across 12 accepted docs
+2026-05-05 12:38:41  INFO      data_engine.search — Search index built — 438 chunks from 12 documents
+2026-05-05 12:38:41  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 12:38:41] "POST /search HTTP/1.1" 200 -
+2026-05-05 14:12:17  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 14:12:17] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-05-05 19:20:06  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 19:20:06] "GET / HTTP/1.1" 200 -
+2026-05-05 19:20:06  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 19:20:06] "GET /raw-files HTTP/1.1" 200 -
+2026-05-05 19:22:29  INFO      werkzeug — 127.0.0.1 - - [05/May/2026 19:22:29] "POST /upload HTTP/1.1" 200 -
+2026-05-06 00:24:24  INFO      werkzeug — 127.0.0.1 - - [06/May/2026 00:24:24] "GET / HTTP/1.1" 200 -
+2026-05-06 00:24:25  INFO      werkzeug — 127.0.0.1 - - [06/May/2026 00:24:25] "GET /raw-files HTTP/1.1" 200 -
+2026-05-06 11:37:13  INFO      werkzeug — 127.0.0.1 - - [06/May/2026 11:37:13] "GET / HTTP/1.1" 200 -
+2026-05-06 11:37:14  INFO      werkzeug — 127.0.0.1 - - [06/May/2026 11:37:14] "GET /raw-files HTTP/1.1" 200 -

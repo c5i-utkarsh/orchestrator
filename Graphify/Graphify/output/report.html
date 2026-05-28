@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Graphify — Pipeline Report</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Inter,Arial,sans-serif;background:#070d1a;color:#dde3f0;min-height:100vh;padding:0 0 60px}
+  .topbar{background:linear-gradient(90deg,#0d1b2a,#1b2a4a);padding:14px 32px;display:flex;align-items:center;gap:16px;box-shadow:0 2px 12px rgba(0,0,0,.6)}
+  .topbar h1{font-size:20px;font-weight:700;color:#90e0ef;letter-spacing:1px}
+  .topbar .sub{font-size:12px;color:#4a6a8a;margin-left:auto}
+  .container{max-width:1200px;margin:0 auto;padding:32px 24px 0}
+  /* stat cards */
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+  .card{background:#0d1b2e;border:1px solid #1a2f4a;border-radius:12px;padding:20px 24px}
+  .card .val{font-size:36px;font-weight:700;color:#90e0ef;line-height:1}
+  .card .lbl{font-size:12px;color:#4a7a9a;margin-top:6px;text-transform:uppercase;letter-spacing:1px}
+  .card.green .val{color:#4caf79}
+  .card.red .val{color:#ef4444}
+  .card.yellow .val{color:#f9c74f}
+  /* charts row */
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px}
+  .chart-box{background:#0d1b2e;border:1px solid #1a2f4a;border-radius:12px;padding:24px}
+  .chart-box h2{font-size:14px;font-weight:600;color:#8aa4c0;margin-bottom:20px;text-transform:uppercase;letter-spacing:1px}
+  .chart-wrap{position:relative;height:220px}
+  /* tables */
+  .section{background:#0d1b2e;border:1px solid #1a2f4a;border-radius:12px;padding:24px;margin-bottom:24px}
+  .section h2{font-size:14px;font-weight:600;color:#8aa4c0;margin-bottom:18px;text-transform:uppercase;letter-spacing:1px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:#4a7a9a;font-weight:600;padding:8px 12px;border-bottom:1px solid #1a2f4a;font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+  td{padding:10px 12px;border-bottom:1px solid #0f1f30;color:#b0c4d8;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  tr:hover td{background:#0f2035}
+  .badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;color:#fff}
+  .bar-cell{display:flex;align-items:center;gap:8px}
+  .bar{height:6px;border-radius:3px;background:#1f6feb;min-width:2px}
+  .bar-purple{background:#7c3aed}
+  .bar-cell span{font-size:12px;color:#7a9ab8;white-space:nowrap}
+  .detail-cell{color:#4a6a8a!important;font-size:12px;white-space:normal!important;max-width:400px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>&#9741; Graphify — Pipeline Report</h1>
+  <span class="sub">Duration: 6.838s &nbsp;|&nbsp; 6 files processed</span>
+</div>
+<div class="container">
+
+  <!-- Stat cards -->
+  <div class="cards">
+    <div class="card"><div class="val">6</div><div class="lbl">Total Loaded</div></div>
+    <div class="card green"><div class="val">6</div><div class="lbl">Accepted</div></div>
+    <div class="card red"><div class="val">0</div><div class="lbl">Rejected</div></div>
+    <div class="card yellow"><div class="val">25</div><div class="lbl">Graph Nodes &nbsp;(1 communities)</div></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts">
+    <div class="chart-box">
+      <h2>Rejection Breakdown</h2>
+      <div class="chart-wrap"><canvas id="rejChart"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <h2>Top Nodes by PageRank</h2>
+      <div class="chart-wrap"><canvas id="prChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Accepted docs table -->
+  <div class="section">
+    <h2>Accepted Documents (6)</h2>
+    <table>
+      <thead><tr><th>File</th><th>Language</th><th>Tokens</th><th>Quality Score</th><th>Relevance Score</th></tr></thead>
+      <tbody><tr>
+              <td title="data/raw/7-Final.pmd.pdf">7-Final.pmd.pdf</td>
+              <td>en</td>
+              <td>3838</td>
+              <td><div class="bar-cell"><div class="bar" style="width:97%"></div>
+                  <span>0.97</span></div></td>
+              <td><div class="bar-cell"><div class="bar bar-purple" style="width:61%"></div>
+                  <span>0.61</span></div></td>
+            </tr>
+<tr>
+              <td title="data/raw/CarbonatedDrinks-FromIngredientsandFunctionalPropertiestoHistoricalOriginsandTheirApplicationsinBeveragesHealthandIndustry..pdf">CarbonatedDrinks-FromIngredientsandFunctionalPropertiestoHistoricalOriginsandTheirApplicationsinBeveragesHealthandIndustry..pdf</td>
+              <td>en</td>
+              <td>7744</td>
+              <td><div class="bar-cell"><div class="bar" style="width:97%"></div>
+                  <span>0.97</span></div></td>
+              <td><div class="bar-cell"><div class="bar bar-purple" style="width:82%"></div>
+                  <span>0.82</span></div></td>
+            </tr>
+<tr>
+              <td title="data/raw/CarbonatedSoftDrink.pdf">CarbonatedSoftDrink.pdf</td>
+              <td>en</td>
+              <td>3228</td>
+              <td><div class="bar-cell"><div class="bar" style="width:92%"></div>
+                  <span>0.92</span></div></td>
+              <td><div class="bar-cell"><div class="bar bar-purple" style="width:58%"></div>
+                  <span>0.58</span></div></td>
+            </tr>
+<tr>
+              <td title="data/raw/L-0000597620-pdf.pdf">L-0000597620-pdf.pdf</td>
+              <td>en</td>
+              <td>6514</td>
+              <td><div class="bar-cell"><div class="bar" style="width:95%"></div>
+                  <span>0.95</span></div></td>
+              <td><div class="bar-cell"><div class="bar bar-purple" style="width:70%"></div>
+                  <span>0.70</span></div></td>
+            </tr>
+<tr>
+              <td title="data/raw/cbjuice.pdf">cbjuice.pdf</td>
+              <td>en</td>
+              <td>545</td>
+              <td><div class="bar-cell"><div class="bar" style="width:96%"></div>
+                  <span>0.96</span></div></td>
+              <td><div class="bar-cell"><div class="bar bar-purple" style="width:27%"></div>
+                  <span>0.27</span></div></td>
+            </tr>
+<tr>
+              <td title="data/raw/sweetners_2.pdf">sweetners_2.pdf</td>
+              <td>en</td>
+              <td>6235</td>
+              <td><div class="bar-cell"><div class="bar" style="width:96%"></div>
+                  <span>0.96</span></div></td>
+              <td><div class="bar-cell"><div class="bar bar-purple" style="width:55%"></div>
+                  <span>0.55</span></div></td>
+            </tr></tbody>
+    </table>
+  </div>
+
+  <!-- Rejected docs table -->
+  <div class="section">
+    <h2>Rejected Documents (0)</h2>
+    <table>
+      <thead><tr><th>File</th><th>Reason</th><th>Detail</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const chartDefaults = {
+  color: '#8aa4c0',
+  plugins: { legend: { labels: { color: '#8aa4c0', font: { size: 12 } } } },
+};
+
+// Rejection pie
+new Chart(document.getElementById('rejChart'), {
+  type: 'doughnut',
+  data: {
+    labels: [],
+    datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }]
+  },
+  options: {
+    ...chartDefaults,
+    cutout: '60%',
+    plugins: {
+      legend: { position: 'right', labels: { color: '#8aa4c0', font: { size: 12 }, padding: 12 } }
+    }
+  }
+});
+
+// PageRank bar
+new Chart(document.getElementById('prChart'), {
+  type: 'bar',
+  data: {
+    labels: ["soft_drinks", "further", "carbonated_soft", "processed", "water", "food", "drinks", "process", "introduction", "production"],
+    datasets: [{
+      data: [4.11, 4.11, 4.11, 4.11, 4.11, 4.11, 4.11, 4.11, 4.11, 4.11],
+      backgroundColor: 'rgba(0,180,216,0.6)',
+      borderColor: '#00b4d8',
+      borderWidth: 1,
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#4a7a9a' }, grid: { color: '#0f2035' } },
+      y: { ticks: { color: '#8aa4c0' }, grid: { color: '#0f2035' } }
+    }
+  }
+});
+</script>
+</body>
+</html>

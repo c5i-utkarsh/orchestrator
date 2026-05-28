@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Topbar from "./components/Topbar";
 
 export const metadata: Metadata = {
   title: "AI Fine-Tuning Orchestrator",
@@ -9,8 +10,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-gray-950 text-gray-100 min-h-screen">
-        {children}
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+      </head>
+      <body className="bg-bg text-t1 min-h-screen font-sora">
+        <Topbar />
+        <div className="pt-14">
+          {children}
+        </div>
       </body>
     </html>
   );

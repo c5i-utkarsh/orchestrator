@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Graphify — Pipeline Flow</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Inter, Arial, sans-serif;
+  background: #070d1a;
+  color: #dde3f0;
+  min-height: 100vh;
+  padding: 40px 24px 80px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+.header h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #90e0ef;
+  letter-spacing: 2px;
+}
+.header p {
+  font-size: 13px;
+  color: #3a6080;
+  margin-top: 6px;
+}
+
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+/* ── Input sources ── */
+.input-section {
+  width: 100%;
+  background: #0a1828;
+  border: 1px solid #1a3050;
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin-bottom: 6px;
+}
+.input-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #2a5a7a;
+  margin-bottom: 14px;
+}
+.input-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+.input-row-label {
+  font-size: 10px;
+  color: #2a4a6a;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  width: 52px;
+  flex-shrink: 0;
+}
+.chip {
+  background: #0f2033;
+  border: 1px solid #1e4060;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 11px;
+  color: #64b5f6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: #64b5f6; }
+.chip.db { color: #4dd0e1; border-color: #1a4050; }
+.chip.db .dot { background: #4dd0e1; }
+
+/* ── Stage card ── */
+.stage {
+  width: 100%;
+  background: #0d1b2e;
+  border: 1px solid #1a2f4a;
+  border-radius: 12px;
+  padding: 16px 22px;
+  display: grid;
+  grid-template-columns: 50px 1fr auto;
+  align-items: start;
+  gap: 16px;
+  transition: border-color 0.2s, transform 0.2s;
+  cursor: default;
+}
+.stage:hover {
+  border-color: #00b4d8;
+  transform: translateX(4px);
+  background: #0f2035;
+}
+.stage-icon {
+  width: 46px; height: 46px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.stage-body { min-width: 0; }
+.stage-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #2a5070;
+  margin-bottom: 2px;
+}
+.stage-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #c9d8ed;
+  margin-bottom: 5px;
+}
+.stage-desc {
+  font-size: 12px;
+  color: #4a6a88;
+  line-height: 1.65;
+}
+.stage-desc b { color: #7ab8d8; font-weight: 500; }
+.stage-desc code {
+  font-family: 'Consolas', monospace;
+  background: #0a1828;
+  border: 1px solid #1a3040;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: #4dd0e1;
+}
+.algo-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.algo-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 8px;
+  letter-spacing: 0.3px;
+}
+.pill-blue   { background: rgba(100,181,246,.1); color: #64b5f6; border: 1px solid rgba(100,181,246,.25); }
+.pill-teal   { background: rgba(77,208,225,.1);  color: #4dd0e1; border: 1px solid rgba(77,208,225,.25); }
+.pill-purple { background: rgba(206,147,216,.1); color: #ce93d8; border: 1px solid rgba(206,147,216,.25); }
+.pill-green  { background: rgba(165,214,167,.1); color: #81c784; border: 1px solid rgba(165,214,167,.25); }
+.pill-amber  { background: rgba(255,213,79,.1);  color: #ffd54f; border: 1px solid rgba(255,213,79,.25); }
+.pill-coral  { background: rgba(239,154,154,.1); color: #ef9a9a; border: 1px solid rgba(239,154,154,.25); }
+
+.stage-badge {
+  font-size: 10px;
+  background: #0a1828;
+  border: 1px solid #1a3248;
+  border-radius: 6px;
+  padding: 4px 9px;
+  color: #2a6a8a;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-family: 'Consolas', monospace;
+}
+
+/* ── Connector ── */
+.connector {
+  width: 2px;
+  height: 26px;
+  background: linear-gradient(to bottom, #1a3a5a, #00b4d8);
+  margin: 0 auto;
+  position: relative;
+}
+.connector::after {
+  content: '';
+  position: absolute;
+  bottom: -6px; left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid #00b4d8;
+}
+
+/* ── Reject branch ── */
+.reject-note {
+  font-size: 10px;
+  color: #5a3a3a;
+  background: #1a0d0d;
+  border: 1px solid #3a1a1a;
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-top: 6px;
+  display: inline-block;
+}
+
+/* ── Output section ── */
+.outputs-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #2a5a3a;
+  text-align: center;
+  margin: 32px 0 14px;
+}
+.outputs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+.output-card {
+  background: #0a1f14;
+  border: 1px solid #1a4a2a;
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  transition: border-color .2s;
+}
+.output-card:hover { border-color: #4caf79; }
+.output-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.output-title { font-size: 13px; font-weight: 600; color: #66bb8a; margin-bottom: 3px; }
+.output-path  { font-size: 10px; color: #2a6a42; font-family: 'Consolas', monospace; margin-bottom: 4px; }
+.output-desc  { font-size: 11px; color: #3a6a4a; line-height: 1.4; }
+
+/* ── Colour themes ── */
+.s1  .stage-icon { background:#0f2a3f; color:#64b5f6; }
+.s2  .stage-icon { background:#1f2a10; color:#c5e1a5; }
+.s3  .stage-icon { background:#1a1a2f; color:#b39ddb; }
+.s4  .stage-icon { background:#2a1a10; color:#ffb74d; }
+.s5  .stage-icon { background:#2a1a1a; color:#ef9a9a; }
+.s6  .stage-icon { background:#0f2a2a; color:#4dd0e1; }
+.s7  .stage-icon { background:#1a2a10; color:#a5d6a7; }
+.s8  .stage-icon { background:#1a1f0a; color:#dce775; }
+.s9  .stage-icon { background:#1a102a; color:#ce93d8; }
+.s10 .stage-icon { background:#2a2a0f; color:#fff176; }
+
+.s1:hover  { border-color:#64b5f6; }
+.s2:hover  { border-color:#c5e1a5; }
+.s3:hover  { border-color:#b39ddb; }
+.s4:hover  { border-color:#ffb74d; }
+.s5:hover  { border-color:#ef9a9a; }
+.s6:hover  { border-color:#4dd0e1; }
+.s7:hover  { border-color:#a5d6a7; }
+.s8:hover  { border-color:#dce775; }
+.s9:hover  { border-color:#ce93d8; }
+.s10:hover { border-color:#fff176; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>&#9741; Graphify — Data Readiness Pipeline</h1>
+  <p>10-stage local pipeline &nbsp;·&nbsp; No cloud dependency &nbsp;·&nbsp; Hover each stage for details</p>
+</div>
+
+<div class="pipeline">
+
+  <!-- ── INPUTS ── -->
+  <div class="input-section">
+    <div class="input-section-title">Input Sources</div>
+    <div class="input-row">
+      <div class="input-row-label">Files</div>
+      <div class="chip"><div class="dot"></div> .pdf</div>
+      <div class="chip"><div class="dot"></div> .docx</div>
+      <div class="chip"><div class="dot"></div> .xlsx</div>
+      <div class="chip"><div class="dot"></div> .csv</div>
+      <div class="chip"><div class="dot"></div> .txt</div>
+      <div class="chip"><div class="dot"></div> .md</div>
+      <div class="chip"><div class="dot"></div> .json</div>
+    </div>
+    <div class="input-row">
+      <div class="input-row-label">Database</div>
+      <div class="chip db"><div class="dot"></div> PostgreSQL</div>
+      <div class="chip db"><div class="dot"></div> MySQL</div>
+      <div class="chip db"><div class="dot"></div> SQL Server</div>
+      <div class="chip db"><div class="dot"></div> SQLite</div>
+    </div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 1 — Load -->
+  <div class="stage s1">
+    <div class="stage-icon">📂</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 1</div>
+      <div class="stage-title">Load</div>
+      <div class="stage-desc">
+        Reads every supported file from <b>data/raw/</b> into a <b>Document</b> object.
+        Each format has a dedicated reader: <b>PyMuPDF</b> for PDF (page-by-page text extraction),
+        <b>python-docx</b> for DOCX (paragraphs + table cells), <b>openpyxl</b> for XLSX (all sheets),
+        stdlib <b>csv</b> for CSV, plain UTF-8 for TXT/MD/JSON.
+        Database tables land here too as <code>.txt</code> files extracted by <b>SQLAlchemy</b>.
+        A <b>SHA-256 content hash</b> is computed at load time. Load failures are flagged as
+        <b>LOAD_ERROR</b> — the pipeline continues without crashing.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-blue">PyMuPDF</span>
+        <span class="algo-pill pill-blue">python-docx</span>
+        <span class="algo-pill pill-blue">openpyxl</span>
+        <span class="algo-pill pill-blue">SQLAlchemy</span>
+        <span class="algo-pill pill-teal">SHA-256 hash</span>
+      </div>
+    </div>
+    <div class="stage-badge">loader.py</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 2 — Normalise -->
+  <div class="stage s2">
+    <div class="stage-icon">🧹</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 2</div>
+      <div class="stage-title">Normalise Text</div>
+      <div class="stage-desc">
+        Produces the <b>clean_text</b> field used by every downstream stage.
+        Applies <b>Unicode NFKC</b> normalisation (e.g. ligatures, full-width chars →
+        standard ASCII equivalents), strips control characters and URLs,
+        collapses repeated whitespace. No information is lost — raw_text is preserved.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-green">Unicode NFKC</span>
+        <span class="algo-pill pill-green">Whitespace collapse</span>
+      </div>
+    </div>
+    <div class="stage-badge">text_utils.py</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 3 — Language Detection -->
+  <div class="stage s3">
+    <div class="stage-icon">🌐</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 3</div>
+      <div class="stage-title">Language Detection</div>
+      <div class="stage-desc">
+        Uses <b>langdetect</b> (port of Google's language-detection library) which
+        identifies language from <b>character n-gram profiles</b> — no word lists needed.
+        Runs on the first <b>3,000 characters</b> for speed. Returns a language code
+        + confidence score (0–1). Documents with confidence &lt; <b>0.8</b> are treated
+        as unreliable. Only <b>English (en)</b> is accepted by default; all others are
+        rejected with <code>WRONG_LANGUAGE</code>.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-purple">Character n-gram profiles</span>
+        <span class="algo-pill pill-purple">langdetect</span>
+        <span class="algo-pill pill-amber">min confidence: 0.80</span>
+      </div>
+      <div class="reject-note">&#10006; Off-language → WRONG_LANGUAGE rejection</div>
+    </div>
+    <div class="stage-badge">language.py</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 4 — Deduplication -->
+  <div class="stage s4">
+    <div class="stage-icon">🔁</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 4</div>
+      <div class="stage-title">Deduplication</div>
+      <div class="stage-desc">
+        Two-pass strategy. <b>Pass 1 — Exact dedup:</b> compares SHA-256 hashes computed in Stage 1.
+        O(1) lookup, zero false positives.<br><br>
+        <b>Pass 2 — Near-duplicate detection (MinHash LSH):</b> each document is represented as a
+        <b>MinHash signature</b> using <b>128 random hash permutations</b> over its word set.
+        Signatures are indexed in an <b>LSH (Locality-Sensitive Hashing)</b> table — documents
+        whose signatures agree on ≥ <b>85%</b> of positions are flagged as near-duplicates.
+        Scales to 100k+ documents in O(n) time.<br><br>
+        <b>Fallback:</b> if datasketch is unavailable, uses <b>Jaro-Winkler similarity</b>
+        (via rapidfuzz) on the first 2,000 characters.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-amber">SHA-256 exact dedup</span>
+        <span class="algo-pill pill-amber">MinHash LSH · 128 perms</span>
+        <span class="algo-pill pill-amber">Jaro-Winkler fallback</span>
+        <span class="algo-pill pill-coral">threshold: 0.85</span>
+      </div>
+      <div class="reject-note">&#10006; Duplicate → DUPLICATE / NEAR_DUPLICATE rejection</div>
+    </div>
+    <div class="stage-badge">dedup.py</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 5 — Quality Scoring -->
+  <div class="stage s5">
+    <div class="stage-icon">📊</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 5</div>
+      <div class="stage-title">Quality Scoring</div>
+      <div class="stage-desc">
+        Heuristic gates — no ML, fully explainable. Four signals measured on <b>clean_text</b>:<br>
+        &nbsp; • <b>token_count</b> — document length in words (gate: 20 – 50,000)<br>
+        &nbsp; • <b>avg_word_length</b> — mean chars per word (gate: ≥ 3.0)<br>
+        &nbsp; • <b>symbol_ratio</b> — fraction of non-alphanumeric chars (gate: ≤ 0.30)<br>
+        &nbsp; • <b>alpha_ratio</b> — fraction of alphabetic chars (gate: ≥ 0.50)<br><br>
+        <b>Composite score</b> = <code>(token_score + alpha_score + symbol_penalty) / 3</code>
+        where each sub-score is normalised to 0–1. Score shown in Report is diagnostic;
+        the gates above are what actually reject documents.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-coral">token_count gate</span>
+        <span class="algo-pill pill-coral">avg_word_length gate</span>
+        <span class="algo-pill pill-coral">symbol_ratio gate</span>
+        <span class="algo-pill pill-coral">alpha_ratio gate</span>
+      </div>
+      <div class="reject-note">&#10006; Any gate fails → LOW_QUALITY rejection</div>
+    </div>
+    <div class="stage-badge">quality.py</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 6 — Relevance Scoring -->
+  <div class="stage s6">
+    <div class="stage-icon">🎯</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 6</div>
+      <div class="stage-title">Relevance Scoring</div>
+      <div class="stage-desc">
+        <b>Seed-term coverage</b> — domain-specific, no embeddings or training needed.
+        Each seed term is tokenised into a word set. For each document the engine counts
+        how many seed terms have <b>all their tokens present</b> in the document's token set.<br><br>
+        <code>score = hits / total_seed_terms</code><br><br>
+        Current domain: <b>carbonated beverages &amp; packaging</b> — seed terms include
+        "carbonated", "beverage", "bottle", "PET", "sweetener", "carbon dioxide",
+        "carbonation", "bottling", "syrup", "citric acid", etc.
+        Documents below <b>2% coverage</b> are rejected as off-domain.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-teal">Seed-term coverage</span>
+        <span class="algo-pill pill-teal">Token set intersection</span>
+        <span class="algo-pill pill-coral">min threshold: 0.02</span>
+      </div>
+      <div class="reject-note">&#10006; Below threshold → LOW_RELEVANCE rejection</div>
+    </div>
+    <div class="stage-badge">contamination.py</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 7 — Chunking -->
+  <div class="stage s7">
+    <div class="stage-icon">✂️</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 7</div>
+      <div class="stage-title">Chunking</div>
+      <div class="stage-desc">
+        Splits each accepted document into <b>overlapping token windows</b> for retrieval.
+        Window size: <b>150 tokens</b>, stride: <b>130 tokens</b> (20-token overlap between chunks).
+        The overlap prevents a sentence being cut mid-thought at a chunk boundary.
+        Chunks shorter than 10 tokens (tail fragments) are discarded.<br><br>
+        Each chunk is the atomic unit of <b>search &amp; retrieval</b> in Stage 10.
+        A 6,000-token document produces ~44 chunks.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-green">Sliding window</span>
+        <span class="algo-pill pill-green">chunk_size: 150 tokens</span>
+        <span class="algo-pill pill-green">overlap: 20 tokens</span>
+      </div>
+    </div>
+    <div class="stage-badge">chunker.py</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 8 — Write Outputs -->
+  <div class="stage s8">
+    <div class="stage-icon">💾</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 8</div>
+      <div class="stage-title">Write Outputs</div>
+      <div class="stage-desc">
+        Accepted documents → <b>data/curated/</b> as chunk files named
+        <code>{source}__{doc_id_prefix}.txt</code>.<br>
+        Rejected documents → <b>data/rejected/rejection_manifest.json</b>
+        with each document's <b>doc_id, source path, rejection reason, and exact detail string</b>
+        (e.g. <code>token_count=4 &lt; min=20</code>). Every decision is fully auditable.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-blue">Curated chunks → data/curated/</span>
+        <span class="algo-pill pill-coral">Rejection manifest → data/rejected/</span>
+      </div>
+    </div>
+    <div class="stage-badge">curator.py</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 9 — Knowledge Graph -->
+  <div class="stage s9">
+    <div class="stage-icon">🕸️</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 9</div>
+      <div class="stage-title">Build Knowledge Graph</div>
+      <div class="stage-desc">
+        Five sub-steps on accepted documents only:<br><br>
+        <b>1. Term extraction</b> — unigrams (words &gt; 2 chars, non-stopword, alphabetic) +
+        <b>bigrams</b> (consecutive word pairs like <code>carbon_dioxide</code>, <code>soft_drink</code>) +
+        <b>Named Entity Recognition</b> via <b>spaCy en_core_web_sm</b> (ORG, PRODUCT, GPE, LOC, PERSON).<br><br>
+        <b>2. Top-N selection</b> — globally the top <b>25 most frequent</b> terms become graph nodes.<br><br>
+        <b>3. Co-occurrence edges</b> — two terms get an edge if they co-occur in the same document.
+        Edge weight = number of documents they share. Edges below weight <b>2</b> are pruned.<br><br>
+        <b>4. PageRank</b> (α = 0.85) — the same algorithm as Google's original search.
+        Nodes co-occurring with many other important nodes rank higher. Drives node size in the visualisation.<br><br>
+        <b>5. Louvain community detection</b> — maximises <b>modularity</b> (how densely connected a
+        group is vs. random chance). Finds natural topic clusters. Drives node colour in the visualisation.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-purple">Unigrams + Bigrams</span>
+        <span class="algo-pill pill-purple">spaCy NER</span>
+        <span class="algo-pill pill-purple">Co-occurrence graph</span>
+        <span class="algo-pill pill-teal">PageRank α=0.85</span>
+        <span class="algo-pill pill-teal">Louvain community detection</span>
+        <span class="algo-pill pill-blue">NetworkX</span>
+      </div>
+    </div>
+    <div class="stage-badge">graph_builder.py</div>
+  </div>
+
+  <div class="connector"></div>
+
+  <!-- Stage 10 — Report -->
+  <div class="stage s10">
+    <div class="stage-icon">📋</div>
+    <div class="stage-body">
+      <div class="stage-label">Stage 10</div>
+      <div class="stage-title">Report &amp; Visualisation</div>
+      <div class="stage-desc">
+        Writes <b>summary_report.json</b> — total counts, rejection breakdown by reason,
+        per-document quality and relevance scores, top graph nodes by PageRank.<br>
+        Renders <b>report.html</b> — interactive bar/donut charts with per-document score table.<br>
+        Renders <b>graph_viz.html</b> — interactive pyvis graph with community colours,
+        PageRank-scaled node sizes, and hover tooltips showing term frequency &amp; community ID.<br><br>
+        <b>Search</b> (on-demand): TF-IDF vectorisation of curated chunks + <b>cosine similarity</b>
+        ranking against a free-text query. Returns top-K chunks above a minimum score threshold.
+        This is the <b>GraphRAG retrieval layer</b> ready to connect to any LLM.
+      </div>
+      <div class="algo-pills">
+        <span class="algo-pill pill-amber">TF-IDF</span>
+        <span class="algo-pill pill-amber">Cosine similarity</span>
+        <span class="algo-pill pill-green">pyvis interactive graph</span>
+        <span class="algo-pill pill-blue">HTML report</span>
+      </div>
+    </div>
+    <div class="stage-badge">report.py · visualize_graph.py</div>
+  </div>
+
+  <!-- ── OUTPUTS ── -->
+  <div class="outputs-label">&#9660; &nbsp; Outputs</div>
+  <div class="outputs">
+    <div class="output-card">
+      <div class="output-icon">✅</div>
+      <div>
+        <div class="output-title">Curated Corpus</div>
+        <div class="output-path">data/curated/*.txt</div>
+        <div class="output-desc">Clean, deduplicated, domain-relevant chunks — the retrieval index</div>
+      </div>
+    </div>
+    <div class="output-card">
+      <div class="output-icon">❌</div>
+      <div>
+        <div class="output-title">Rejection Manifest</div>
+        <div class="output-path">data/rejected/rejection_manifest.json</div>
+        <div class="output-desc">Every rejected doc with doc_id, source path, reason &amp; detail string</div>
+      </div>
+    </div>
+    <div class="output-card">
+      <div class="output-icon">🕸️</div>
+      <div>
+        <div class="output-title">Knowledge Graph</div>
+        <div class="output-path">data/graph/graph.json + graph.graphml</div>
+        <div class="output-desc">Co-occurrence graph with PageRank &amp; Louvain communities — Gephi/Cytoscape ready</div>
+      </div>
+    </div>
+    <div class="output-card">
+      <div class="output-icon">🔮</div>
+      <div>
+        <div class="output-title">Interactive Visualisation</div>
+        <div class="output-path">output/graph_viz.html</div>
+        <div class="output-desc">pyvis network — community-coloured nodes, PageRank-scaled sizes, hover tooltips</div>
+      </div>
+    </div>
+    <div class="output-card">
+      <div class="output-icon">📊</div>
+      <div>
+        <div class="output-title">Pipeline Report</div>
+        <div class="output-path">output/report.html + summary_report.json</div>
+        <div class="output-desc">Per-document quality &amp; relevance scores, rejection breakdown, top graph nodes</div>
+      </div>
+    </div>
+    <div class="output-card">
+      <div class="output-icon">🔍</div>
+      <div>
+        <div class="output-title">GraphRAG Retrieval Layer</div>
+        <div class="output-path">Search tab — TF-IDF + cosine similarity</div>
+        <div class="output-desc">Ask questions over the curated corpus — plug directly into any LLM</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

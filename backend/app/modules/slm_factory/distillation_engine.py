@@ -62,10 +62,11 @@ class DistillationEngine:
         Yields progress events: {type: "progress"|"done"|"error", ...}
         Writes JSONL to output_path.
         """
-        teacher = await self._registry.get_best_local_model()
-        if not teacher:
+        teacher_info = await self._registry.get_best_local_model()
+        if not teacher_info:
             yield {"type": "error", "message": "No local teacher model available"}
             return
+        teacher = teacher_info.model_id
 
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)

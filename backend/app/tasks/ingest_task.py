@@ -86,8 +86,27 @@ async def _update_progress(db, text_fn, job_id: str, steps: list, current_idx: i
 
 
 async def _ingest(job_id: str, corpus_dir: str, domain_label: str, db_creds: dict):
-    from app.db.database import async_session_factory
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+    from sqlalchemy.pool import NullPool
     from sqlalchemy import text
+    from app.config import get_settings
+
+    # Create a fresh engine with NullPool for this task.
+    # Each Celery task runs inside asyncio.run() which creates a NEW event loop.
+    # Reusing a pooled engine from a previous event loop causes asyncpg to raise
+    # "Future attached to a different loop". NullPool creates fresh connections
+    # every time and never caches them, so the loop mismatch can never occur.
+    _settings = get_settings()
+    _task_engine = create_async_engine(
+        _settings.database_url,
+        echo=False,
+        poolclass=NullPool,
+    )
+    async_session_factory = async_sessionmaker(
+        _task_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
     from app.modules.data_curation.ingester import Ingester
     from app.modules.data_curation.graphify_engine.graphify_runner import GraphifyRunner
     from app.modules.data_curation.deduplicator import Deduplicator

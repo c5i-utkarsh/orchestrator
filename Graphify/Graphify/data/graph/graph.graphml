@@ -1,0 +1,1033 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"><key id="d4" for="edge" attr.name="weight" attr.type="long"/>
+<key id="d3" for="node" attr.name="community_id" attr.type="long"/>
+<key id="d2" for="node" attr.name="pagerank" attr.type="double"/>
+<key id="d1" for="node" attr.name="frequency" attr.type="long"/>
+<key id="d0" for="graph" attr.name="name" attr.type="string"/>
+<graph edgedefault="undirected"><data key="d0">data_readiness_cooccurrence</data>
+<node id="soft_drinks">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="further">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="carbonated_soft">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="processed">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="water">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="produced">
+  <data key="d1">5</data>
+  <data key="d2">0.03550503969715894</data>
+  <data key="d3">0</data>
+</node>
+<node id="food">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="drinks">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="process">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="introduction">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="production">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="cost">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="material">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="directly">
+  <data key="d1">5</data>
+  <data key="d2">0.0357636272249851</data>
+  <data key="d3">0</data>
+</node>
+<node id="under">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="beverages">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="technology">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="increasing">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="carbonated">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="over">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="form">
+  <data key="d1">5</data>
+  <data key="d2">0.03550503969715894</data>
+  <data key="d3">0</data>
+</node>
+<node id="soft">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<node id="must">
+  <data key="d1">5</data>
+  <data key="d2">0.0357636272249851</data>
+  <data key="d3">0</data>
+</node>
+<node id="including">
+  <data key="d1">5</data>
+  <data key="d2">0.0357636272249851</data>
+  <data key="d3">0</data>
+</node>
+<node id="development">
+  <data key="d1">6</data>
+  <data key="d2">0.04108495194653633</data>
+  <data key="d3">0</data>
+</node>
+<edge source="soft_drinks" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="carbonated_soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="soft_drinks" target="drinks">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="food">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="soft_drinks" target="further">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="soft_drinks" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="introduction">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="soft_drinks" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="process">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="processed">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="produced">
+  <data key="d4">5</data>
+</edge>
+<edge source="soft_drinks" target="production">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft_drinks" target="water">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="carbonated_soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="further" target="drinks">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="food">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="further" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="further" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="introduction">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="further" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="process">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="processed">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="produced">
+  <data key="d4">5</data>
+</edge>
+<edge source="further" target="production">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="further" target="water">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="carbonated_soft" target="drinks">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="food">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="carbonated_soft" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="carbonated_soft" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="introduction">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="carbonated_soft" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="process">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="processed">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="produced">
+  <data key="d4">5</data>
+</edge>
+<edge source="carbonated_soft" target="production">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated_soft" target="water">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="processed" target="drinks">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="food">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="processed" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="processed" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="introduction">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="processed" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="process">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="produced">
+  <data key="d4">5</data>
+</edge>
+<edge source="processed" target="production">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="processed" target="water">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="water" target="drinks">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="food">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="water" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="water" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="introduction">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="water" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="process">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="produced">
+  <data key="d4">5</data>
+</edge>
+<edge source="water" target="production">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="water" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="produced" target="beverages">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="carbonated">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="cost">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="development">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="directly">
+  <data key="d4">4</data>
+</edge>
+<edge source="produced" target="drinks">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="food">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="including">
+  <data key="d4">4</data>
+</edge>
+<edge source="produced" target="increasing">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="introduction">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="material">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="must">
+  <data key="d4">4</data>
+</edge>
+<edge source="produced" target="over">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="process">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="production">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="soft">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="technology">
+  <data key="d4">5</data>
+</edge>
+<edge source="produced" target="under">
+  <data key="d4">5</data>
+</edge>
+<edge source="food" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="food" target="drinks">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="food" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="food" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="introduction">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="food" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="process">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="production">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="food" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="drinks" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="drinks" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="drinks" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="introduction">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="drinks" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="process">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="production">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="drinks" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="process" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="process" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="process" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="introduction">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="process" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="production">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="process" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="introduction" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="introduction" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="introduction" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="introduction" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="production">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="introduction" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="cost">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="production" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="production" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="production" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="production" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="production" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="cost" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="cost" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="cost" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="cost" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="cost" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="cost" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="cost" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="cost" target="material">
+  <data key="d4">6</data>
+</edge>
+<edge source="cost" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="cost" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="cost" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="cost" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="cost" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="material" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="material" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="material" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="material" target="directly">
+  <data key="d4">5</data>
+</edge>
+<edge source="material" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="material" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="material" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="material" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="material" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="material" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="material" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="material" target="under">
+  <data key="d4">6</data>
+</edge>
+<edge source="directly" target="beverages">
+  <data key="d4">5</data>
+</edge>
+<edge source="directly" target="carbonated">
+  <data key="d4">5</data>
+</edge>
+<edge source="directly" target="development">
+  <data key="d4">5</data>
+</edge>
+<edge source="directly" target="form">
+  <data key="d4">4</data>
+</edge>
+<edge source="directly" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="directly" target="increasing">
+  <data key="d4">5</data>
+</edge>
+<edge source="directly" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="directly" target="over">
+  <data key="d4">5</data>
+</edge>
+<edge source="directly" target="soft">
+  <data key="d4">5</data>
+</edge>
+<edge source="directly" target="technology">
+  <data key="d4">5</data>
+</edge>
+<edge source="directly" target="under">
+  <data key="d4">5</data>
+</edge>
+<edge source="under" target="beverages">
+  <data key="d4">6</data>
+</edge>
+<edge source="under" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="under" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="under" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="under" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="under" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="under" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="under" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="under" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="under" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="beverages" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="beverages" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="beverages" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="beverages" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="beverages" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="beverages" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="beverages" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="beverages" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="beverages" target="technology">
+  <data key="d4">6</data>
+</edge>
+<edge source="technology" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="technology" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="technology" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="technology" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="technology" target="increasing">
+  <data key="d4">6</data>
+</edge>
+<edge source="technology" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="technology" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="technology" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="increasing" target="carbonated">
+  <data key="d4">6</data>
+</edge>
+<edge source="increasing" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="increasing" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="increasing" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="increasing" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="increasing" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="increasing" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="carbonated" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="carbonated" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="carbonated" target="over">
+  <data key="d4">6</data>
+</edge>
+<edge source="carbonated" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="over" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="over" target="form">
+  <data key="d4">5</data>
+</edge>
+<edge source="over" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="over" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="over" target="soft">
+  <data key="d4">6</data>
+</edge>
+<edge source="form" target="development">
+  <data key="d4">5</data>
+</edge>
+<edge source="form" target="including">
+  <data key="d4">4</data>
+</edge>
+<edge source="form" target="must">
+  <data key="d4">4</data>
+</edge>
+<edge source="form" target="soft">
+  <data key="d4">5</data>
+</edge>
+<edge source="soft" target="development">
+  <data key="d4">6</data>
+</edge>
+<edge source="soft" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="soft" target="must">
+  <data key="d4">5</data>
+</edge>
+<edge source="must" target="development">
+  <data key="d4">5</data>
+</edge>
+<edge source="must" target="including">
+  <data key="d4">5</data>
+</edge>
+<edge source="including" target="development">
+  <data key="d4">5</data>
+</edge>
+</graph></graphml>

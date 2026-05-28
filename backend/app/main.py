@@ -32,7 +32,16 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://frontend:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://frontend:3000",
+        "http://frontend:3001",
+        "http://192.168.42.62:3000",
+        "http://192.168.42.62:3001",
+        "http://BTGBSAPP08:3000",
+        "http://BTGBSAPP08:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -51,13 +51,36 @@ function formatEta(seconds: number | null): string {
 }
 
 function StatusDot({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    pending: "bg-gray-600",
-    running: "bg-yellow-400 animate-pulse",
-    done:    "bg-green-400",
-    error:   "bg-red-400",
-  };
-  return <span className={`inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 ${colors[status] ?? "bg-gray-600"}`} />;
+  if (status === "done")    return <span className="inline-block w-2 h-2 rounded-full bg-gg flex-shrink-0" />;
+  if (status === "error")   return <span className="inline-block w-2 h-2 rounded-full bg-coral flex-shrink-0" />;
+  if (status === "running") return <span className="inline-block w-2 h-2 rounded-full bg-amber animate-pulse flex-shrink-0" />;
+  return <span className="inline-block w-2 h-2 rounded-full bg-dborder2 flex-shrink-0" />;
+}
+
+function Pyramid({ phase }: { phase: "ingest" | "orchestrator" | "done" }) {
+  const layers = [
+    { label: phase === "done" ? "✓ Result" : "Result",                              w: 80,  done: phase === "done" },
+    { label: phase === "orchestrator" ? "▶ Model selection — active" : phase === "done" ? "✓ Model selection" : "Model selection", w: 190, active: phase === "orchestrator", done: phase === "done" },
+    { label: phase !== "ingest" ? "▶ SLM engine — active" : "SLM engine",          w: 280, active: phase === "orchestrator", done: false },
+    { label: phase === "ingest" ? "▶ Data + GraphRAG — active" : "✓ Data + GraphRAG", w: 390, active: phase === "ingest", done: phase !== "ingest" },
+  ];
+  return (
+    <div className="flex flex-col items-center gap-1 pb-7 pt-1">
+      {layers.map((t, i) => (
+        <div
+          key={i}
+          className={`flex items-center justify-center h-9 rounded-[10px] text-[12px] font-semibold px-5 ${
+            t.active ? "bg-amber/10 border border-amber/40 text-amber"
+            : t.done  ? "bg-gg/10 border border-gg/30 text-gg"
+            : "bg-bg4 border border-dborder text-t3"
+          }`}
+          style={{ width: t.w }}
+        >
+          {t.label}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function ProcessingPage() {
@@ -217,7 +240,30 @@ function ProcessingPage() {
     if (event.type === "output") {
       setPhase("done");
       setOverallPct(100);
-      sessionStorage.setItem("orchestrator_output", JSON.stringify(event.data));
+      const outputData = event.data;
+      sessionStorage.setItem("orchestrator_output", JSON.stringify(outputData));
+      // Persist session to localStorage for dashboard history
+      const jobId = sessionStorage.getItem("job_id") ?? "";
+      const query = sessionStorage.getItem("query") ?? "";
+      const domainLabel = sessionStorage.getItem("domain_label") ?? "general";
+      const sessionRecord = {
+        job_id: jobId,
+        query,
+        domain_label: domainLabel,
+        timestamp: new Date().toISOString(),
+        slm_model_id: outputData.slm_model_id ?? null,
+        final_answer: outputData.final_answer ?? "",
+        intent: outputData.intent ?? "",
+        coverage_action: outputData.coverage_action ?? "",
+        hallucination_rate: outputData.hallucination_rate ?? 0,
+        output: outputData,
+      };
+      try {
+        const existing = JSON.parse(localStorage.getItem("orch_sessions") ?? "[]");
+        // Replace if same job_id already exists, otherwise prepend
+        const filtered = existing.filter((s: any) => s.job_id !== jobId);
+        localStorage.setItem("orch_sessions", JSON.stringify([sessionRecord, ...filtered].slice(0, 20)));
+      } catch { /* ignore */ }
       router.push("/recommendations");
     }
   };
@@ -247,142 +293,154 @@ function ProcessingPage() {
   }));
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-12">
-      {/* Step indicator */}
-      <div className="flex gap-2 mb-8 text-xs text-gray-500">
-        {["1 · Setup", "2 · Processing", "3 · Recommendations"].map((s, i) => (
-          <span key={i} className={`px-3 py-1 rounded-full ${i === 1 ? "bg-brand-600 text-white" : "bg-gray-800"}`}>{s}</span>
-        ))}
-      </div>
-
-      <h2 className="text-2xl font-bold text-gray-100 mb-1">Building Your Domain SLM</h2>
-      {etaSeconds !== null && phase === "ingest" && (
-        <p className="text-sm text-gray-400 mb-4">{formatEta(etaSeconds)}</p>
-      )}
-
-      {/* Overall progress bar */}
-      <div className="mb-6">
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
-          <span>Overall progress</span>
-          <span>{overallPct}%</span>
-        </div>
-        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-brand-500 transition-all duration-700 rounded-full"
-            style={{ width: `${overallPct}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Stats row */}
-      {(stats.files > 0 || stats.entities > 0) && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {[
-            { label: "Documents", value: stats.files },
-            { label: "Entities", value: stats.entities },
-            { label: "Communities", value: stats.communities },
-          ].map(({ label, value }) => (
-            <div key={label} className="bg-gray-900 border border-gray-700 rounded-lg p-3 text-center">
-              <p className="text-lg font-bold text-brand-400">{value}</p>
-              <p className="text-xs text-gray-500">{label}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Ingest pipeline steps */}
-      <div className="space-y-2 mb-4">
-        {ingestSteps.map(step => (
-          <div key={step.id} className={`bg-gray-900 border rounded-lg px-4 py-3 ${step.status === "running" ? "border-brand-600" : "border-gray-700"}`}>
-            <div className="flex items-center gap-3">
-              <StatusDot status={step.status} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-200">{step.label}</p>
-                {step.detail && (
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">{step.detail}</p>
-                )}
-                {step.status === "running" && (
-                  <div className="mt-1.5 h-1 bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-brand-500 transition-all duration-500"
-                      style={{ width: `${step.pct}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-              <span className="text-xs text-gray-600 flex-shrink-0">
-                {step.status === "done" ? "✓" : step.status === "running" ? `${step.pct}%` : ""}
-              </span>
-            </div>
+    <div>
+      {/* Page header */}
+      <div className="bg-card border-b border-dborder px-0 py-7 mb-7">
+        <div className="max-w-[860px] mx-auto px-8">
+          <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
+            <span className="inline-block w-4 h-px bg-accent" />
+            Step 2 of 3 · Building
           </div>
-        ))}
+          <div className="font-sora text-2xl font-semibold text-t1">Building Your Domain SLM</div>
+          <div className="text-[12px] text-t2 mt-1">
+            {etaSeconds !== null && phase === "ingest" ? formatEta(etaSeconds) : "Pipeline running — streaming live progress below"}
+          </div>
+        </div>
       </div>
 
-      {/* Orchestrator steps (shown once ingest is done) */}
-      {phase !== "ingest" && (
-        <div className="space-y-2 mb-6">
-          {allOrchSteps.map(step => (
-            <div key={step.id} className={`bg-gray-900 border rounded-lg px-4 py-3 ${step.status === "running" ? "border-brand-600" : "border-gray-700"}`}>
-              <div className="flex items-center gap-3">
-                <StatusDot status={step.status} />
-                <p className="text-sm font-medium text-gray-200 flex-1">{step.label}</p>
-                {step.status === "done" && <span className="text-xs text-green-400">✓</span>}
-                {step.status === "running" && (
-                  <span className="w-3 h-3 rounded-full border-2 border-brand-400 border-t-transparent animate-spin" />
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="max-w-[860px] mx-auto px-8">
+        <Pyramid phase={phase} />
 
-      {/* Epoch loss chart */}
-      {epochs.length > 0 && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-6">
-          <p className="text-xs font-medium text-gray-400 mb-2">Training Loss</p>
-          <div className="flex items-end gap-1 h-20">
-            {epochs.map((e, i) => (
-              <div key={i} className="flex flex-col items-center flex-1">
-                <div
-                  className="w-full bg-brand-500 rounded-sm"
-                  style={{ height: `${Math.max(4, (1 - Math.min(e.loss / 3, 1)) * 60)}px` }}
-                />
-                <span className="text-xs text-gray-600 mt-1">{e.epoch}</span>
+        {/* Overall progress bar */}
+        <div className="mb-6">
+          <div className="flex justify-between text-[11px] text-t3 mb-1.5">
+            <span>Overall progress</span>
+            <span className="text-t2 font-semibold">{overallPct}%</span>
+          </div>
+          <div className="prog-bar h-2">
+            <div className="prog-fill h-2" style={{ width: `${overallPct}%` }} />
+          </div>
+        </div>
+
+        {/* Stats row */}
+        {(stats.files > 0 || stats.entities > 0) && (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[
+              { label: "Documents", value: stats.files, color: "#60a5fa" },
+              { label: "Entities",  value: stats.entities, color: "#7c6af8" },
+              { label: "Communities", value: stats.communities, color: "#2dd4a0" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="mcard text-center">
+                <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t" style={{ background: color }} />
+                <div className="font-sora text-[22px] font-bold text-t1 leading-none">{value}</div>
+                <div className="text-[10px] text-t3 mt-1 uppercase tracking-wider">{label}</div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Live log */}
-      <div className="bg-gray-950 border border-gray-800 rounded-lg p-3 max-h-48 overflow-auto">
-        <p className="text-xs text-gray-600 mb-1">Live log</p>
-        {log.map((l, i) => (
-          <p key={i} className="text-xs text-gray-500 font-mono leading-relaxed">{l}</p>
-        ))}
-        {log.length === 0 && <p className="text-xs text-gray-700">Waiting for events…</p>}
+        {/* Ingest pipeline steps */}
+        <div className="sect">Pipeline stages</div>
+        <div className="space-y-2 mb-4">
+          {ingestSteps.map(step => (
+            <div
+              key={step.id}
+              className={`model-row ${step.status === "running" ? "border-accent" : step.status === "done" ? "border-gg/30" : ""}`}
+            >
+              <StatusDot status={step.status} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-medium text-t1">{step.label}</p>
+                {step.detail && <p className="text-[10px] text-t3 mt-0.5 truncate">{step.detail}</p>}
+                {step.status === "running" && step.pct > 0 && (
+                  <div className="prog-bar mt-1.5">
+                    <div className="prog-fill" style={{ width: `${step.pct}%` }} />
+                  </div>
+                )}
+              </div>
+              <span className="text-[11px] flex-shrink-0">
+                {step.status === "done"    && <span className="text-gg">✓</span>}
+                {step.status === "running" && step.pct > 0 && <span className="text-t3">{step.pct}%</span>}
+                {step.status === "running" && step.pct === 0 && <span className="w-3 h-3 rounded-full border-2 border-accent border-t-transparent animate-spin inline-block" />}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Orchestrator steps */}
+        {phase !== "ingest" && (
+          <>
+            <div className="sect">Orchestrator</div>
+            <div className="space-y-2 mb-6">
+              {allOrchSteps.map(step => (
+                <div
+                  key={step.id}
+                  className={`model-row ${step.status === "running" ? "border-purple/50" : step.status === "done" ? "border-gg/30" : ""}`}
+                >
+                  <StatusDot status={step.status} />
+                  <p className="text-[12px] font-medium text-t1 flex-1">{step.label}</p>
+                  {step.status === "done" && <span className="text-gg text-[11px]">✓</span>}
+                  {step.status === "running" && <span className="w-3 h-3 rounded-full border-2 border-purple border-t-transparent animate-spin" />}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Epoch loss chart */}
+        {epochs.length > 0 && (
+          <div className="card mb-6">
+            <div className="sect">Training Loss</div>
+            <div className="flex items-end gap-1 h-20">
+              {epochs.map((e, i) => (
+                <div key={i} className="flex flex-col items-center flex-1">
+                  <div
+                    className="w-full bg-accent rounded-sm"
+                    style={{ height: `${Math.max(4, (1 - Math.min(e.loss / 3, 1)) * 60)}px` }}
+                  />
+                  <span className="text-[9px] text-t3 mt-1">{e.epoch}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Live log */}
+        <div className="mb-8">
+          <div className="sect">Live log</div>
+          <div className="bg-bg rounded-sm border border-dborder p-3 max-h-48 overflow-auto">
+            {log.map((l, i) => (
+              <p key={i} className="text-[11px] text-t3 font-mono leading-relaxed">{l}</p>
+            ))}
+            {log.length === 0 && (
+              <div className="thinking-bar">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple animate-blink" />
+                Waiting for events…
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Approve install modal */}
       {showApproveModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-bold text-gray-100 mb-2">SLM Ready to Deploy</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Model <code className="text-brand-400">{buildModelId}</code> has been trained.
+          <div className="bg-card2 border border-dborder2 rounded-card p-6 max-w-md w-full mx-4">
+            <h3 className="font-sora text-lg font-bold text-t1 mb-2">SLM Ready to Deploy</h3>
+            <p className="text-[12px] text-t2 mb-4">
+              Model <code className="text-accent">{buildModelId}</code> has been trained.
               Approve to deploy it to Ollama and make it available for queries.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={approveInstall}
                 disabled={approving}
-                className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                className="btn btn-p flex-1 disabled:opacity-50"
               >
                 {approving ? "Deploying…" : "Approve & Deploy to Ollama"}
               </button>
               <button
                 onClick={() => setShowApproveModal(false)}
-                className="px-4 bg-gray-700 hover:bg-gray-600 text-gray-300 py-2 rounded-lg text-sm"
+                className="btn px-4"
               >
                 Skip
               </button>
@@ -390,13 +448,13 @@ function ProcessingPage() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Loading…</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-bg flex items-center justify-center text-t2 text-sm">Loading…</div>}>
       <ProcessingPage />
     </Suspense>
   );

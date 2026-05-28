@@ -86,6 +86,7 @@ class SLMBuilder:
         yield {"type": "step", "step": 1, "total": 5, "label": "Teacher synthesis", "status": "running"}
 
         qa_path = str(build_dir / "train.jsonl")
+        pairs_written = 0
         async for event in self._distillation.generate(
             wiki_articles=wiki_articles,
             domain_label=domain_label,
@@ -95,6 +96,8 @@ class SLMBuilder:
             yield {**event, "step": 1}
             if event.get("type") == "error":
                 return
+            if event.get("type") == "done":
+                pairs_written = event.get("pairs_written", 0)
 
         # ── Step 2: Student selection ─────────────────────────────────
         available_vram = _estimate_available_vram_gb()
@@ -111,20 +114,26 @@ class SLMBuilder:
         # ── Step 3: QLoRA training ────────────────────────────────────
         yield {"type": "step", "step": 3, "total": 5, "label": "QLoRA fine-tuning", "status": "running"}
 
-        try:
-            adapter_path, val_loss = await self._run_qlora(
-                student_model=student["name"],
-                qa_path=qa_path,
-                output_dir=str(build_dir / "adapter"),
-                progress_callback=lambda e: e,
-            )
-            qlora_skipped = False
-        except ModuleNotFoundError as exc:
-            # torch/transformers not installed — fall back to best available Ollama model
-            yield {"type": "warning", "message": f"QLoRA skipped (missing deps: {exc}). Using best Ollama model as domain SLM."}
-            adapter_path = str(build_dir / "adapter")
-            val_loss = 0.0
-            qlora_skipped = True
+        qlora_skipped = True
+        adapter_path = str(build_dir / "adapter")
+        val_loss = 0.0
+
+        if pairs_written == 0:
+            yield {"type": "warning", "message": "QLoRA skipped: no training pairs generated. Using best Ollama model as domain SLM."}
+        else:
+            try:
+                adapter_path, val_loss = await self._run_qlora(
+                    student_model=student["name"],
+                    qa_path=qa_path,
+                    output_dir=str(build_dir / "adapter"),
+                    progress_callback=lambda e: e,
+                )
+                qlora_skipped = False
+            except ModuleNotFoundError as exc:
+                # torch/transformers not installed — fall back to best available Ollama model
+                yield {"type": "warning", "message": f"QLoRA skipped (missing deps: {exc}). Using best Ollama model as domain SLM."}
+            except Exception as exc:
+                yield {"type": "warning", "message": f"QLoRA failed: {exc}. Using best Ollama model as domain SLM."}
 
         yield {
             "type": "step", "step": 3, "total": 5,
@@ -148,7 +157,9 @@ class SLMBuilder:
             fallback_ollama_model = OLLAMA_PREFERENCE[0]
 
         if not qlora_skipped:
-            self._slm_store.save_adapter(model_id, adapter_path)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._slm_store.save_adapter, model_id, adapter_path)
         modelfile_path = self._slm_store.write_modelfile(
             model_id=model_id,
             base_model=student["name"] if not qlora_skipped else fallback_ollama_model,
@@ -239,7 +250,7 @@ class SLMBuilder:
                         pass
 
         if not pairs:
-            return output_dir, 99.0
+            raise ValueError("No training pairs found in QLoRA dataset — skipping fine-tuning.")
 
         # Convert to text format
         def format_pair(item):

@@ -1,0 +1,1661 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {
+    "name": "data_readiness_cooccurrence"
+  },
+  "nodes": [
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "soft_drinks"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "further"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "carbonated_soft"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "processed"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "water"
+    },
+    {
+      "frequency": 5,
+      "pagerank": 0.03550503969715894,
+      "community_id": 0,
+      "id": "produced"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "food"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "drinks"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "process"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "introduction"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "production"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "cost"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "material"
+    },
+    {
+      "frequency": 5,
+      "pagerank": 0.0357636272249851,
+      "community_id": 0,
+      "id": "directly"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "under"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "beverages"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "technology"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "increasing"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "carbonated"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "over"
+    },
+    {
+      "frequency": 5,
+      "pagerank": 0.03550503969715894,
+      "community_id": 0,
+      "id": "form"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "soft"
+    },
+    {
+      "frequency": 5,
+      "pagerank": 0.0357636272249851,
+      "community_id": 0,
+      "id": "must"
+    },
+    {
+      "frequency": 5,
+      "pagerank": 0.0357636272249851,
+      "community_id": 0,
+      "id": "including"
+    },
+    {
+      "frequency": 6,
+      "pagerank": 0.04108495194653633,
+      "community_id": 0,
+      "id": "development"
+    }
+  ],
+  "edges": [
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "carbonated_soft"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "soft_drinks",
+      "target": "directly"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "drinks"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "food"
+    },
+    {
+      "weight": 5,
+      "source": "soft_drinks",
+      "target": "form"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "further"
+    },
+    {
+      "weight": 5,
+      "source": "soft_drinks",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "introduction"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "soft_drinks",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "process"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "processed"
+    },
+    {
+      "weight": 5,
+      "source": "soft_drinks",
+      "target": "produced"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "production"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "soft_drinks",
+      "target": "water"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "carbonated_soft"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "further",
+      "target": "directly"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "drinks"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "food"
+    },
+    {
+      "weight": 5,
+      "source": "further",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "further",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "introduction"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "further",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "process"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "processed"
+    },
+    {
+      "weight": 5,
+      "source": "further",
+      "target": "produced"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "production"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "further",
+      "target": "water"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "carbonated_soft",
+      "target": "directly"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "drinks"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "food"
+    },
+    {
+      "weight": 5,
+      "source": "carbonated_soft",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "carbonated_soft",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "introduction"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "carbonated_soft",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "process"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "processed"
+    },
+    {
+      "weight": 5,
+      "source": "carbonated_soft",
+      "target": "produced"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "production"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated_soft",
+      "target": "water"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "processed",
+      "target": "directly"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "drinks"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "food"
+    },
+    {
+      "weight": 5,
+      "source": "processed",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "processed",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "introduction"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "processed",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "process"
+    },
+    {
+      "weight": 5,
+      "source": "processed",
+      "target": "produced"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "production"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "processed",
+      "target": "water"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "water",
+      "target": "directly"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "drinks"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "food"
+    },
+    {
+      "weight": 5,
+      "source": "water",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "water",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "introduction"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "water",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "process"
+    },
+    {
+      "weight": 5,
+      "source": "water",
+      "target": "produced"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "production"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "water",
+      "target": "under"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "beverages"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "carbonated"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "cost"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "development"
+    },
+    {
+      "weight": 4,
+      "source": "produced",
+      "target": "directly"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "drinks"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "food"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "form"
+    },
+    {
+      "weight": 4,
+      "source": "produced",
+      "target": "including"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "increasing"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "introduction"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "material"
+    },
+    {
+      "weight": 4,
+      "source": "produced",
+      "target": "must"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "over"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "process"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "production"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "soft"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "technology"
+    },
+    {
+      "weight": 5,
+      "source": "produced",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "food",
+      "target": "directly"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "drinks"
+    },
+    {
+      "weight": 5,
+      "source": "food",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "food",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "introduction"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "food",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "process"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "production"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "food",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "drinks",
+      "target": "directly"
+    },
+    {
+      "weight": 5,
+      "source": "drinks",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "drinks",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "introduction"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "drinks",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "process"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "production"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "drinks",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "process",
+      "target": "directly"
+    },
+    {
+      "weight": 5,
+      "source": "process",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "process",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "introduction"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "process",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "production"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "process",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "introduction",
+      "target": "directly"
+    },
+    {
+      "weight": 5,
+      "source": "introduction",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "introduction",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "introduction",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "production"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "introduction",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "cost"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "production",
+      "target": "directly"
+    },
+    {
+      "weight": 5,
+      "source": "production",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "production",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "production",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "production",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "cost",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "cost",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "cost",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "cost",
+      "target": "directly"
+    },
+    {
+      "weight": 5,
+      "source": "cost",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "cost",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "cost",
+      "target": "increasing"
+    },
+    {
+      "weight": 6,
+      "source": "cost",
+      "target": "material"
+    },
+    {
+      "weight": 5,
+      "source": "cost",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "cost",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "cost",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "cost",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "cost",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "material",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "material",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "material",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "material",
+      "target": "directly"
+    },
+    {
+      "weight": 5,
+      "source": "material",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "material",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "material",
+      "target": "increasing"
+    },
+    {
+      "weight": 5,
+      "source": "material",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "material",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "material",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "material",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "material",
+      "target": "under"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "beverages"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "carbonated"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "development"
+    },
+    {
+      "weight": 4,
+      "source": "directly",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "including"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "increasing"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "must"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "over"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "soft"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "technology"
+    },
+    {
+      "weight": 5,
+      "source": "directly",
+      "target": "under"
+    },
+    {
+      "weight": 6,
+      "source": "under",
+      "target": "beverages"
+    },
+    {
+      "weight": 6,
+      "source": "under",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "under",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "under",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "under",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "under",
+      "target": "increasing"
+    },
+    {
+      "weight": 5,
+      "source": "under",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "under",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "under",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "under",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "beverages",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "beverages",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "beverages",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "beverages",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "beverages",
+      "target": "increasing"
+    },
+    {
+      "weight": 5,
+      "source": "beverages",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "beverages",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "beverages",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "beverages",
+      "target": "technology"
+    },
+    {
+      "weight": 6,
+      "source": "technology",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "technology",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "technology",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "technology",
+      "target": "including"
+    },
+    {
+      "weight": 6,
+      "source": "technology",
+      "target": "increasing"
+    },
+    {
+      "weight": 5,
+      "source": "technology",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "technology",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "technology",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "increasing",
+      "target": "carbonated"
+    },
+    {
+      "weight": 6,
+      "source": "increasing",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "increasing",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "increasing",
+      "target": "including"
+    },
+    {
+      "weight": 5,
+      "source": "increasing",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "increasing",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "increasing",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "carbonated",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "carbonated",
+      "target": "including"
+    },
+    {
+      "weight": 5,
+      "source": "carbonated",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated",
+      "target": "over"
+    },
+    {
+      "weight": 6,
+      "source": "carbonated",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "over",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "over",
+      "target": "form"
+    },
+    {
+      "weight": 5,
+      "source": "over",
+      "target": "including"
+    },
+    {
+      "weight": 5,
+      "source": "over",
+      "target": "must"
+    },
+    {
+      "weight": 6,
+      "source": "over",
+      "target": "soft"
+    },
+    {
+      "weight": 5,
+      "source": "form",
+      "target": "development"
+    },
+    {
+      "weight": 4,
+      "source": "form",
+      "target": "including"
+    },
+    {
+      "weight": 4,
+      "source": "form",
+      "target": "must"
+    },
+    {
+      "weight": 5,
+      "source": "form",
+      "target": "soft"
+    },
+    {
+      "weight": 6,
+      "source": "soft",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "soft",
+      "target": "including"
+    },
+    {
+      "weight": 5,
+      "source": "soft",
+      "target": "must"
+    },
+    {
+      "weight": 5,
+      "source": "must",
+      "target": "development"
+    },
+    {
+      "weight": 5,
+      "source": "must",
+      "target": "including"
+    },
+    {
+      "weight": 5,
+      "source": "including",
+      "target": "development"
+    }
+  ]
+}

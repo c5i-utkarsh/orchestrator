@@ -1,0 +1,116 @@
+{
+  "pipeline_summary": {
+    "total_loaded": 6,
+    "total_accepted": 6,
+    "total_rejected": 0,
+    "rejection_breakdown": {},
+    "graph_nodes": 25,
+    "graph_edges": 300,
+    "graph_communities": 1,
+    "duration_seconds": 6.838
+  },
+  "accepted_documents": [
+    {
+      "doc_id": "17a11d6e-1958-4e6b-8d4c-fada06515306",
+      "source": "data/raw/7-Final.pmd.pdf",
+      "language": "en",
+      "token_count": 3838,
+      "quality_score": 0.9653,
+      "relevance_score": 0.6061,
+      "num_chunks": 30
+    },
+    {
+      "doc_id": "957d9ba0-785b-4aaa-a03c-2fc7f9476ea8",
+      "source": "data/raw/CarbonatedDrinks-FromIngredientsandFunctionalPropertiestoHistoricalOriginsandTheirApplicationsinBeveragesHealthandIndustry..pdf",
+      "language": "en",
+      "token_count": 7744,
+      "quality_score": 0.9742,
+      "relevance_score": 0.8182,
+      "num_chunks": 60
+    },
+    {
+      "doc_id": "22d1682a-6491-4f2d-8a1e-1b4b0a902ab3",
+      "source": "data/raw/CarbonatedSoftDrink.pdf",
+      "language": "en",
+      "token_count": 3228,
+      "quality_score": 0.9203,
+      "relevance_score": 0.5758,
+      "num_chunks": 25
+    },
+    {
+      "doc_id": "3a2d6866-2fe3-4786-9f15-14fac732e7df",
+      "source": "data/raw/L-0000597620-pdf.pdf",
+      "language": "en",
+      "token_count": 6514,
+      "quality_score": 0.95,
+      "relevance_score": 0.697,
+      "num_chunks": 51
+    },
+    {
+      "doc_id": "5744d4a4-4b74-4c8b-af31-26c6020aadd2",
+      "source": "data/raw/cbjuice.pdf",
+      "language": "en",
+      "token_count": 545,
+      "quality_score": 0.9576,
+      "relevance_score": 0.2727,
+      "num_chunks": 5
+    },
+    {
+      "doc_id": "b2cd57e7-a27c-4c99-b174-2862c2af798a",
+      "source": "data/raw/sweetners_2.pdf",
+      "language": "en",
+      "token_count": 6235,
+      "quality_score": 0.9616,
+      "relevance_score": 0.5455,
+      "num_chunks": 48
+    }
+  ],
+  "rejected_documents": [],
+  "graph": {
+    "nodes": 25,
+    "edges": 300,
+    "communities": 1,
+    "top_nodes_by_pagerank": [
+      {
+        "node": "soft_drinks",
+        "pagerank": 0.041085
+      },
+      {
+        "node": "further",
+        "pagerank": 0.041085
+      },
+      {
+        "node": "carbonated_soft",
+        "pagerank": 0.041085
+      },
+      {
+        "node": "processed",
+        "pagerank": 0.041085
+      },
+      {
+        "node": "water",
+        "pagerank": 0.041085
+      },
+      {
+        "node": "food",
+        "pagerank": 0.041085
+      },
+      {
+        "node": "drinks",
+        "pagerank": 0.041085
+      },
+      {
+        "node": "process",
+        "pagerank": 0.041085
+      },
+      {
+        "node": "introduction",
+        "pagerank": 0.041085
+      },
+      {
+        "node": "production",
+        "pagerank": 0.041085
+      }
+    ]
+  }
+}
