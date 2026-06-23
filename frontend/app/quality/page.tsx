@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Topbar from "../components/Topbar";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -194,8 +193,6 @@ export default function QualityPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-bg2">
-      <Topbar />
-
       {/* Header */}
       <div className="flex items-center gap-4 px-6 py-3 border-b border-dborder bg-bg1 flex-shrink-0">
         <div>

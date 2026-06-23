@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Topbar from "../components/Topbar";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -109,8 +108,6 @@ export default function WikiPage() {
 
   return (
     <div className="flex flex-col h-screen bg-bg2 overflow-hidden">
-      <Topbar />
-
       {/* Page header */}
       <div className="flex items-center gap-4 px-6 py-3 border-b border-dborder bg-bg1 flex-shrink-0">
         <div>

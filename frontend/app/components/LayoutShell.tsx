@@ -6,7 +6,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const isLogin = pathname === "/login";
   return (
-    <div className={isLogin ? "" : "pt-14"}>
+    <div className={isLogin ? "" : "pl-60"}>
       {children}
     </div>
   );
