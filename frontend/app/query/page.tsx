@@ -286,7 +286,7 @@ export default function QueryPage() {
               disabled={!query.trim() || !selectedCorpus}
               className="btn btn-p btn-full py-3 text-sm disabled:opacity-40 mb-8"
             >
-              Run \u2192
+              Run Query \u2192
             </button>
           </>
         ) : (

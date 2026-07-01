@@ -11,8 +11,8 @@ import Image from "next/image";
 //   Benchmarking         → /wiki    (also active on /quality)
 const NAV = [
   { label: "Dashboard",             path: "/dashboard",       match: ["/dashboard"] },
-  { label: "Knowledge Harnessing",  path: "/",                match: ["/"] },
-  { label: "Information Harnessing", path: "/processing",     match: ["/processing"] },
+  { label: "Information Harnessing", path: "/",                match: ["/"] },
+  { label: "Knowledge Harnessing",   path: "/processing",     match: ["/processing"] },
   { label: "Inference Harnessing",  path: "/query",           match: ["/query", "/planning"] },
   { label: "Outcome Harnessing",    path: "/recommendations", match: ["/recommendations"] },
   { label: "Benchmarking",          path: "/benchmarking",    match: ["/benchmarking", "/wiki", "/quality"] },

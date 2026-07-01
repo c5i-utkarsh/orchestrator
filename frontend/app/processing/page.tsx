@@ -624,9 +624,9 @@ function ProcessingPage() {
         <div className="w-full px-8">
           <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
             <span className="inline-block w-4 h-px bg-accent" />
-            Step 2 · Information Harnessing
+            Step 2 · Knowledge Harnessing
           </div>
-          <div className="font-sora text-2xl font-semibold text-t1">Information harnessing</div>
+          <div className="font-sora text-2xl font-semibold text-t1">Knowledge harnessing</div>
           <div className="text-[12px] text-t2 mt-1">
             {etaSeconds !== null && phase === "ingest" ? formatEta(etaSeconds) : "14-layer semantic-trust pipeline running — watch each layer complete in real time"}
           </div>

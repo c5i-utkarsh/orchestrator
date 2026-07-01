@@ -647,7 +647,7 @@ export default function DashboardPage() {
         <div className="h-6" />
         <div className="flex gap-2">
           <button
-            onClick={() => router.push("/query")}
+            onClick={() => router.push("/")}
             className="btn btn-p flex-1"
           >
             Start new session →
