@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { setSession as saveSession, goToStage, nextStageAfterInformation } from "./lib/session";
 
 const DOMAIN_PRESETS = [
   { id: "manufacturing",  label: "Manufacturing",   icon: "🏭", desc: "Production, supply chain, quality control" },
@@ -120,9 +121,15 @@ export default function WorkspacePage() {
     ? customDomain.trim()
     : selectedDomain;
 
+  const existingForDomain = savedCorpora.find(c => c.domain_label === effectiveDomain);
+
   const handleSubmit = async () => {
-    if (!effectiveDomain)                       { setError("Please select a domain"); return; }
-    if (files.length === 0 && !dbCreds.db_type) { setError("Please upload files or connect a database"); return; }
+    if (!effectiveDomain) { setError("Please select a domain"); return; }
+    const uploadedNew = files.length > 0 || !!dbCreds.db_type;
+    if (!uploadedNew && !existingForDomain) {
+      setError("Upload files, connect a database, or pick a domain that already has a corpus");
+      return;
+    }
     setIsSubmitting(true);
     setError("");
     try {
@@ -134,6 +141,7 @@ export default function WorkspacePage() {
       form.append("description",   session.description);
       form.append("industry",      session.industry);
       form.append("tags",          session.tags);
+      form.append("force_reingest", String(uploadedNew));  // new data = knowledge changed
       if (dbCreds.db_type) {
         form.append("db_type",  dbCreds.db_type);
         form.append("host",     dbCreds.host);
@@ -144,12 +152,32 @@ export default function WorkspacePage() {
       }
       const res  = await fetch(`${API}/api/v1/data/ingest`, { method: "POST", body: form });
       const data = await res.json();
-      sessionStorage.setItem("job_id",       data.job_id);
-      sessionStorage.setItem("domain_label", effectiveDomain);
-      sessionStorage.setItem("dhs_session",  JSON.stringify({ domain_name: effectiveDomain, ...session }));
+
+      // CHECK_KNOWLEDGE: is there already an SLM for this corpus?
+      let slmExists = false, slmId: string | null = null;
+      try {
+        const fc = await fetch(`${API}/api/v1/slm/for-corpus?job_id=${data.job_id}`).then(r => r.json());
+        slmExists = !!fc.exists; slmId = fc.model_id ?? null;
+      } catch { /* treat as no SLM */ }
+
+      const { stage, knowledge_changed } = nextStageAfterInformation({
+        reused: !!data.reused, uploadedNew, slmExists,
+      });
+
+      saveSession({
+        session_id: data.job_id, domain: effectiveDomain,
+        data_sources: [...files.map(f => f.name), ...(dbCreds.db_type ? [`db:${dbCreds.database}`] : [])],
+        knowledge_changed, last_ingested_at: new Date().toISOString(),
+        slm_version: slmExists ? slmId : null, kg_version: data.reused ? data.job_id : null,
+        business_unit: session.business_unit, description: session.description,
+        industry: session.industry, tags: session.tags,
+      });
       sessionStorage.removeItem("query");
-      sessionStorage.removeItem("reuse_corpus");
-      router.push("/processing");
+      // reuse flag only for the skip-rebuild → inference path
+      if (stage === "INFERENCE") sessionStorage.setItem("reuse_corpus", "true");
+      else sessionStorage.removeItem("reuse_corpus");
+
+      goToStage(router, stage);
     } catch (e: any) {
       setError(e.message ?? "Failed to start ingestion");
     } finally {
@@ -405,13 +433,22 @@ export default function WorkspacePage() {
           </div>
         )}
 
+        {/* Skip-upload hint when the domain already has a corpus */}
+        {effectiveDomain && existingForDomain && files.length === 0 && !dbCreds.db_type && (
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-accent/5 border border-accent/20 rounded-sm text-[11px] text-t2 mb-3">
+            ℹ️ Existing knowledge found for <b>{domainLabel(effectiveDomain)}</b> — you can skip upload and go straight to inference (no rebuild).
+          </div>
+        )}
+
         {/* Submit */}
         <button
           onClick={handleSubmit}
-          disabled={isSubmitting || !effectiveDomain || (files.length === 0 && !dbCreds.db_type)}
+          disabled={isSubmitting || !effectiveDomain || (files.length === 0 && !dbCreds.db_type && !existingForDomain)}
           className="btn btn-p btn-full py-3 text-sm disabled:opacity-40 mb-8"
         >
-          {isSubmitting ? "Starting ingestion…" : "Start Ingestion →"}
+          {isSubmitting ? "Working…"
+            : (files.length === 0 && !dbCreds.db_type && existingForDomain) ? "Continue with existing knowledge →"
+            : "Start Ingestion →"}
         </button>
 
       </div>
