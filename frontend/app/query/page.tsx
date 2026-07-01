@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PromptBuilder from "../components/PromptBuilder";
+import { runOrchestrator, answeredBy, type OrchestratorOutput } from "../lib/orchestrator";
 
 interface StoredCorpus {
   job_id: string;
@@ -59,6 +60,12 @@ export default function QueryPage() {
   const [slmStatus, setSlmStatus] = useState<"none" | "building" | "done">("none");
   const [slmModelId, setSlmModelId] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
+  // In-place inference (no redirect): stream orchestrator timeline + answer here.
+  const [running, setRunning] = useState(false);
+  const [timeline, setTimeline] = useState<{ name: string; detail?: string }[]>([]);
+  const [answer, setAnswer] = useState("");
+  const [answeredByLabel, setAnsweredByLabel] = useState<string | null>(null);
+  const [confidence, setConfidence] = useState<number | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [weightsOpen, setWeightsOpen] = useState(false);
   const [weights, setWeights] = useState({
@@ -142,19 +149,40 @@ export default function QueryPage() {
     }
   }, []);
 
-  const handleRun = (overrideQuery?: string, overrideSysPrompt?: string) => {
+  // Run Query — streams the orchestrator IN PLACE. Never redirects, never rebuilds
+  // (reuses the current SLM via the existing orchestrator).
+  const handleRun = async (overrideQuery?: string, overrideSysPrompt?: string) => {
     const q = (overrideQuery ?? query).trim();
     const sp = (overrideSysPrompt ?? systemPrompt).trim();
     if (!q) { setError("Please enter a question or goal"); return; }
     if (!selectedCorpus) { setError("Select a workspace first"); return; }
-    setError("");
+    setError(""); setRunning(true); setTimeline([]); setAnswer(""); setAnsweredByLabel(null); setConfidence(null);
+    const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
     sessionStorage.setItem("job_id", selectedCorpus.job_id);
     sessionStorage.setItem("domain_label", selectedCorpus.domain_label);
     sessionStorage.setItem("query", q);
-    sessionStorage.setItem("system_prompt", sp);
-    sessionStorage.setItem("reuse_corpus", "true");
-    router.push("/processing");
+    try {
+      const out = await runOrchestrator(API, {
+        query: q, domain_label: selectedCorpus.domain_label,
+        job_id: selectedCorpus.job_id, system_prompt: sp,
+      }, (ev) => {
+        if (ev.type === "step" || ev.type === "progress") {
+          const name = String(ev.step_name ?? ev.phase ?? `Step ${ev.step ?? ""}`).trim();
+          if (name) setTimeline(t => [...t, { name, detail: typeof ev.explanation === "string" ? ev.explanation : undefined }]);
+        }
+      });
+      const ab = answeredBy(out as OrchestratorOutput | null);
+      setAnswer(out?.final_answer ?? "No answer returned.");
+      setAnsweredByLabel(ab.label); setConfidence(ab.confidence);
+      if (out) sessionStorage.setItem("orchestrator_output", JSON.stringify(out));  // Outcome page reads this
+    } catch (e: any) {
+      setError(e.message ?? "Query failed");
+    } finally {
+      setRunning(false);
+    }
   };
+
+  const goToOutcome = () => router.push("/recommendations");
 
   const selectCorpus = (c: StoredCorpus) => {
     setSelectedCorpus(c);
@@ -283,11 +311,51 @@ export default function QueryPage() {
             )}
             <button
               onClick={() => handleRun()}
-              disabled={!query.trim() || !selectedCorpus}
-              className="btn btn-p btn-full py-3 text-sm disabled:opacity-40 mb-8"
+              disabled={!query.trim() || !selectedCorpus || running}
+              className="btn btn-p btn-full py-3 text-sm disabled:opacity-40 mb-4"
             >
-              Run Query \u2192
+              {running ? "Running\u2026" : "Run Query \u2192"}
             </button>
+
+            {/* In-place execution timeline + streamed answer (no redirect) */}
+            {(running || timeline.length > 0 || answer) && (
+              <div className="mb-8 space-y-3">
+                {timeline.length > 0 && (
+                  <div className="bg-bg3 border border-dborder rounded-card p-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-t3 mb-2">Execution timeline</div>
+                    <div className="space-y-1">
+                      {timeline.map((s, i) => (
+                        <div key={i} className="flex items-center gap-2 text-[11px] text-t2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-gg flex-shrink-0" />
+                          <span className="font-medium">{s.name}</span>
+                          {s.detail && <span className="text-t3 truncate">\u2014 {s.detail}</span>}
+                        </div>
+                      ))}
+                      {running && (
+                        <div className="flex items-center gap-2 text-[11px] text-t3">
+                          <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" /> working\u2026
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {answer && (
+                  <div className="bg-card border border-dborder rounded-card p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-t3">Answer</div>
+                      {answeredByLabel && (
+                        <div className="text-[10px] text-t3">
+                          Answered by <span className="font-semibold text-t2">{answeredByLabel}</span>
+                          {confidence !== null && <span className="text-gg"> \u00b7 {(confidence * 100).toFixed(0)}% conf</span>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-[13px] text-t1 whitespace-pre-wrap leading-relaxed">{answer}</div>
+                    <button onClick={goToOutcome} className="btn btn-sm mt-3 text-accent">Open in Outcome workspace \u2192</button>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         ) : (
           <PromptBuilder

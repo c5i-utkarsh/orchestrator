@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import ChatBot from "../components/ChatBot";
 
 interface StepExplanation {
   what: string; why: string; what_we_found: string; decision_made: string;
@@ -889,6 +890,8 @@ export default function RecommendationsPage() {
   const [isChatting, setIsChatting] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [chatDomain, setChatDomain] = useState("general");
+  useEffect(() => { setChatDomain(sessionStorage.getItem("domain_label") ?? "general"); }, []);
   const [selectedKpis, setSelectedKpis] = useState<Set<string>>(new Set());
   const [kpiApplied, setKpiApplied] = useState(false);
   const [existingSysPrompt, setExistingSysPrompt] = useState("");
@@ -1610,63 +1613,9 @@ export default function RecommendationsPage() {
 
         {/* Q&A CHAT TAB */}
         {activeTab === "chat" && (
-          <div className="flex flex-col" style={{ height: "540px" }}>
-            <p className="text-[11px] text-t3 mb-3">
-              Ask questions about your data using available models.
-              {jobId && <span className="text-gg ml-2">● corpus context loaded</span>}
-            </p>
-            <div className="flex-1 overflow-auto bg-bg rounded-sm border border-dborder p-4 space-y-3 mb-3">
-              {chatMessages.length === 0 && (
-                <div className="text-center mt-4">
-                  <p className="text-t3 text-[11px] mb-3">Try these questions:</p>
-                  <div className="space-y-2 max-w-lg mx-auto">
-                    {[
-                      "What's the demand impact if US tariffs on personal care products increase 25%?",
-                      "Which suppliers face highest risk from a Red Sea route closure?",
-                      "What safety stock should I hold given current risks?",
-                      "How should I adjust demand forecasts if a disruption hits East Asia?",
-                      "Give me a step-by-step plan to build this intelligence system.",
-                    ].map(q => (
-                      <button key={q} onClick={() => setChatInput(q)}
-                        className="block w-full text-left text-[11px] bg-bg3 hover:bg-bg4 border border-dborder rounded-sm px-3 py-2.5 text-t3 hover:text-t2 transition-colors">
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-2xl rounded-card px-4 py-3 text-[12px] ${msg.role === "user" ? "bg-accent text-white" : "bg-card2 border border-dborder text-t1"}`}>
-                    {msg.role === "assistant" && <p className="text-[10px] text-accent mb-1.5 font-semibold">AI Orchestrator</p>}
-                    <div className="leading-relaxed prose prose-sm max-w-none prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-strong:font-semibold prose-code:bg-black/10 prose-code:px-1 prose-code:rounded">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {isChatting && (
-                <div className="thinking-bar">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple animate-blink" />
-                  Thinking…
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-            <div className="flex gap-2">
-              <input
-                className="flex-1 prompt-box resize-none"
-                style={{ minHeight: "unset" }}
-                placeholder="Ask about your data…"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-              />
-              <button onClick={sendChat} disabled={isChatting || !chatInput.trim()} className="btn btn-p px-6 disabled:opacity-40">
-                Send
-              </button>
-            </div>
-          </div>
+          // Persistent AI conversation workspace — Custom-AI-first with automatic
+          // Ollama fallback (handled inside the orchestrator), history, confidence.
+          <ChatBot domainLabel={chatDomain} jobId={jobId ?? ""} />
         )}
 
         {/* DECISION TRACE TAB */}
