@@ -17,22 +17,38 @@ function formatEta(seconds: number | null): string {
   return `~${m}m ${s}s remaining`;
 }
 
-const INITIAL_NODES: PipelineNode[] = [
-  { id: "import",   label: "Import Data",      icon: "📥", status: "pending" },
-  { id: "clean",    label: "Clean & Organize",  icon: "🧹", status: "pending" },
-  { id: "quality",  label: "Readiness Check",   icon: "📊", status: "pending" },
-  { id: "graph",    label: "Knowledge Graph",   icon: "🕸️",  status: "pending" },
-  { id: "build-ai", label: "Build Custom AI",   icon: "🧠", status: "pending" },
+// The 14-layer ingestion architecture ("Information harnessing"). Node ids match the
+// backend pipeline step ids (see backend/app/tasks/ingest_task.py) so the canvas can be
+// driven generically from the SSE `steps` array.
+const INGEST_LAYERS: PipelineNode[] = [
+  { id: "upload",           label: "File Upload",                 icon: "📥", status: "pending" },
+  { id: "extract",          label: "Ingestion & Extraction",     icon: "📤", status: "pending" },
+  { id: "clean",            label: "Cleaning & Normalization",   icon: "🧹", status: "pending" },
+  { id: "chunk",            label: "Chunking & Segmentation",    icon: "✂️",  status: "pending" },
+  { id: "metadata",         label: "Metadata Intelligence",      icon: "🏷️",  status: "pending" },
+  { id: "entities",         label: "Entity & Relationship",      icon: "🔗", status: "pending" },
+  { id: "semantic",         label: "Semantic Learning",          icon: "🧬", status: "pending" },
+  { id: "eda",              label: "EDA Intelligence",           icon: "📊", status: "pending" },
+  { id: "validation",       label: "ML Validation & Accuracy",   icon: "✅", status: "pending" },
+  { id: "ontology",         label: "Ontology & Governance",      icon: "📚", status: "pending" },
+  { id: "canonical",        label: "Canonicalization",           icon: "🧩", status: "pending" },
+  { id: "graph",            label: "Knowledge Graph",            icon: "🕸️",  status: "pending" },
+  { id: "graph_validation", label: "Graph Validation",           icon: "🔍", status: "pending" },
+  { id: "wiki",             label: "Wiki & Explainability",      icon: "📖", status: "pending" },
 ];
 
-const RESULT_NODES: PipelineNode[] = [
-  { id: "import",   label: "Import Data",      icon: "📥", status: "done" },
-  { id: "clean",    label: "Clean & Organize",  icon: "🧹", status: "done" },
-  { id: "quality",  label: "Readiness Check",   icon: "📊", status: "done" },
-  { id: "graph",    label: "Knowledge Graph",   icon: "🕸️",  status: "done" },
-  { id: "build-ai", label: "Build Custom AI",   icon: "🧠", status: "done" },
+// Post-ingestion journey nodes (custom-AI build + orchestrator answer).
+const POST_NODES: PipelineNode[] = [
+  { id: "build-ai", label: "Build Custom AI",   icon: "🧠", status: "pending" },
   { id: "ai",       label: "Select AI Models",  icon: "🤖", status: "pending" },
   { id: "answer",   label: "Generate Answer",   icon: "✨", status: "pending" },
+];
+
+const INITIAL_NODES: PipelineNode[] = [...INGEST_LAYERS, ...POST_NODES];
+
+const RESULT_NODES: PipelineNode[] = [
+  ...INGEST_LAYERS.map(n => ({ ...n, status: "done" as NodeStatus })),
+  ...POST_NODES,
 ];
 
 function ProcessingPage() {
@@ -76,6 +92,13 @@ function ProcessingPage() {
   const slmPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const esRef = useRef<EventSource | null>(null);
+
+  // Knowledge Review gate (approve / reject / regenerate over wiki+graph+entities)
+  const [showReview, setShowReview] = useState(false);
+  const [reviewStats, setReviewStats] = useState<{ entityCount: number; topEntities: string[] }>({ entityCount: 0, topEntities: [] });
+  const reviewResolveRef = useRef<((a: "approve" | "reject" | "regenerate") => void) | null>(null);
+  const showKnowledgeReview = (stats: { entityCount: number; topEntities: string[] }): Promise<"approve" | "reject" | "regenerate"> =>
+    new Promise((resolve) => { setReviewStats(stats); setShowReview(true); reviewResolveRef.current = resolve; });
 
   const addLog = (msg: string) => setLog(prev => [...prev.slice(-80), msg]);
 
@@ -136,8 +159,8 @@ function ProcessingPage() {
       return;
     }
 
-    setNodeStatus("import", "running");
-    addLog("Import pipeline started — streaming progress…");
+    setNodeStatus("upload", "running");
+    addLog("Information harnessing started — streaming all 14 layers…");
 
     const es = new EventSource(`${API}/api/v1/data/progress/${jobId}`);
     esRef.current = es;
@@ -153,36 +176,25 @@ function ProcessingPage() {
       const status = ev.status;
       addLog(`[${status}] ${ev.overall_pct ?? 0}%`);
 
-      // Drive pipeline node animation from current_step (0-8):
-      // 0=extract, 1=chunk, 2=entities, 3=eda, 4=canonical, 5=resolve, 6=crosslink, 7=graph_wiki, 8=embed
-      const currentStep = ev.current_step ?? 0;
-      if (status === "ingesting") {
-        if (currentStep === 0) {
-          setNodeStatus("import", "running", `${ev.file_count ?? 0} docs`);
-        } else if (currentStep === 1) {
-          if (!gatesShownRef.current.has("import")) {
-            gatesShownRef.current.add("import");
-            setNodeStatus("import", "done", `${ev.file_count ?? 0} docs`);
-            fireAchievement("📥", "Data imported!", `${ev.file_count ?? 0} documents loaded`);
-          }
-          setNodeStatus("clean", "running");
-        } else if (currentStep === 2 || currentStep === 3) {
-          setNodeStatus("import", "done", `${ev.file_count ?? 0} docs`);
-          if (!gatesShownRef.current.has("clean")) {
-            gatesShownRef.current.add("clean");
-            fireAchievement("🧹", "Cleaning complete!", "Chunks extracted and deduplicated");
-          }
-          setNodeStatus("clean", "done");
-          setNodeStatus("quality", "running");
-        } else if (currentStep >= 4) {
-          setNodeStatus("import", "done", `${ev.file_count ?? 0} docs`);
-          setNodeStatus("clean", "done");
-          if (!gatesShownRef.current.has("quality")) {
-            gatesShownRef.current.add("quality");
-            fireAchievement("📊", "Readiness check done!", "Documents scored and filtered");
-          }
-          setNodeStatus("quality", "done");
-          setNodeStatus("graph", "running");
+      // Drive all 14 layer nodes generically from the SSE `steps` array — each step
+      // carries {id, status, detail}; the backend status strings map 1:1 to NodeStatus.
+      const stepsArr: { id: string; status: string; detail?: string }[] = ev.steps ?? [];
+      if (status === "ingesting" && stepsArr.length) {
+        setNodes(prev => prev.map(n => {
+          const s = stepsArr.find(x => x.id === n.id);
+          if (!s) return n;
+          const mapped: NodeStatus =
+            s.status === "done" ? "done"
+            : s.status === "running" ? "running"
+            : s.status === "error" ? "error"
+            : "pending";
+          return { ...n, status: mapped, metric: s.detail || n.metric };
+        }));
+        // Fire a one-time achievement when the knowledge graph layer completes.
+        const graphStep = stepsArr.find(x => x.id === "graph");
+        if (graphStep?.status === "done" && !gatesShownRef.current.has("graph")) {
+          gatesShownRef.current.add("graph");
+          fireAchievement("🕸️", "Knowledge graph built!", "Entities and relationships linked");
         }
       }
       // "graph_done" — pipeline complete
@@ -190,13 +202,31 @@ function ProcessingPage() {
         const entities: string[] = ev.top_entities ?? [];
         setTopEntities(entities);
         setStats(p => ({ ...p, entities: ev.entity_count ?? p.entities, communities: ev.community_count ?? p.communities }));
-        setNodeStatus("graph", "waiting-approval");
-        fireAchievement("🕸️", "Knowledge graph built!", `${ev.entity_count ?? 0} entities discovered!`);
-        await showGate("graph", { entityCount: ev.entity_count ?? 0, topEntities: entities });
-        setNodeStatus("graph", "done", `${ev.entity_count ?? 0} entities`);
-
+        // All 14 layers complete — mark the ingest layers done, then gate at Layer 13
+        // (Graph Validation & Consistency) before proceeding to the custom-AI build.
+        setNodes(prev => prev.map(n =>
+          INGEST_LAYERS.some(l => l.id === n.id)
+            ? { ...n, status: (n.id === "graph_validation" ? "waiting-approval" : "done") as NodeStatus }
+            : n
+        ));
+        fireAchievement("✅", "Information harnessing complete!", `${ev.entity_count ?? 0} validated entities across 14 layers`);
         es.close();
-        addLog("Knowledge graph complete — checking for existing custom AI…");
+
+        // Knowledge Review — user must approve the wiki/graph/entities before Build Custom AI.
+        const action = await showKnowledgeReview({ entityCount: ev.entity_count ?? 0, topEntities: entities });
+        if (action === "reject") {
+          addLog("Knowledge rejected — returning to session setup.");
+          router.push("/");
+          return;
+        }
+        if (action === "regenerate") {
+          addLog("Regenerating knowledge — re-running the pipeline…");
+          try { await fetch(`${API}/api/v1/data/retry/${jobId}`, { method: "POST" }); } catch { /* */ }
+          window.location.reload();
+          return;
+        }
+        setNodeStatus("graph_validation", "done", `${ev.entity_count ?? 0} entities`);
+        addLog("Knowledge approved — checking for existing custom AI…");
         setNodeStatus("build-ai", "running", "checking…");
 
         try {
@@ -435,6 +465,49 @@ function ProcessingPage() {
         />
       )}
 
+      {showReview && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6">
+          <div className="bg-card border border-dborder rounded-2xl overflow-hidden max-w-md w-full shadow-2xl">
+            <div className="px-6 pt-6 pb-4 border-b border-dborder">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-t3 mb-0.5">Knowledge Review</div>
+              <div className="text-[16px] font-semibold text-t1 font-sora">Review generated knowledge</div>
+              <div className="text-[11px] text-t3 mt-1">
+                {reviewStats.entityCount.toLocaleString()} validated entities. Review the wiki, graph and entities, then approve to build your Custom AI.
+              </div>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {reviewStats.topEntities.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {reviewStats.topEntities.slice(0, 12).map((e, i) => (
+                    <span key={i} className="text-[10px] px-2 py-0.5 bg-bg3 border border-dborder rounded text-t2">{e}</span>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => window.open("/wiki", "_blank")} className="btn py-2 text-[12px] border border-dborder2 text-t2 hover:border-accent/40">📖 Review Wiki</button>
+                <button onClick={() => window.open("/quality", "_blank")} className="btn py-2 text-[12px] border border-dborder2 text-t2 hover:border-accent/40">🕸️ Review Graph & Entities</button>
+              </div>
+              <div className="space-y-2 pt-1">
+                <button
+                  onClick={() => { setShowReview(false); reviewResolveRef.current?.("approve"); reviewResolveRef.current = null; }}
+                  className="w-full btn btn-p py-3 text-[13px] font-semibold"
+                >✓ Approve &amp; Build Custom AI →</button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => { setShowReview(false); reviewResolveRef.current?.("regenerate"); reviewResolveRef.current = null; }}
+                    className="btn py-2.5 text-[12px] border border-dborder2 text-t2 hover:border-amber/40"
+                  >↻ Regenerate</button>
+                  <button
+                    onClick={() => { setShowReview(false); reviewResolveRef.current?.("reject"); reviewResolveRef.current = null; }}
+                    className="btn py-2.5 text-[12px] border border-dborder2 text-t3 hover:border-coral/40 hover:text-coral"
+                  >✕ Reject</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModelSelector && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6">
           <div className="bg-card border border-dborder rounded-2xl overflow-hidden max-w-md w-full shadow-2xl">
@@ -587,11 +660,11 @@ function ProcessingPage() {
         <div className="w-full px-8">
           <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
             <span className="inline-block w-4 h-px bg-accent" />
-            Step 2 · Pipeline
+            Step 2 · Information Harnessing
           </div>
-          <div className="font-sora text-2xl font-semibold text-t1">Building Your AI</div>
+          <div className="font-sora text-2xl font-semibold text-t1">Information harnessing</div>
           <div className="text-[12px] text-t2 mt-1">
-            {etaSeconds !== null && phase === "ingest" ? formatEta(etaSeconds) : "Pipeline running — review each step as it completes"}
+            {etaSeconds !== null && phase === "ingest" ? formatEta(etaSeconds) : "14-layer semantic-trust pipeline running — watch each layer complete in real time"}
           </div>
         </div>
       </div>
