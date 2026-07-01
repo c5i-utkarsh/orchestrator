@@ -1,0 +1,32 @@
+{
+  "_comment": "DHS Benchmarking config. All weights/thresholds live here — no hardcoded scores in code. measured=false metrics have no data source yet and are reported as N/A rather than fabricated.",
+  "harness_dimensions": {
+    "accuracy":           { "weight": 0.25, "measured": true,  "source": "query_history.task_completion_rate" },
+    "governance":         { "weight": 0.20, "measured": true,  "source": "1 - query_history.hallucination_rate" },
+    "context_awareness":  { "weight": 0.15, "measured": false, "source": "needs human/LLM eval rubric" },
+    "business_relevance": { "weight": 0.15, "measured": false, "source": "needs human/LLM eval rubric" },
+    "actionability":      { "weight": 0.15, "measured": false, "source": "needs human/LLM eval rubric" },
+    "explainability":     { "weight": 0.10, "measured": false, "source": "needs human/LLM eval rubric" }
+  },
+  "functional_components": {
+    "problem_understanding": { "weight": 0.30, "measured": true,  "source": "query_history task classification coverage" },
+    "output_quality":        { "weight": 0.25, "measured": false, "source": "needs rating rubric" },
+    "user_adoption":         { "weight": 0.20, "measured": false, "source": "needs feedback capture" },
+    "business_impact":       { "weight": 0.25, "measured": false, "source": "needs KPI/ROI capture" }
+  },
+  "technical_signals": {
+    "completion": { "measured": true, "source": "query_history.task_completion_rate | slm_registry.task_completion_rate" },
+    "process":    { "measured": true, "source": "bandit_scores.score (routing quality)" },
+    "security":   { "measured": true, "source": "1 - query_history.hallucination_rate + ontology conformance" }
+  },
+  "attribution_stages": {
+    "information_harnessing": { "measured": true,  "source": "graph_consistency + entity/community counts" },
+    "knowledge_harnessing":   { "measured": true,  "source": "slm_registry accuracy + wiki coverage" },
+    "intelligence_reasoning": { "measured": true,  "source": "bandit routing + hallucination detection" },
+    "outcome_harnessing":     { "measured": false, "source": "needs feedback/KPI learning capture" }
+  },
+  "unavailable_kpis": {
+    "_reason": "No producing measurement exists in the system; reported as null, never fabricated.",
+    "keys": ["baseline_ab_score", "combined_score_waterfall_constants", "roi_currency", "business_value_generated", "cost_avoided", "hours_saved", "revenue_impact"]
+  }
+}

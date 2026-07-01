@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PipelineCanvas, { type PipelineNode, type NodeStatus } from "../components/PipelineCanvas";
-import ApprovalGate, { type GateStep } from "../components/ApprovalGate";
 import AchievementToast, { fireAchievement } from "../components/AchievementToast";
 import SLMStudio, { type SLMConfig } from "../components/SLMStudio";
 
@@ -67,9 +66,6 @@ function ProcessingPage() {
   const [availableModels, setAvailableModels] = useState<{name:string;provider:string;is_available_locally:boolean}[]>([]);
 
   // Gate state
-  const [gateStep, setGateStep] = useState<GateStep | null>(null);
-  const [gateStats, setGateStats] = useState<Record<string, unknown>>({});
-  const gateResolveRef = useRef<(() => void) | null>(null);
   // Track which gates have already been shown (prevents re-triggering on reconnect)
   const gatesShownRef = useRef<Set<string>>(new Set());
 
@@ -104,14 +100,6 @@ function ProcessingPage() {
 
   const setNodeStatus = (id: string, status: NodeStatus, metric?: string) => {
     setNodes(prev => prev.map(n => n.id === id ? { ...n, status, metric } : n));
-  };
-
-  const showGate = (step: GateStep, stats: Record<string, unknown>): Promise<void> => {
-    return new Promise((resolve) => {
-      setGateStep(step);
-      setGateStats(stats);
-      gateResolveRef.current = resolve;
-    });
   };
 
   // Fetch available models on mount
@@ -441,30 +429,6 @@ function ProcessingPage() {
 
   return (
     <div>
-      {/* Components */}
-      {gateStep && (
-        <ApprovalGate
-          step={gateStep}
-          stats={gateStats as any}
-          onProceed={(cfg) => {
-            if (cfg) {
-              try {
-                const existing = JSON.parse(sessionStorage.getItem("orch_pipeline_config") ?? "{}");
-                sessionStorage.setItem("orch_pipeline_config", JSON.stringify({ ...existing, ...cfg }));
-              } catch { /**/ }
-            }
-            setGateStep(null);
-            gateResolveRef.current?.();
-            gateResolveRef.current = null;
-          }}
-          onSkip={() => {
-            setGateStep(null);
-            gateResolveRef.current?.();
-            gateResolveRef.current = null;
-          }}
-        />
-      )}
-
       {showReview && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6">
           <div className="bg-card border border-dborder rounded-2xl overflow-hidden max-w-md w-full shadow-2xl">

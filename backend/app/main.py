@@ -23,6 +23,7 @@ from app.routes.quality import router as quality_router
 from app.routes.repair import router as repair_router
 from app.routes.db import router as db_router
 from app.routes.eda import router as eda_router
+from app.routes.benchmark import router as benchmark_router
 
 settings = get_settings()
 
@@ -91,6 +92,7 @@ app.include_router(quality_router,      prefix="/api/v1")
 app.include_router(repair_router,       prefix="/api/v1")
 app.include_router(db_router,           prefix="/api/v1")
 app.include_router(eda_router,          prefix="/api/v1")
+app.include_router(benchmark_router,    prefix="/api/v1")
 
 
 @app.get("/health")

@@ -15,7 +15,7 @@ const NAV = [
   { label: "Information Harnessing", path: "/processing",     match: ["/processing"] },
   { label: "Inference Harnessing",  path: "/query",           match: ["/query", "/planning"] },
   { label: "Outcome Harnessing",    path: "/recommendations", match: ["/recommendations"] },
-  { label: "Benchmarking",          path: "/wiki",            match: ["/wiki", "/quality"] },
+  { label: "Benchmarking",          path: "/benchmarking",    match: ["/benchmarking", "/wiki", "/quality"] },
 ];
 
 export default function Sidebar() {
