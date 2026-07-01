@@ -43,6 +43,10 @@ async def ingest(
     password: str = Form(default=""),
     connection_string: str = Form(default=""),
     domain_label: str = Form(default="general"),
+    business_unit: str = Form(default=""),
+    description: str = Form(default=""),
+    industry: str = Form(default=""),
+    tags: str = Form(default=""),
     force_reingest: bool = Form(default=False),
     db: AsyncSession = Depends(get_db),
 ):
@@ -100,7 +104,14 @@ async def ingest(
         "job_id": job_id,
         "file_count": len(saved_files),
         "domain_label": domain_label,
-        "metadata": __import__("json").dumps({"corpus_dir": str(corpus_dir), "db_creds": db_creds}),
+        "metadata": __import__("json").dumps({
+            "corpus_dir": str(corpus_dir), "db_creds": db_creds,
+            "session": {
+                "domain_name": domain_label, "business_unit": business_unit,
+                "description": description, "industry": industry,
+                "tags": [t.strip() for t in tags.split(",") if t.strip()],
+            },
+        }),
     })
     await db.commit()
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const DOMAIN_PRESETS = [
@@ -22,10 +22,35 @@ interface DBCredentials {
   database: string; username: string; password: string;
 }
 
+interface StoredCorpus {
+  job_id: string; domain_label: string;
+  file_count: number; entity_count: number;
+  community_count?: number; created_at: string | null;
+}
+
+const DOMAIN_ICONS: Record<string, string> = {
+  manufacturing: "\u{1F3ED}", "it-industry": "\u{1F4BB}", "it industry": "\u{1F4BB}",
+  software: "\u{1F4BB}", healthcare: "\u{1F3E5}", medical: "\u{1F3E5}",
+  finance: "\u{1F4C9}", banking: "\u{1F4C9}", legal: "\u2696\uFE0F",
+  law: "\u2696\uFE0F", retail: "\u{1F6CD}\uFE0F", education: "\u{1F393}",
+  logistics: "\u{1F69A}", supply: "\u{1F69A}", energy: "\u26A1",
+  pharma: "\u{1F48A}", pharmaceutical: "\u{1F48A}", research: "\u{1F52C}",
+  science: "\u{1F52C}",
+};
+function domainIcon(label: string): string {
+  const key = label.toLowerCase();
+  for (const [k, v] of Object.entries(DOMAIN_ICONS)) { if (key.includes(k)) return v; }
+  return "\u{1F5C2}\uFE0F";
+}
+function domainLabel(label: string): string {
+  return label.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export default function WorkspacePage() {
   const router = useRouter();
   const [selectedDomain, setSelectedDomain] = useState("");
   const [customDomain, setCustomDomain]     = useState("");
+  const [session, setSession]               = useState({ business_unit: "", description: "", industry: "", tags: "" });
   const [files, setFiles]                   = useState<File[]>([]);
   const [dbOpen, setDbOpen]                 = useState(false);
   const [dbCreds, setDbCreds]               = useState<DBCredentials>({
@@ -36,6 +61,25 @@ export default function WorkspacePage() {
   const [isConnecting, setIsConnecting]     = useState(false);
   const [isSubmitting, setIsSubmitting]     = useState(false);
   const [error, setError]                   = useState("");
+  const [savedCorpora, setSavedCorpora]     = useState<StoredCorpus[]>([]);
+  const [corporaLoading, setCorporaLoading] = useState(true);
+
+  useEffect(() => {
+    const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    fetch(`${API}/api/v1/data/corpora`)
+      .then(r => r.ok ? r.json() : [])
+      .then((d: StoredCorpus[]) => setSavedCorpora(Array.isArray(d) ? d : []))
+      .catch(() => {})
+      .finally(() => setCorporaLoading(false));
+  }, []);
+
+  const openExistingCorpus = (c: StoredCorpus) => {
+    sessionStorage.setItem("job_id",        c.job_id);
+    sessionStorage.setItem("domain_label",  c.domain_label);
+    sessionStorage.setItem("reuse_corpus",  "true");
+    sessionStorage.removeItem("query");
+    router.push("/query");
+  };
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -86,6 +130,10 @@ export default function WorkspacePage() {
       const form = new FormData();
       for (const f of files) form.append("files", f);
       form.append("domain_label", effectiveDomain);
+      form.append("business_unit", session.business_unit);
+      form.append("description",   session.description);
+      form.append("industry",      session.industry);
+      form.append("tags",          session.tags);
       if (dbCreds.db_type) {
         form.append("db_type",  dbCreds.db_type);
         form.append("host",     dbCreds.host);
@@ -98,6 +146,7 @@ export default function WorkspacePage() {
       const data = await res.json();
       sessionStorage.setItem("job_id",       data.job_id);
       sessionStorage.setItem("domain_label", effectiveDomain);
+      sessionStorage.setItem("dhs_session",  JSON.stringify({ domain_name: effectiveDomain, ...session }));
       sessionStorage.removeItem("query");
       sessionStorage.removeItem("reuse_corpus");
       router.push("/processing");
@@ -115,14 +164,54 @@ export default function WorkspacePage() {
         <div className="w-full px-8">
           <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
             <span className="inline-block w-4 h-px bg-accent" />
-            Step 1 · Workspace
+            Step 1 · Information Harnessing
           </div>
-          <div className="font-sora text-2xl font-semibold text-t1">Set up your workspace</div>
-          <div className="text-[12px] text-t2 mt-1">Choose your domain and upload your knowledge corpus</div>
+          <div className="font-sora text-2xl font-semibold text-t1">Start a new DHS session</div>
+          <div className="text-[12px] text-t2 mt-1">Describe your domain, then upload your knowledge corpus to ingest</div>
         </div>
       </div>
 
       <div className="w-full px-8">
+
+        {/* ── Previous workspaces ─────────────────────────────── */}
+        {(corporaLoading || savedCorpora.length > 0) && (
+          <div className="mb-7">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-t3 mb-3">
+              Previous workspaces
+            </div>
+            {corporaLoading ? (
+              <div className="space-y-2">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="h-14 bg-card2 border border-dborder rounded-card animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {savedCorpora.map(c => (
+                  <button
+                    key={c.job_id}
+                    onClick={() => openExistingCorpus(c)}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-card border border-dborder bg-card2 hover:border-accent/40 hover:bg-accent/5 transition-all text-left group"
+                  >
+                    <div className="text-2xl flex-shrink-0 w-8 text-center">{domainIcon(c.domain_label)}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-t1 group-hover:text-accent leading-tight">
+                        {domainLabel(c.domain_label)}
+                      </div>
+                      <div className="text-[10px] text-t3 mt-0.5">
+                        {c.file_count > 0 ? `${c.file_count} file${c.file_count !== 1 ? "s" : ""}` : "Corpus ready"}
+                        {c.entity_count > 0 && ` \u00B7 ${c.entity_count.toLocaleString()} entities`}
+                        {c.created_at && ` \u00B7 ${new Date(c.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-t3 group-hover:text-accent flex-shrink-0 transition-colors">Open \u2192</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="border-t border-dborder mt-6 mb-2" />
+          </div>
+        )}
 
         {/* ── Domain selector ─────────────────────────────────── */}
         <div className="text-[10px] font-semibold uppercase tracking-wider text-t3 mb-3">Select domain</div>
@@ -163,6 +252,37 @@ export default function WorkspacePage() {
             />
           </div>
         )}
+
+        {/* ── Session details ─────────────────────────────────── */}
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-t3 mb-3 mt-1">
+          Session details <span className="font-normal normal-case">(optional)</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <input
+            className="bg-bg3 border border-dborder2 rounded-card px-4 py-2.5 text-[12px] text-t1 outline-none transition-colors focus:border-accent font-dm"
+            placeholder="Business unit"
+            value={session.business_unit}
+            onChange={e => setSession(p => ({ ...p, business_unit: e.target.value }))}
+          />
+          <input
+            className="bg-bg3 border border-dborder2 rounded-card px-4 py-2.5 text-[12px] text-t1 outline-none transition-colors focus:border-accent font-dm"
+            placeholder="Industry"
+            value={session.industry}
+            onChange={e => setSession(p => ({ ...p, industry: e.target.value }))}
+          />
+          <input
+            className="col-span-2 bg-bg3 border border-dborder2 rounded-card px-4 py-2.5 text-[12px] text-t1 outline-none transition-colors focus:border-accent font-dm"
+            placeholder="Description"
+            value={session.description}
+            onChange={e => setSession(p => ({ ...p, description: e.target.value }))}
+          />
+          <input
+            className="col-span-2 bg-bg3 border border-dborder2 rounded-card px-4 py-2.5 text-[12px] text-t1 outline-none transition-colors focus:border-accent font-dm"
+            placeholder="Tags (comma-separated)"
+            value={session.tags}
+            onChange={e => setSession(p => ({ ...p, tags: e.target.value }))}
+          />
+        </div>
 
         <div className="border-t border-dborder my-5" />
 
