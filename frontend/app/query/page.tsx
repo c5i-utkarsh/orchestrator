@@ -171,9 +171,9 @@ export default function QueryPage() {
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
               <span className="inline-block w-4 h-px bg-accent" />
-              Step 3 \u00B7 Workspace
+              Step 3 \u00B7 Inference Harnessing
             </div>
-            <div className="font-sora text-2xl font-semibold text-t1">Select your workspace</div>
+            <div className="font-sora text-2xl font-semibold text-t1">Ask your domain AI</div>
             <div className="text-[12px] text-t2 mt-1">Choose your domain, then pick what you want to do</div>
           </div>
           <button onClick={() => router.push("/")} className="btn btn-sm text-t3 hover:text-t1 mt-2">
