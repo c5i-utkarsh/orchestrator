@@ -800,7 +800,91 @@ async def get_graph(job_id: str, db: AsyncSession = Depends(get_db)):
     }
 
 
-@router.get("/entities/{job_id}")
+@router.get("/graph/{job_id}/merged")
+async def get_graph_merged(job_id: str, db: AsyncSession = Depends(get_db)):
+    """Return a merged per-file knowledge graph for visualization.
+
+    Reads all *_graph.json files from corpus_store/{job_id}/graphs/ and
+    merges them into one graph for display.  This is READ-ONLY — it reads
+    existing pipeline output files; it never regenerates anything.
+
+    Node IDs are normalised to the node label (lower-cased) so that the
+    same entity appearing in multiple files becomes one node.  Edges keep
+    their source file as metadata so the UI can colour-code by provenance.
+    """
+    corpus_dir = await _resolve_corpus_dir(job_id, db)
+    graphs_dir = Path(corpus_dir) / "graphs"
+
+    if not graphs_dir.exists():
+        # Fallback: return the canonical graph (may have 0 edges)
+        return await get_graph(job_id, db)
+
+    merged_nodes: dict[str, dict] = {}   # label_key → node dict
+    merged_edges: list[dict] = []
+    # Map per-file local node id → merged node key
+    local_to_merged: dict[str, dict[str, str]] = {}  # file → {local_id: merged_key}
+
+    for graph_file in sorted(graphs_dir.glob("*_graph.json")):
+        file_id = graph_file.name.replace("_graph.json", "")
+        try:
+            raw = json.loads(graph_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+        raw_nodes = raw.get("nodes", [])
+        raw_edges = raw.get("edges", [])
+        file_map: dict[str, str] = {}
+
+        for n in raw_nodes:
+            label = n.get("label", n.get("id", ""))
+            if not label:
+                continue
+            key = label.lower().strip()
+            if key not in merged_nodes:
+                merged_nodes[key] = {
+                    "id": key,
+                    "label": label,
+                    "type": n.get("entity_type") or n.get("type", "ENTITY"),
+                    "count": 0,
+                    "files": [],
+                    "confidence": n.get("confidence"),
+                }
+            merged_nodes[key]["count"] += n.get("count", 1)
+            if file_id not in merged_nodes[key]["files"]:
+                merged_nodes[key]["files"].append(file_id)
+            file_map[n.get("id", "")] = key
+
+        local_to_merged[file_id] = file_map
+
+        for e in raw_edges:
+            src_key = file_map.get(e.get("source", ""))
+            tgt_key = file_map.get(e.get("target", ""))
+            if src_key and tgt_key and src_key != tgt_key:
+                merged_edges.append({
+                    "source": src_key,
+                    "target": tgt_key,
+                    "relation": e.get("relation", "related_to"),
+                    "weight": e.get("confidence"),
+                    "file": file_id,
+                })
+
+    nodes_list = list(merged_nodes.values())
+    # De-duplicate edges (same src+tgt+relation from different files → keep highest confidence)
+    seen_edges: dict[str, dict] = {}
+    for e in merged_edges:
+        k = f"{e['source']}|{e['target']}|{e['relation']}"
+        if k not in seen_edges or (e["weight"] or 0) > (seen_edges[k]["weight"] or 0):
+            seen_edges[k] = e
+    edges_list = list(seen_edges.values())
+
+    return {
+        "job_id": job_id,
+        "node_count": len(nodes_list),
+        "edge_count": len(edges_list),
+        "nodes": nodes_list,
+        "edges": edges_list,
+        "source": "merged_per_file_graphs",
+    }
 async def get_entities(
     job_id: str,
     type: str = "",
@@ -932,6 +1016,91 @@ async def repair_job(job_id: str, db: AsyncSession = Depends(get_db)):
     except Exception as exc:
         return JSONResponse({"job_id": job_id, "status": "queued", "warning": str(exc)})
     return {"job_id": job_id, "mode": "full_pipeline", "status": "queued"}
+
+
+@router.delete("/project/{job_id}")
+async def delete_project(job_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Permanently delete a project and ALL its artifacts:
+    documents, knowledge graph, entities, relationships, wiki articles,
+    vector embeddings, and slm_registry entries for this corpus.
+    Irreversible.
+    """
+    import shutil
+
+    row = (await db.execute(
+        text("SELECT job_id FROM ingest_jobs WHERE job_id = :id"),
+        {"id": job_id},
+    )).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Delete corpus directory (documents, graph, wiki, embeddings, faiss, etc.)
+    try:
+        corpus_dir_str = await _resolve_corpus_dir(job_id, db)
+        corpus_dir = Path(corpus_dir_str)
+        if corpus_dir.exists():
+            shutil.rmtree(str(corpus_dir), ignore_errors=True)
+    except Exception:
+        pass  # non-fatal if dir not found
+
+    # Remove slm_registry rows referencing this corpus
+    await db.execute(
+        text("DELETE FROM slm_registry WHERE training_corpus_hash LIKE :p OR training_corpus_hash = :id"),
+        {"p": f"{job_id}%", "id": job_id},
+    )
+    # Remove ingest_jobs row (FK cascade removes query_history if set up)
+    await db.execute(text("DELETE FROM ingest_jobs WHERE job_id = :id"), {"id": job_id})
+    await db.commit()
+    return {"job_id": job_id, "deleted": True}
+
+
+@router.delete("/project/{job_id}/file/{file_name:path}")
+async def delete_project_file(job_id: str, file_name: str, db: AsyncSession = Depends(get_db)):
+    """
+    Remove a single file from a project.
+    Deletes the physical file and updates the file_list in ingest_jobs.
+    Does NOT re-run the pipeline — caller should regenerate knowledge.
+    """
+    row = (await db.execute(
+        text("SELECT file_list FROM ingest_jobs WHERE job_id = :id"),
+        {"id": job_id},
+    )).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        corpus_dir = Path(await _resolve_corpus_dir(job_id, db))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Corpus directory not found")
+
+    # Delete physical file
+    deleted_physical = False
+    for candidate in [corpus_dir / file_name, corpus_dir / Path(file_name).name]:
+        if candidate.is_file():
+            try:
+                candidate.unlink()
+                deleted_physical = True
+            except Exception:
+                pass
+            break
+
+    # Update file_list in DB
+    file_list: list[dict] = row.get("file_list") or []
+    if isinstance(file_list, str):
+        try:
+            file_list = json.loads(file_list)
+        except Exception:
+            file_list = []
+    file_list = [f for f in file_list if isinstance(f, dict) and f.get("name") != file_name]
+
+    await db.execute(
+        text("UPDATE ingest_jobs SET file_list = (:fl)::jsonb, file_count = :fc WHERE job_id = :id"),
+        {"fl": json.dumps(file_list), "fc": len(file_list), "id": job_id},
+    )
+    await db.commit()
+    return {"job_id": job_id, "file_name": file_name, "deleted_physical": deleted_physical,
+            "remaining_files": len(file_list), "regeneration_required": True}
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────

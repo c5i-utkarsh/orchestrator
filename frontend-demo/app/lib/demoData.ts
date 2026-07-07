@@ -1054,311 +1054,158 @@ export const DEMO_SLM_REGISTRY = {
 
 export const DEMO_CORPORA = [
   {
-    "job_id": "03db3734-c22d-4389-bbcb-793adabcd7fc",
-    "domain_label": "14layer-final-1780501547",
-    "file_count": 1,
-    "entity_count": 10,
-    "community_count": 0,
-    "created_at": "2026-06-03T15:45:47.583910+00:00"
+    "job_id": "job-sc-001",
+    "domain_label": "supply_chain_logistics",
+    "project_name": "Supply Chain Intelligence – Global Ops",
+    "file_count": 9,
+    "entity_count": 487,
+    "community_count": 8,
+    "version": 3,
+    "created_at": "2026-07-01T09:15:00.000000+00:00",
+    "file_list": [
+      {"name": "cpg_sku_master.csv",           "size": 142080, "added_at": "2026-07-01T09:10:00Z"},
+      {"name": "cpg_weekly_demand.csv",         "size": 89600,  "added_at": "2026-07-01T09:10:00Z"},
+      {"name": "cpg_vendor_scorecard.csv",      "size": 61440,  "added_at": "2026-07-01T09:10:00Z"},
+      {"name": "cpg_inventory_snapshot.csv",    "size": 77824,  "added_at": "2026-07-01T09:10:00Z"},
+      {"name": "cpg_trade_promotions.csv",      "size": 51200,  "added_at": "2026-07-01T09:10:00Z"},
+      {"name": "product_catalog.txt",           "size": 28672,  "added_at": "2026-07-01T09:10:00Z"},
+      {"name": "market_research_report.txt",    "size": 35840,  "added_at": "2026-07-01T09:10:00Z"},
+      {"name": "trade_promotion_guidelines.txt","size": 20480,  "added_at": "2026-07-01T09:10:00Z"},
+      {"name": "category_playbook.txt",         "size": 18432,  "added_at": "2026-07-01T09:10:00Z"}
+    ]
   },
   {
-    "job_id": "19f84ea3-9be5-4ba2-a4f3-6ce48d871a5d",
-    "domain_label": "app-builder",
+    "job_id": "job-sc-002",
+    "domain_label": "supply_chain_logistics",
+    "project_name": "Supply Chain Intelligence – Q4 Update",
     "file_count": 4,
-    "entity_count": 44,
-    "community_count": 2,
-    "created_at": "2026-05-13T14:03:28.751361+00:00"
-  },
-  {
-    "job_id": "3117ec6f-6adb-4b2a-a7c8-2ba223b2c01e",
-    "domain_label": "app-builder-cpg",
-    "file_count": 1,
-    "entity_count": 1,
-    "community_count": 0,
-    "created_at": "2026-06-04T06:28:21.236841+00:00"
-  },
-  {
-    "job_id": "43b513ed-86a3-4864-8f91-340e722c816b",
-    "domain_label": "app-builder-team",
-    "file_count": 4,
-    "entity_count": 44,
-    "community_count": 2,
-    "created_at": "2026-05-13T14:53:21.627977+00:00"
-  },
-  {
-    "job_id": "1dd1cbe8-c086-407f-ad2b-73967fdd1e6e",
-    "domain_label": "carbonated_drinks",
-    "file_count": 40,
-    "entity_count": 0,
-    "community_count": 0,
-    "created_at": "2026-06-05T10:29:25.903862+00:00"
-  },
-  {
-    "job_id": "85d28027-ae45-48fc-aafb-67c182a4ec8f",
-    "domain_label": "clinical-protocols",
-    "file_count": 1,
-    "entity_count": 12,
-    "community_count": 2,
-    "created_at": "2026-05-14T07:36:31.207714+00:00"
-  },
-  {
-    "job_id": "dd92d591-4678-4c02-b6f3-7499356677c3",
-    "domain_label": "cpg_supply_chain",
-    "file_count": 1,
-    "entity_count": 23,
-    "community_count": 2,
-    "created_at": "2026-05-07T09:19:08.407500+00:00"
-  },
-  {
-    "job_id": "job-cx-003",
-    "domain_label": "customer_experience_analytics",
-    "file_count": 10,
-    "entity_count": 398,
-    "community_count": 7,
-    "created_at": "2026-06-01T20:01:13.564496+00:00"
-  },
-  {
-    "job_id": "2348b77c-3b91-4e6f-887d-400ffefa574f",
-    "domain_label": "db-live-test-1780342470",
-    "file_count": 2,
-    "entity_count": 0,
-    "community_count": 0,
-    "created_at": "2026-06-01T19:34:30.975339+00:00"
-  },
-  {
-    "job_id": "125ee05d-d2f9-46cf-8ddb-dbc277e05e17",
-    "domain_label": "db-live-test3-1780342727",
-    "file_count": 2,
-    "entity_count": 0,
-    "community_count": 0,
-    "created_at": "2026-06-01T19:38:47.478622+00:00"
-  },
-  {
-    "job_id": "job-dt-010",
-    "domain_label": "digital_transformation",
-    "file_count": 10,
-    "entity_count": 374,
-    "community_count": 7,
-    "created_at": "2026-06-23T20:01:13.564496+00:00"
-  },
-  {
-    "job_id": "job-esg-007",
-    "domain_label": "esg_sustainability",
-    "file_count": 11,
-    "entity_count": 421,
-    "community_count": 7,
-    "created_at": "2026-06-16T20:01:13.564496+00:00"
+    "entity_count": 312,
+    "community_count": 5,
+    "version": 1,
+    "created_at": "2026-07-03T14:30:00.000000+00:00",
+    "file_list": [
+      {"name": "q4_demand_forecast.csv",        "size": 91136, "added_at": "2026-07-03T14:25:00Z"},
+      {"name": "q4_vendor_contracts.pdf",       "size": 204800,"added_at": "2026-07-03T14:25:00Z"},
+      {"name": "q4_inventory_review.csv",       "size": 55296, "added_at": "2026-07-03T14:25:00Z"},
+      {"name": "supply_chain_strategy.txt",     "size": 32768, "added_at": "2026-07-03T14:25:00Z"}
+    ]
   },
   {
     "job_id": "job-fr-002",
     "domain_label": "financial_risk_compliance",
-    "file_count": 16,
-    "entity_count": 612,
-    "community_count": 11,
-    "created_at": "2026-05-24T20:01:13.564496+00:00"
-  },
-  {
-    "job_id": "b150b594-81f6-428d-b269-58101cee63d4",
-    "domain_label": "general",
-    "file_count": 1,
-    "entity_count": 185,
-    "community_count": 185,
-    "created_at": "2026-06-02T14:26:03.479339+00:00"
-  },
-  {
-    "job_id": "87d514af-82bd-43f1-a2d3-48590e3b0fff",
-    "domain_label": "general-test-queue",
-    "file_count": 1,
-    "entity_count": 170,
-    "community_count": 170,
-    "created_at": "2026-06-02T10:03:42.323076+00:00"
-  },
-  {
-    "job_id": "job-hr-004",
-    "domain_label": "hr_talent_workforce",
-    "file_count": 9,
-    "entity_count": 341,
-    "community_count": 6,
-    "created_at": "2026-06-06T20:01:13.564496+00:00"
-  },
-  {
-    "job_id": "9143c6c6-c7f2-4876-8188-5f158c923a3f",
-    "domain_label": "it-industry",
-    "file_count": 1,
-    "entity_count": 81,
-    "community_count": 0,
-    "created_at": "2026-06-05T11:00:15.982770+00:00"
-  },
-  {
-    "job_id": "job-it-005",
-    "domain_label": "it_infrastructure_security",
-    "file_count": 14,
-    "entity_count": 523,
-    "community_count": 9,
-    "created_at": "2026-06-11T20:01:13.564496+00:00"
-  },
-  {
-    "job_id": "2641f7e5-71e3-45c8-bec5-7f1f98a40261",
-    "domain_label": "layer-audit-smoke-1780382188",
-    "file_count": 1,
-    "entity_count": 175,
-    "community_count": 175,
-    "created_at": "2026-06-02T06:36:28.293274+00:00"
-  },
-  {
-    "job_id": "ee8272bb-0677-480b-8ac1-2f312e3b340a",
-    "domain_label": "layer-audit-smoke-2-1780382491",
-    "file_count": 1,
-    "entity_count": 175,
-    "community_count": 175,
-    "created_at": "2026-06-02T06:41:31.282223+00:00"
-  },
-  {
-    "job_id": "97ff0f71-dfb2-4f77-acef-97f5f819aa84",
-    "domain_label": "live_stream_1780553015",
-    "file_count": 1,
-    "entity_count": 1873,
-    "community_count": 0,
-    "created_at": "2026-06-04T06:03:35.697927+00:00"
-  },
-  {
-    "job_id": "6e0d5f5b-5232-4b1a-bd9a-3230efe82926",
-    "domain_label": "live_wiki_test_1780552927",
-    "file_count": 1,
-    "entity_count": 10,
-    "community_count": 0,
-    "created_at": "2026-06-04T06:02:07.385654+00:00"
-  },
-  {
-    "job_id": "ae882b32-80bc-4694-b9ec-bd368adcead2",
-    "domain_label": "logistics",
-    "file_count": 1,
-    "entity_count": 181,
-    "community_count": 0,
-    "created_at": "2026-06-05T11:28:18.737887+00:00"
-  },
-  {
-    "job_id": "8fede8a5-e8a0-4e8f-878f-d805273512bd",
-    "domain_label": "logistics-app",
+    "project_name": "Financial Risk – Basel IV Assessment",
     "file_count": 6,
-    "entity_count": 1410,
-    "community_count": 0,
-    "created_at": "2026-05-24T21:31:57.411509+00:00"
+    "entity_count": 542,
+    "community_count": 11,
+    "version": 2,
+    "created_at": "2026-06-28T11:00:00.000000+00:00",
+    "file_list": [
+      {"name": "Basel_IV_Capital_Assessment_2024.txt","size": 184320,"added_at": "2026-06-28T10:55:00Z"},
+      {"name": "credit_risk_model_v3.csv",      "size": 122880, "added_at": "2026-06-28T10:55:00Z"},
+      {"name": "aml_transaction_patterns.csv",  "size": 98304,  "added_at": "2026-06-28T10:55:00Z"},
+      {"name": "regulatory_reporting_q2.pdf",   "size": 256000, "added_at": "2026-06-28T10:55:00Z"},
+      {"name": "stress_test_scenarios.xlsx",    "size": 71680,  "added_at": "2026-06-28T10:55:00Z"},
+      {"name": "compliance_checklist.txt",      "size": 24576,  "added_at": "2026-06-28T10:55:00Z"}
+    ]
   },
   {
-    "job_id": "78517937-6487-419e-aebc-3f93b159e27b",
-    "domain_label": "manufacturing",
-    "file_count": 1,
-    "entity_count": 12,
-    "community_count": 0,
-    "created_at": "2026-06-16T16:29:12.662753+00:00"
+    "job_id": "job-cx-003",
+    "domain_label": "customer_experience_analytics",
+    "project_name": "CX Analytics – Voice of Customer",
+    "file_count": 5,
+    "entity_count": 398,
+    "community_count": 7,
+    "version": 1,
+    "created_at": "2026-06-20T08:45:00.000000+00:00",
+    "file_list": [
+      {"name": "customer_surveys_2026.csv",     "size": 163840, "added_at": "2026-06-20T08:40:00Z"},
+      {"name": "nps_cohort_analysis.csv",       "size": 81920,  "added_at": "2026-06-20T08:40:00Z"},
+      {"name": "churn_prediction_features.csv", "size": 102400, "added_at": "2026-06-20T08:40:00Z"},
+      {"name": "cx_strategy_roadmap.pdf",       "size": 307200, "added_at": "2026-06-20T08:40:00Z"},
+      {"name": "support_ticket_themes.txt",     "size": 40960,  "added_at": "2026-06-20T08:40:00Z"}
+    ]
   },
   {
-    "job_id": "job-mfg-008",
-    "domain_label": "manufacturing_quality",
-    "file_count": 13,
-    "entity_count": 558,
-    "community_count": 10,
-    "created_at": "2026-06-19T20:01:13.564496+00:00"
+    "job_id": "job-mfg-004",
+    "domain_label": "manufacturing_ops",
+    "project_name": "Manufacturing Ops – Quality Control",
+    "file_count": 4,
+    "entity_count": 276,
+    "community_count": 6,
+    "version": 1,
+    "created_at": "2026-06-15T07:30:00.000000+00:00",
+    "file_list": [
+      {"name": "defect_analysis_2026.csv",      "size": 73728,  "added_at": "2026-06-15T07:25:00Z"},
+      {"name": "production_line_metrics.csv",   "size": 90112,  "added_at": "2026-06-15T07:25:00Z"},
+      {"name": "iso_9001_audit_report.pdf",     "size": 409600, "added_at": "2026-06-15T07:25:00Z"},
+      {"name": "maintenance_schedule.xlsx",     "size": 55296,  "added_at": "2026-06-15T07:25:00Z"}
+    ]
   },
   {
-    "job_id": "job-ma-009",
-    "domain_label": "mergers_acquisitions",
-    "file_count": 7,
-    "entity_count": 267,
-    "community_count": 5,
-    "created_at": "2026-06-21T20:01:13.564496+00:00"
-  },
-  {
-    "job_id": "a253cb4a-a2a9-4f25-981d-07ca123902bc",
-    "domain_label": "nanogpt_ml",
-    "file_count": 1,
-    "entity_count": 3,
-    "community_count": 1,
-    "created_at": "2026-05-18T10:57:35.359022+00:00"
-  },
-  {
-    "job_id": "575950ab-7619-418d-8102-d38ffcc0fc2d",
-    "domain_label": "probe-1780501538",
-    "file_count": 1,
-    "entity_count": 10,
-    "community_count": 0,
-    "created_at": "2026-06-03T15:45:38.846487+00:00"
-  },
-  {
-    "job_id": "job-rd-006",
-    "domain_label": "product_rd_innovation",
-    "file_count": 8,
-    "entity_count": 289,
-    "community_count": 5,
-    "created_at": "2026-06-13T20:01:13.564496+00:00"
-  },
-  {
-    "job_id": "f7919386-1d8b-41c0-b345-2cc0519b5a01",
-    "domain_label": "retail",
-    "file_count": 1,
-    "entity_count": 2219,
-    "community_count": 0,
-    "created_at": "2026-06-08T05:59:32.063805+00:00"
-  },
-  {
-    "job_id": "8d17ab55-5db6-47c4-bd43-254311547b01",
-    "domain_label": "retail-app-cpg",
-    "file_count": 2023,
-    "entity_count": 17,
-    "community_count": 3,
-    "created_at": "2026-05-18T09:30:33.551475+00:00"
-  },
-  {
-    "job_id": "37f1d699-0d00-4977-8d21-8b527daef756",
-    "domain_label": "sio-proof",
-    "file_count": 1,
-    "entity_count": 3,
-    "community_count": 3,
-    "created_at": "2026-06-03T06:13:27.497074+00:00"
-  },
-  {
-    "job_id": "e0207560-dd57-4ee1-88d9-970eb1ac0731",
-    "domain_label": "smoke_app",
-    "file_count": 1,
-    "entity_count": 2,
-    "community_count": 0,
-    "created_at": "2026-06-05T09:57:28.893738+00:00"
-  },
-  {
-    "job_id": "17159648-4e84-49de-86d4-56b3c3330f9c",
-    "domain_label": "supply_chain",
-    "file_count": 438,
-    "entity_count": 351,
-    "community_count": 5,
-    "created_at": "2026-05-06T09:20:36.433181+00:00"
-  },
-  {
-    "job_id": "job-sc-001",
-    "domain_label": "supply_chain_logistics",
-    "file_count": 12,
-    "entity_count": 487,
-    "community_count": 8,
-    "created_at": "2026-05-17T20:01:13.564496+00:00"
-  },
-  {
-    "job_id": "e25dc3a3-f379-49d5-9d3c-b758c259c0e3",
-    "domain_label": "test_e2e",
-    "file_count": 1,
-    "entity_count": 0,
-    "community_count": 0,
-    "created_at": "2026-05-07T10:31:11.236656+00:00"
-  },
-  {
-    "job_id": "638e4b34-e2a8-42bb-82be-c8e6550d8e51",
-    "domain_label": "zz14-test-1780338751",
-    "file_count": 1,
-    "entity_count": 5,
-    "community_count": 5,
-    "created_at": "2026-06-01T18:32:31.760858+00:00"
+    "job_id": "job-hr-005",
+    "domain_label": "hr_workforce",
+    "project_name": "HR Workforce Analytics",
+    "file_count": 3,
+    "entity_count": 189,
+    "community_count": 4,
+    "version": 1,
+    "created_at": "2026-06-10T13:00:00.000000+00:00",
+    "file_list": [
+      {"name": "headcount_2026.csv",            "size": 49152,  "added_at": "2026-06-10T12:55:00Z"},
+      {"name": "performance_reviews.csv",       "size": 65536,  "added_at": "2026-06-10T12:55:00Z"},
+      {"name": "talent_acquisition_kpis.txt",   "size": 20480,  "added_at": "2026-06-10T12:55:00Z"}
+    ]
   }
 ] as const;
 
+// Demo EDA summary data (for /quality/{id}/eda endpoint)
+export const DEMO_EDA_SUMMARY = {
+  files: [
+    {
+      file_id: "cpg_sku_master",
+      summary: {
+        source: { ext: "csv", adapter: "csv", source_type: "structured" },
+        entity_statistics: { entity_count: 65, low_confidence_count: 3, mean_confidence: 0.78, min_confidence: 0.44, max_confidence: 0.94, duplicate_entities: [], orphan_entities: [] },
+        relationship_statistics: { relationship_count: 158, low_confidence_count: 12, mean_confidence: 0.71, weak_edges: [], invalid_edge_patterns: [] },
+        graph_metrics: { node_count: 63, edge_count: 108, graph_density: 0.028, disconnected_component_count: 5, central_entities: [] },
+        semantic_quality_metrics: { ontology_violations: [], semantic_contradictions: [], consistency_score: 0.96 },
+        confidence_scores: { entity_confidence_score: 0.78, relationship_confidence_score: 0.71, graph_trust_score: 0.82, semantic_coherence_score: 0.88, canonical_resolution_score: 0.85, knowledge_graph_completeness_score: 0.91, extraction_reliability_score: 1.0 }
+      },
+      metadata: { file_id: "cpg_sku_master", ext: "csv", doc_type: "table", source_type: "structured", adapter: "csv", statistics: { char_count: 142080, word_count: 18432, chunk_count: 12, avg_chunk_words: 1536 } },
+      scorecard: { overall_kg_quality_score: 0.871, completeness_score: 0.91, consistency_score: 0.96, confidence_score: 0.78, graph_trust_score: 0.82, retrieval_readiness_score: 0.86, semantic_coherence_score: 0.88, canonical_resolution_score: 0.85, extraction_reliability_score: 1.0 }
+    },
+    {
+      file_id: "product_catalog",
+      summary: {
+        source: { ext: "txt", adapter: "txt", source_type: "document" },
+        entity_statistics: { entity_count: 48, low_confidence_count: 2, mean_confidence: 0.81, min_confidence: 0.52, max_confidence: 0.95, duplicate_entities: [], orphan_entities: [] },
+        relationship_statistics: { relationship_count: 92, low_confidence_count: 8, mean_confidence: 0.74, weak_edges: [], invalid_edge_patterns: [] },
+        graph_metrics: { node_count: 47, edge_count: 85, graph_density: 0.039, disconnected_component_count: 3, central_entities: [] },
+        semantic_quality_metrics: { ontology_violations: [], semantic_contradictions: [], consistency_score: 0.98 },
+        confidence_scores: { entity_confidence_score: 0.81, relationship_confidence_score: 0.74, graph_trust_score: 0.87, semantic_coherence_score: 0.91, canonical_resolution_score: 0.88, knowledge_graph_completeness_score: 0.93, extraction_reliability_score: 1.0 }
+      },
+      metadata: { file_id: "product_catalog", ext: "txt", doc_type: "freetext", source_type: "document", adapter: "txt", statistics: { char_count: 28672, word_count: 3840, chunk_count: 4, avg_chunk_words: 960 } },
+      scorecard: { overall_kg_quality_score: 0.911, completeness_score: 0.94, consistency_score: 0.98, confidence_score: 0.81, graph_trust_score: 0.87, retrieval_readiness_score: 0.89, semantic_coherence_score: 0.91, canonical_resolution_score: 0.88, extraction_reliability_score: 1.0 }
+    }
+  ]
+};
+
+// Demo ontology data (for /quality/{id}/ontology endpoint)
+export const DEMO_ONTOLOGY = {
+  ontology: {
+    domain_label: "supply_chain_logistics",
+    entity_types: ["DATE", "ENTITY", "EVENT", "GPE", "LOC", "ORG", "PERSON", "PRODUCT"],
+    allowed_relations: ["competes_with", "employs", "has_revenue", "located_in", "occurred_at", "owns", "related_to", "supplies"],
+    proposed_relations: { "distributes": 4, "partners_with": 2 },
+    proposed_entity_types: { "FACILITY": 3 }
+  },
+  graph_consistency: {
+    node_count: 182, edge_count: 571, orphan_node_count: 12,
+    ontology_nonconformant_edges: 0, self_loops: 2, dangling_edges: 0,
+    referential_integrity: { valid: true, error_count: 0, errors: [] },
+    passed: true
+  }
+};
 export const DEMO_LEARNING = {
   "models": [
     {

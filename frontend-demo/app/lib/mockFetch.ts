@@ -21,6 +21,8 @@ import {
   DEMO_NASH_INSIGHTS,
   DEMO_FEEDBACK,
   DEMO_PROCESS_STEPS,
+  DEMO_EDA_SUMMARY,
+  DEMO_ONTOLOGY,
 } from "./demoData";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -376,6 +378,64 @@ function handleMockRequest(url: string, init: RequestInit = {}): Response | null
     return ok({ status: "queued" }, 202);
   }
 
+  // ── POST /data/repair/{jobId} ─────────────────────────────────────────────
+  if (path.startsWith("data/repair/") && method === "POST") {
+    return ok({ job_id: path.replace("data/repair/", ""), mode: "full_pipeline", status: "queued" }, 202);
+  }
+
+  // ── POST /data/ingest-update/{jobId} ─────────────────────────────────────
+  if (path.startsWith("data/ingest-update/") && method === "POST") {
+    const jobId = path.replace("data/ingest-update/", "");
+    return ok({ job_id: jobId, status: "queued", reused: false }, 202);
+  }
+
+  // ── DELETE /data/project/{jobId} ─────────────────────────────────────────
+  if (path.startsWith("data/project/") && !path.includes("/file/") && method === "DELETE") {
+    const jobId = path.replace("data/project/", "");
+    return ok({ job_id: jobId, deleted: true });
+  }
+
+  // ── DELETE /data/project/{jobId}/file/{fileName} ──────────────────────────
+  if (path.startsWith("data/project/") && path.includes("/file/") && method === "DELETE") {
+    const parts = path.split("/file/");
+    const jobId = parts[0].replace("data/project/", "");
+    const fileName = decodeURIComponent(parts[1] ?? "");
+    return ok({ job_id: jobId, file_name: fileName, deleted_physical: true, remaining_files: 3, regeneration_required: true });
+  }
+
+  // ── GET /data/graph/{jobId}/merged ────────────────────────────────────────
+  if (path.startsWith("data/graph/") && path.includes("/merged") && method === "GET") {
+    const jobId = path.replace("data/graph/", "").replace("/merged", "");
+    const corpus = (DEMO_CORPORA as unknown as Array<{ job_id: string; domain_label: string }>)
+      .find(c => c.job_id === jobId);
+    const domain = corpus?.domain_label ?? "supply_chain_logistics";
+    const graph = (DEMO_GRAPHS as Record<string, { nodes: unknown[]; edges: unknown[] }>)[domain]
+      ?? (DEMO_GRAPHS as Record<string, { nodes: unknown[]; edges: unknown[] }>)["supply_chain_logistics"];
+    return ok({ job_id: jobId, node_count: (graph as {nodes:unknown[]}).nodes.length, edge_count: (graph as {edges:unknown[]}).edges.length, nodes: (graph as {nodes:unknown[]}).nodes, edges: (graph as {edges:unknown[]}).edges, source: "demo_merged_graph" });
+  }
+
+  // ── GET /quality/{jobId}/eda ──────────────────────────────────────────────
+  if (path.includes("/eda") && !path.includes("eda/") && method === "GET") {
+    const jobId = path.replace("quality/", "").replace("/eda", "");
+    return ok({ job_id: jobId, ...DEMO_EDA_SUMMARY });
+  }
+
+  // ── GET /quality/{jobId}/ontology ─────────────────────────────────────────
+  if (path.includes("/ontology") && method === "GET") {
+    const jobId = path.replace("quality/", "").replace("/ontology", "");
+    return ok({ job_id: jobId, ...DEMO_ONTOLOGY });
+  }
+
+  // ── GET /data/wiki/{jobId}/stats ──────────────────────────────────────────
+  if (path.startsWith("data/wiki/") && path.endsWith("/stats") && method === "GET") {
+    return ok({ total_articles: 18, schema_articles: 2, graphify_articles: 16, train_tokens: 0, total_tokens: 0, vocab_size: 32064 });
+  }
+
+  // ── PATCH /{jobId}/rename ─────────────────────────────────────────────────
+  if (path.includes("/rename") && method === "PATCH") {
+    return ok({ status: "ok" });
+  }
+
   // ── POST /orchestrator/ask — SSE ──────────────────────────────────────────
   if (path === "orchestrator/ask" && method === "POST") {
     let body: { query?: string; domain_label?: string; job_id?: string } = {};
@@ -395,14 +455,24 @@ function handleMockRequest(url: string, init: RequestInit = {}): Response | null
 
   // ── GET /quality/{jobId}/metrics ─────────────────────────────────────────
   if (path.includes("/metrics") && method === "GET") {
-    return ok({ overall_quality: 0.871, completeness: 0.894, consistency: 0.912, accuracy: 0.843, issues: [],
-      graph_metrics: { node_count: 487, edge_count: 312, active_edge_count: 298, suppressed_edge_count: 14,
+    return ok({
+      graph_metrics: {
+        node_count: 487, edge_count: 312, active_edge_count: 298, suppressed_edge_count: 14,
         suppressed_ratio_pct: 4.5, high_risk_edge_ratio: 0.047, contradiction_ratio: 0.012,
         edge_confidence_distribution: { low: 29, medium: 124, high: 145 },
-        stats: { node_count: 487, edge_count: 298, density: 0.00251, avg_degree: 1.22 } },
-      registry_metrics: { canonical_node_count: 487, total_alias_count: 134, avg_aliases_per_node: 0.28,
+        stats: { node_count: 487, edge_count: 298, density: 0.00251, avg_degree: 1.22 }
+      },
+      registry_metrics: {
+        canonical_node_count: 487, total_alias_count: 134, avg_aliases_per_node: 0.28,
         pending_review_count: 3, resolved_review_count: 41, merge_history_count: 28, split_history_count: 6,
-        entity_types: ["ORG","PERSON","PRODUCT","REGULATION","METRIC","CONTRACT","FACILITY","SYSTEM","RISK","EVENT"] } });
+        entity_types: ["ORG","PERSON","PRODUCT","REGULATION","METRIC","CONTRACT","FACILITY","SYSTEM","RISK","EVENT"]
+      },
+      file_scorecards: [
+        { overall_kg_quality_score: 0.911, completeness_score: 0.94, consistency_score: 0.97, confidence_score: 0.81, graph_trust_score: 0.87, retrieval_readiness_score: 0.89, semantic_coherence_score: 0.91, canonical_resolution_score: 0.88, extraction_reliability_score: 1.0 },
+        { overall_kg_quality_score: 0.871, completeness_score: 0.91, consistency_score: 0.96, confidence_score: 0.78, graph_trust_score: 0.82, retrieval_readiness_score: 0.86, semantic_coherence_score: 0.88, canonical_resolution_score: 0.85, extraction_reliability_score: 1.0 },
+      ],
+      file_count: 9
+    });
   }
 
   // ── GET /data/ingestion-report/{jobId} ────────────────────────────────────

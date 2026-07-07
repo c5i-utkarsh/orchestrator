@@ -9,6 +9,304 @@ import SLMStudio, { type SLMConfig } from "../components/SLMStudio";
 
 interface EpochEntry { epoch: number; loss: number; }
 
+// ── Stable hash helper (for deterministic node placement) ─────────────────
+function _fgHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h;
+}
+
+// ── Node colour by entity type ─────────────────────────────────────────────
+function _fgColor(type: string): string {
+  const t = (type || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (t.includes("org") || t.includes("organ")) return "#7c3aed";
+  if (t.includes("person")) return "#d97706";
+  if (t.includes("gpe") || t.includes("loc") || t.includes("location")) return "#0d9488";
+  if (t.includes("event")) return "#ef4444";
+  if (t.includes("product")) return "#0ea5e9";
+  if (t.includes("artifact") || t.includes("facility") || t.includes("fac")) return "#8b5cf6";
+  if (t.includes("group")) return "#ec4899";
+  return "#6366f1";
+}
+
+interface FGNode { id: string; label: string; type: string; count?: number; files?: string[]; }
+interface FGEdge { source: string; target: string; relation?: string; weight?: number; }
+interface FGPos  { x: number; y: number; vx: number; vy: number; r: number; short: string; }
+
+// ── ForceGraphView — interactive force-directed graph ─────────────────────
+function ForceGraphView({ nodes, edges }: { nodes: FGNode[]; edges: FGEdge[] }) {
+  const W = 900, H = 520;
+  const [pos, setPos]       = useState<Record<string, FGPos>>({});
+  const [tfm, setTfm]       = useState({ x: 0, y: 0, s: 1 });
+  const [sel, setSel]       = useState<FGNode | null>(null);
+  const [hovEdge, setHovEdge] = useState<number | null>(null);
+  const dragging  = useRef<{ id: string; ox: number; oy: number } | null>(null);
+  const panning   = useRef<{ px: number; py: number; tx: number; ty: number } | null>(null);
+  const svgRef    = useRef<SVGSVGElement>(null);
+
+  // Run force simulation once when nodes/edges change
+  useEffect(() => {
+    if (!nodes.length) return;
+    const cx = W / 2, cy = H / 2;
+    const p: Record<string, FGPos> = {};
+    nodes.forEach(n => {
+      const h = _fgHash(n.id);
+      const a = (h % 360) * (Math.PI / 180);
+      const dist = 60 + (h % 180);
+      p[n.id] = { x: cx + dist * Math.cos(a), y: cy + dist * Math.sin(a), vx: 0, vy: 0, r: 0, short: "" };
+    });
+    // Build adjacency
+    const adj: Record<string, Set<string>> = {};
+    nodes.forEach(n => { adj[n.id] = new Set(); });
+    edges.forEach(e => { adj[e.source]?.add(e.target); adj[e.target]?.add(e.source); });
+    // Degree
+    const deg: Record<string, number> = {};
+    nodes.forEach(n => { deg[n.id] = adj[n.id]?.size ?? 0; });
+    const maxDeg = Math.max(1, ...Object.values(deg));
+    // Visible edges (limit for perf)
+    const visEdges = edges.slice(0, 400);
+    // Force simulation
+    const REP = 2800, SPR = 0.06, RL = 90, GRAV = 0.01, DAMP = 0.82, ITER = 160;
+    for (let it = 0; it < ITER; it++) {
+      // Repulsion (O(N²) — fine for ≤250 nodes)
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = p[nodes[i].id], b = p[nodes[j].id];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+          const f = REP / (d * d);
+          const fx = (dx / d) * f, fy = (dy / d) * f;
+          a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+        }
+      }
+      // Spring attraction on edges
+      visEdges.forEach(e => {
+        const a = p[e.source], b = p[e.target];
+        if (!a || !b) return;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+        const f = SPR * (d - RL);
+        const fx = (dx / d) * f, fy = (dy / d) * f;
+        a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+      });
+      // Integrate
+      nodes.forEach(n => {
+        const q = p[n.id];
+        q.vx = (q.vx + GRAV * (cx - q.x)) * DAMP;
+        q.vy = (q.vy + GRAV * (cy - q.y)) * DAMP;
+        q.x = Math.max(20, Math.min(W - 20, q.x + q.vx));
+        q.y = Math.max(20, Math.min(H - 20, q.y + q.vy));
+      });
+    }
+    // Assign radius and short label
+    nodes.forEach(n => {
+      const q = p[n.id];
+      q.r = 5 + Math.sqrt((deg[n.id] || 1) / maxDeg) * 14;
+      q.short = n.label.length > 14 ? n.label.slice(0, 13) + "…" : n.label;
+    });
+    setPos({ ...p });
+  }, [nodes, edges]);
+
+  // Zoom on wheel
+  const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    setTfm(t => ({ ...t, s: Math.max(0.2, Math.min(6, t.s * factor)) }));
+  };
+
+  // Pan start (background)
+  const onSvgMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as SVGElement).closest(".fg-node")) return;
+    panning.current = { px: e.clientX, py: e.clientY, tx: tfm.x, ty: tfm.y };
+  };
+
+  // Node drag start
+  const onNodeMouseDown = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const svgRect = svgRef.current!.getBoundingClientRect();
+    const svgX = (e.clientX - svgRect.left - tfm.x) / tfm.s;
+    const svgY = (e.clientY - svgRect.top  - tfm.y) / tfm.s;
+    dragging.current = { id, ox: svgX - (pos[id]?.x ?? 0), oy: svgY - (pos[id]?.y ?? 0) };
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (dragging.current) {
+      const svgRect = svgRef.current!.getBoundingClientRect();
+      const svgX = (e.clientX - svgRect.left - tfm.x) / tfm.s;
+      const svgY = (e.clientY - svgRect.top  - tfm.y) / tfm.s;
+      const nx = svgX - dragging.current.ox;
+      const ny = svgY - dragging.current.oy;
+      setPos(p => ({ ...p, [dragging.current!.id]: { ...p[dragging.current!.id], x: nx, y: ny, vx: 0, vy: 0 } }));
+    } else if (panning.current) {
+      const dx = e.clientX - panning.current.px;
+      const dy = e.clientY - panning.current.py;
+      setTfm(t => ({ ...t, x: panning.current!.tx + dx, y: panning.current!.ty + dy }));
+    }
+  };
+
+  const onMouseUp = () => { dragging.current = null; panning.current = null; };
+
+  if (!nodes.length) {
+    return (
+      <div className="flex items-center justify-center bg-bg3 border border-dborder rounded-xl" style={{ height: 300 }}>
+        <div className="text-center">
+          <div className="text-[28px] mb-2 opacity-30">⬡</div>
+          <p className="text-[12px] text-t3">No graph data yet — complete an ingest pipeline to generate the knowledge graph.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const visEdgesForRender = edges.slice(0, 400);
+  const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const selEdges = sel ? edges.filter(e => e.source === sel.id || e.target === sel.id) : [];
+
+  return (
+    <div className="relative border border-dborder rounded-xl overflow-hidden" style={{ height: 480, background: "var(--color-bg3,#f4f6fc)", userSelect: "none" }}>
+      {/* Controls */}
+      <div className="absolute top-2.5 left-3 flex gap-1.5 z-10">
+        <button onClick={() => setTfm(t => ({ ...t, s: Math.min(6, t.s * 1.25) }))}
+          className="w-7 h-7 bg-bg1 border border-dborder rounded text-[14px] text-t2 hover:text-accent flex items-center justify-center shadow-sm">+</button>
+        <button onClick={() => setTfm(t => ({ ...t, s: Math.max(0.2, t.s * 0.8) }))}
+          className="w-7 h-7 bg-bg1 border border-dborder rounded text-[14px] text-t2 hover:text-accent flex items-center justify-center shadow-sm">−</button>
+        <button onClick={() => setTfm({ x: 0, y: 0, s: 1 })} title="Reset view"
+          className="w-7 h-7 bg-bg1 border border-dborder rounded text-[11px] text-t3 hover:text-accent flex items-center justify-center shadow-sm">⌖</button>
+        <button onClick={() => setSel(null)} title="Deselect" disabled={!sel}
+          className="w-7 h-7 bg-bg1 border border-dborder rounded text-[11px] text-t3 hover:text-accent flex items-center justify-center shadow-sm disabled:opacity-30">✕</button>
+      </div>
+      <div className="absolute top-2.5 right-3 text-[9px] text-t3 z-10">
+        {nodes.length} nodes · {edges.length} edges · scroll to zoom · drag to pan/move
+      </div>
+
+      <svg ref={svgRef} width="100%" height="100%" viewBox={`0 0 ${W} ${H}`}
+        style={{ cursor: panning.current ? "grabbing" : "default" }}
+        onWheel={onWheel}
+        onMouseDown={onSvgMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}>
+        <g transform={`translate(${tfm.x},${tfm.y}) scale(${tfm.s})`}>
+          {/* Edges */}
+          <g>
+            {visEdgesForRender.map((e, i) => {
+              const sp = pos[e.source], tp = pos[e.target];
+              if (!sp || !tp) return null;
+              const highlighted = sel && (e.source === sel.id || e.target === sel.id);
+              const isHov = hovEdge === i;
+              const mx = (sp.x + tp.x) / 2, my = (sp.y + tp.y) / 2;
+              return (
+                <g key={i}>
+                  <line x1={sp.x} y1={sp.y} x2={tp.x} y2={tp.y}
+                    stroke={highlighted ? "#6366f1" : "#94a3b8"}
+                    strokeOpacity={highlighted ? 0.85 : 0.25}
+                    strokeWidth={highlighted ? 1.8 : 0.9}
+                    style={{ cursor: "pointer" }}
+                    onMouseEnter={() => setHovEdge(i)}
+                    onMouseLeave={() => setHovEdge(null)}>
+                    <title>{`${nodeMap[e.source]?.label ?? e.source} →[${e.relation ?? "related"}]→ ${nodeMap[e.target]?.label ?? e.target}`}</title>
+                  </line>
+                  {(isHov || highlighted) && e.relation && (
+                    <text x={mx} y={my - 3} textAnchor="middle" fontSize="7"
+                      fill="#334155" style={{ pointerEvents: "none" }}
+                      className="select-none">
+                      {e.relation}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+
+          {/* Nodes */}
+          <g>
+            {nodes.map(n => {
+              const q = pos[n.id];
+              if (!q) return null;
+              const col = _fgColor(n.type);
+              const isSelected = sel?.id === n.id;
+              return (
+                <g key={n.id} className="fg-node"
+                  style={{ cursor: "pointer" }}
+                  onMouseDown={ev => onNodeMouseDown(ev, n.id)}
+                  onClick={() => setSel(isSelected ? null : n)}>
+                  <circle cx={q.x} cy={q.y} r={q.r + 5} fill={col} opacity={0.1} />
+                  <circle cx={q.x} cy={q.y} r={q.r}
+                    fill={col} fillOpacity={isSelected ? 1 : 0.82}
+                    stroke={isSelected ? "#1e1b4b" : "#f8fafc"} strokeWidth={isSelected ? 2 : 1.2}>
+                    <title>{`${n.label} · ${n.type}${n.count ? ` · ×${n.count}` : ""}`}</title>
+                  </circle>
+                  {/* Label appears when zoomed or selected */}
+                  {(q.r > 8 || isSelected) && (
+                    <text x={q.x + q.r + 4} y={q.y + 3} fontSize="8"
+                      fill="#1e293b" style={{ pointerEvents: "none" }}
+                      className="select-none">
+                      {q.short}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        </g>
+      </svg>
+
+      {/* Legend */}
+      <div className="absolute bottom-2.5 left-3 bg-bg1/90 border border-dborder rounded-lg px-3 py-1.5 flex items-center gap-3 text-[9px] z-10">
+        {[["ORG","#7c3aed"],["PERSON","#d97706"],["LOC","#0d9488"],["PRODUCT","#0ea5e9"],["EVENT","#ef4444"],["OTHER","#6366f1"]]
+          .map(([t,c]) => (
+            <span key={t} className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full inline-block" style={{ background: c }} />
+              <span className="text-t3">{t}</span>
+            </span>
+          ))}
+      </div>
+
+      {/* Selected node detail panel */}
+      {sel && (
+        <div className="absolute top-10 right-3 bg-bg1 border border-dborder rounded-xl shadow-lg p-3 z-20 text-[11px]" style={{ width: 220 }}>
+          <div className="font-semibold text-t1 mb-1.5 leading-tight pr-4">{sel.label}</div>
+          <div className="flex items-center gap-1 mb-2">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-white" style={{ background: _fgColor(sel.type) }}>{sel.type}</span>
+            {sel.count != null && sel.count > 0 && (
+              <span className="text-t3 text-[9px]">×{sel.count} mentions</span>
+            )}
+          </div>
+          {selEdges.length > 0 && (
+            <div>
+              <div className="text-[9px] font-bold text-t3 uppercase tracking-widest mb-1.5">Connections ({selEdges.length})</div>
+              <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                {selEdges.slice(0, 12).map((e, i) => {
+                  const other = e.source === sel.id ? e.target : e.source;
+                  const otherNode = nodeMap[other];
+                  const dir = e.source === sel.id ? "→" : "←";
+                  return (
+                    <div key={i} className="flex items-center gap-1 text-[10px]">
+                      <span className="text-accent font-mono">{dir}</span>
+                      <span className="text-t3 italic truncate">{e.relation ?? "related"}</span>
+                      <span className="text-t2 truncate font-medium">{otherNode?.label ?? other}</span>
+                    </div>
+                  );
+                })}
+                {selEdges.length > 12 && (
+                  <div className="text-[9px] text-t3 italic">+{selEdges.length - 12} more…</div>
+                )}
+              </div>
+            </div>
+          )}
+          {selEdges.length === 0 && (
+            <div className="text-[10px] text-t3 italic">No direct connections in view</div>
+          )}
+          {(sel as any).files?.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-dborder">
+              <div className="text-[9px] text-t3">Source files: {(sel as any).files.join(", ")}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatEta(seconds: number | null): string {
   if (seconds === null || seconds === undefined) return "";
   if (seconds < 60) return `~${seconds}s remaining`;
@@ -66,6 +364,27 @@ function ProcessingPage() {
   const [topEntities, setTopEntities] = useState<string[]>([]);
   const [availableModels, setAvailableModels] = useState<{name:string;provider:string;is_available_locally:boolean}[]>([]);
 
+  // ── Cancel harnessing state ────────────────────────────────────────────────
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const handleCancelRequest = () => {
+    if (overallPct > 0 && overallPct < 100) {
+      // Pipeline is active — ask for confirmation
+      setShowCancelConfirm(true);
+    } else {
+      // Not started yet (or complete) — return immediately
+      esRef.current?.close();
+      router.push("/");
+    }
+  };
+
+  const handleCancelConfirmed = () => {
+    // Close the SSE connection to stop receiving events
+    esRef.current?.close();
+    setShowCancelConfirm(false);
+    router.push("/");
+  };
+
   // Gate state
   // Track which gates have already been shown (prevents re-triggering on reconnect)
   const gatesShownRef = useRef<Set<string>>(new Set());
@@ -94,10 +413,10 @@ function ProcessingPage() {
 
   // Demo-mode Knowledge Review (shows real pipeline output before AI Builder)
   const [showDemoReview, setShowDemoReview] = useState(false);
-  const [demoReviewData, setDemoReviewData] = useState<{ wiki: any; graph: any } | null>(null);
-  const [demoReviewQuality, setDemoReviewQuality] = useState<{ quality: any; report: any } | null>(null);
+  const [demoReviewData, setDemoReviewData] = useState<{ wiki: any; graph: any; mergedGraph: any } | null>(null);
+  const [demoReviewQuality, setDemoReviewQuality] = useState<{ quality: any; report: any; eda: any; ontology: any } | null>(null);
   const demoReviewResolveRef = useRef<((a: "approve" | "reject" | "regenerate") => void) | null>(null);
-  const [reviewTab, setReviewTab] = useState<"overview"|"graph"|"wiki"|"ontology"|"entities"|"relationships"|"communities"|"statistics"|"quality"|"approval">("overview");
+  const [reviewTab, setReviewTab] = useState<"overview"|"graph"|"wiki"|"ontology"|"entities"|"relationships"|"communities"|"statistics"|"eda"|"quality"|"approval">("overview");
 
   const esRef = useRef<EventSource | null>(null);
   // Track previous step states to fire logs only on transitions
@@ -249,14 +568,17 @@ function ProcessingPage() {
         es.close();
 
         // Knowledge Review — fetch pipeline output and show the rich 10-tab review screen.
-        const [wikiData, graphData, qualityData, reportData] = await Promise.all([
+        const [wikiData, graphData, qualityData, reportData, edaData, ontologyData, mergedGraphData] = await Promise.all([
           fetch(`${API}/api/v1/data/wiki/${jobId}`).then(r => r.json()).catch(() => null),
           fetch(`${API}/api/v1/data/graph/${jobId}`).then(r => r.json()).catch(() => null),
           fetch(`${API}/api/v1/quality/${jobId}/metrics`).then(r => r.json()).catch(() => null),
           fetch(`${API}/api/v1/data/ingestion-report/${jobId}`).then(r => r.json()).catch(() => null),
+          fetch(`${API}/api/v1/quality/${jobId}/eda`).then(r => r.json()).catch(() => null),
+          fetch(`${API}/api/v1/quality/${jobId}/ontology`).then(r => r.json()).catch(() => null),
+          fetch(`${API}/api/v1/data/graph/${jobId}/merged`).then(r => r.ok ? r.json() : null).catch(() => null),
         ]);
-        setDemoReviewData({ wiki: wikiData, graph: graphData });
-        setDemoReviewQuality({ quality: qualityData, report: reportData });
+        setDemoReviewData({ wiki: wikiData, graph: graphData, mergedGraph: mergedGraphData });
+        setDemoReviewQuality({ quality: qualityData, report: reportData, eda: edaData, ontology: ontologyData });
         setReviewTab("overview");
         setShowDemoReview(true);
         const action = await new Promise<"approve" | "reject" | "regenerate">(resolve => {
@@ -270,9 +592,141 @@ function ProcessingPage() {
           return;
         }
         if (action === "regenerate") {
-          addLog("Regenerating knowledge — re-running the pipeline…");
-          try { await fetch(`${API}/api/v1/data/retry/${jobId}`, { method: "POST" }); } catch { /* */ }
-          window.location.reload();
+          addLog("↻ Regenerating knowledge — re-running all 14 pipeline layers…");
+
+          // Reset canvas to pending state so the user sees progress
+          setNodes(prev => prev.map(n =>
+            INGEST_LAYERS.some(l => l.id === n.id)
+              ? { ...n, status: "pending" as NodeStatus, metric: undefined }
+              : n
+          ));
+          setNodeStatus("upload", "running");
+          setOverallPct(0);
+          setLog([]);
+          prevStepStatusRef.current = {};
+
+          // Use /repair which ALWAYS runs the full 14-layer pipeline
+          // (not /retry which only re-indexes FAISS when graph already exists)
+          try {
+            const repairRes = await fetch(`${API}/api/v1/data/repair/${jobId}`, { method: "POST" });
+            if (!repairRes.ok) {
+              addLog(`⚠ Repair returned HTTP ${repairRes.status} — pipeline may already be queued`);
+            } else {
+              addLog("↻ Full pipeline queued — Celery worker will begin shortly…");
+            }
+          } catch (e) {
+            addLog(`❌ Failed to start regeneration: ${e}`);
+            // Restore modal with existing data so nothing is lost
+            setShowDemoReview(true);
+            return;
+          }
+
+          // Re-open SSE connection — the old one was closed after graph_done
+          const regenEs = new EventSource(`${API}/api/v1/data/progress/${jobId}`);
+          esRef.current = regenEs;
+
+          regenEs.onmessage = async (regenEvent) => {
+            const rev = JSON.parse(regenEvent.data);
+            setOverallPct(rev.overall_pct ?? 0);
+            setEtaSeconds(rev.eta_seconds ?? null);
+            if (rev.file_count)      setStats(p => ({ ...p, files: rev.file_count }));
+            if (rev.entity_count)    setStats(p => ({ ...p, entities: rev.entity_count }));
+            if (rev.community_count) setStats(p => ({ ...p, communities: rev.community_count }));
+
+            const rstatus = rev.status;
+            const rsteps: { id: string; status: string; detail?: string }[] = rev.steps ?? [];
+            const rprev = prevStepStatusRef.current;
+            for (const s of rsteps) {
+              if (rprev[s.id] !== s.status) {
+                if (s.status === "running")                             addLog(STEP_START_LOGS[s.id] ?? `[${s.id}] Starting…`);
+                else if (s.status === "done" && rprev[s.id] === "running") addLog(`${STEP_DONE_ICONS[s.id] ?? "✓"} ${s.detail || s.id + " complete"}`);
+                else if (s.status === "error")                         addLog(`❌ ${s.id} failed: ${s.detail ?? "error"}`);
+                rprev[s.id] = s.status;
+              }
+            }
+            prevStepStatusRef.current = { ...rprev };
+
+            if (rstatus === "ingesting" && rsteps.length) {
+              setNodes(prev => prev.map(n => {
+                const s = rsteps.find(x => x.id === n.id);
+                if (!s) return n;
+                const mapped: NodeStatus = s.status === "done" ? "done" : s.status === "running" ? "running" : s.status === "error" ? "error" : "pending";
+                return { ...n, status: mapped, metric: s.detail || n.metric };
+              }));
+              const graphStep = rsteps.find(x => x.id === "graph");
+              if (graphStep?.status === "done" && !gatesShownRef.current.has("graph-regen")) {
+                gatesShownRef.current.add("graph-regen");
+                fireAchievement("🕸️", "Knowledge graph rebuilt!", "Entities and relationships refreshed");
+              }
+            }
+
+            if (rstatus === "graph_done") {
+              setStats(p => ({ ...p, entities: rev.entity_count ?? p.entities, communities: rev.community_count ?? p.communities }));
+              setNodes(prev => prev.map(n =>
+                INGEST_LAYERS.some(l => l.id === n.id)
+                  ? { ...n, status: (n.id === "graph_validation" ? "waiting-approval" : "done") as NodeStatus }
+                  : n
+              ));
+              fireAchievement("✅", "Knowledge regenerated!", `${rev.entity_count ?? 0} entities refreshed`);
+              regenEs.close();
+
+              // Re-fetch ALL review data — everything is now fresh
+              const [wikiR, graphR, qualityR, reportR, edaR, ontologyR, mergedR] = await Promise.all([
+                fetch(`${API}/api/v1/data/wiki/${jobId}`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/data/graph/${jobId}`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/quality/${jobId}/metrics`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/data/ingestion-report/${jobId}`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/quality/${jobId}/eda`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/quality/${jobId}/ontology`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/data/graph/${jobId}/merged`).then(r => r.ok ? r.json() : null).catch(() => null),
+              ]);
+              setDemoReviewData({ wiki: wikiR, graph: graphR, mergedGraph: mergedR });
+              setDemoReviewQuality({ quality: qualityR, report: reportR, eda: edaR, ontology: ontologyR });
+              setReviewTab("overview");
+              setShowDemoReview(true);
+
+              const nextAction = await new Promise<"approve" | "reject" | "regenerate">(resolve => {
+                demoReviewResolveRef.current = resolve;
+              });
+              setShowDemoReview(false);
+              setDemoReviewData(null);
+
+              if (nextAction === "reject") {
+                addLog("Knowledge rejected — returning to session setup.");
+                router.push("/");
+                return;
+              }
+              if (nextAction === "regenerate") {
+                // Second consecutive regeneration — reload to restart full flow
+                window.location.reload();
+                return;
+              }
+              // Approved — proceed to AI build
+              setNodeStatus("graph_validation", "done", `${rev.entity_count ?? 0} entities`);
+              addLog("Knowledge approved — checking for existing custom AI…");
+              setNodeStatus("build-ai", "running", "checking…");
+              try {
+                const forCorpusRes = await fetch(`${API}/api/v1/slm/for-corpus?job_id=${jobId}`);
+                const forCorpus = await forCorpusRes.json();
+                setSlmExistsRecord(forCorpus.exists ? forCorpus : null);
+                setNodeStatus("build-ai", "waiting-approval");
+                setShowModelSelector(true);
+                addLog(forCorpus.exists ? `ℹ️ Custom AI found: ${forCorpus.model_id}` : "No Custom AI yet — configure your AI in the builder…");
+              } catch {
+                setSlmExistsRecord(null);
+                setNodeStatus("build-ai", "waiting-approval");
+                setShowModelSelector(true);
+              }
+
+            } else if (rstatus === "failed") {
+              addLog(`❌ Pipeline failed: ${rev.error ?? "unknown error"}`);
+              regenEs.close();
+              // Restore modal with pre-regen data so nothing is lost
+              setShowDemoReview(true);
+            }
+          };
+
+          regenEs.onerror = () => { addLog("⚠ SSE connection lost — retrying…"); };
           return;
         }
         setNodeStatus("graph_validation", "done", `${ev.entity_count ?? 0} entities`);
@@ -734,20 +1188,52 @@ function ProcessingPage() {
       {showDemoReview && demoReviewData && (() => {
         const wiki    = demoReviewData.wiki;
         const graph   = demoReviewData.graph;
+        const mergedGraph = demoReviewData.mergedGraph;  // per-file merged: rich edges
         const quality = demoReviewQuality?.quality;
         const report  = demoReviewQuality?.report;
+        const edaPayload = demoReviewQuality?.eda;          // NEW: /quality/{id}/eda
+        const ont     = demoReviewQuality?.ontology;        // NEW: /quality/{id}/ontology
 
         const gNodes: Array<{id:string;label:string;type:string;count?:number;community?:number}> = graph?.nodes ?? [];
         const gEdges: Array<{source:string;target:string;relation:string;weight?:number}> = graph?.edges ?? [];
-        const articles: Array<{title:string;content:string;community?:number}> = wiki?.articles ?? [];
-        const pipelineSteps: Array<{id:string;label:string;status:string;pct:number;detail?:string}> = report?.pipeline_steps ?? [];
-        const scorecards: Array<{file_id:string;scorecard:any}> = report?.file_scorecards ?? [];
+        const articles: Array<{title:string;content:string;community_id?:number;entity_type?:string;aliases?:string[];sources?:unknown[]}> = wiki?.articles ?? [];
+        const pipelineSteps: Array<{id:string;label:string;status:string;pct:number;detail?:string}> = report?.pipeline_steps?.steps ?? [];
+        // report.file_scorecards has shape [{file_id, scorecard:{...}}]
+        // quality.file_scorecards has shape [{overall_kg_quality_score, ...}] (direct scorecard objects)
+        const reportScorecards: Array<{file_id:string;scorecard:Record<string,number>}> = report?.file_scorecards ?? [];
+        const qualityScorecards: Array<Record<string,number>> = quality?.file_scorecards ?? [];
         const regMetrics = quality?.registry_metrics ?? report?.registry_metrics ?? null;
         const gMetrics = quality?.graph_metrics ?? null;
 
+        // ── Computed averages from file_scorecards (fix broken Overview/Quality gauges) ──
+        const avg = (key: string): number => {
+          // quality.file_scorecards are plain score objects; report.file_scorecards are {file_id, scorecard:{}}
+          const vals = qualityScorecards.length > 0
+            ? qualityScorecards.map(sc => Number(sc[key] ?? 0))
+            : reportScorecards.map(({scorecard: sc}) => Number(sc?.[key] ?? 0));
+          if (!vals.length) return 0;
+          return vals.reduce((a,b) => a+b, 0) / vals.length;
+        };
+        const avgOverall       = avg("overall_kg_quality_score");
+        const avgCompleteness  = avg("completeness_score");
+        const avgConsistency   = avg("consistency_score");
+        const avgConfidence    = avg("confidence_score");
+        const avgGraphTrust    = avg("graph_trust_score");
+        const avgSemantic      = avg("semantic_coherence_score");
+        const avgRetrieval     = avg("retrieval_readiness_score");
+        const avgCanonical     = avg("canonical_resolution_score");
+        const avgExtraction    = avg("extraction_reliability_score");
+
+        // ── EDA per-file data ──────────────────────────────────────────────────────
+        const edaFiles: Array<{file_id:string;summary:any;metadata:any;scorecard:any}> = edaPayload?.files ?? [];
+
+        // ── Ontology artifacts ────────────────────────────────────────────────────
+        const ontologyData   = ont?.ontology ?? null;
+        const consistency    = ont?.graph_consistency ?? null;
+
         // Community map
         const commMap: Record<number, string[]> = {};
-        gNodes.forEach(n => { const c = n.community ?? 0; commMap[c] = [...(commMap[c]||[]), n.label]; });
+        gNodes.forEach(n => { const c = n.community ?? -1; if (c >= 0) commMap[c] = [...(commMap[c]||[]), n.label]; });
 
         // Entity type distribution (from graph nodes)
         const typeDist: Record<string,number> = {};
@@ -755,7 +1241,7 @@ function ProcessingPage() {
         const typeChartData = Object.entries(typeDist).map(([type,count]) => ({type, count})).sort((a,b)=>b.count-a.count);
 
         // Edge confidence distribution
-        const confDist = gMetrics?.edge_confidence_distribution ?? quality?.graph_metrics?.edge_confidence_distribution ?? null;
+        const confDist = gMetrics?.edge_confidence_distribution ?? null;
         const confChartData = confDist ? [
           {band:"High (≥0.8)", count: confDist.high, fill:"#16a34a"},
           {band:"Medium (0.5-0.8)", count: confDist.medium, fill:"#d97706"},
@@ -778,6 +1264,7 @@ function ProcessingPage() {
           {key:"relationships", label:"↔ Relationships"},
           {key:"communities",   label:"🏘 Communities"},
           {key:"statistics",    label:"📈 Statistics"},
+          {key:"eda",           label:"🔬 EDA"},
           {key:"quality",       label:"🎯 Quality Metrics"},
           {key:"approval",      label:"✓ Approval"},
         ] as const;
@@ -850,22 +1337,22 @@ function ProcessingPage() {
                   <div className="space-y-5">
                     <div className="grid grid-cols-4 gap-3">
                       <Kpi label="Graph Nodes" value={(gMetrics?.node_count ?? gNodes.length) || null} color="#6c5cf7"/>
-                      <Kpi label="Relationships" value={(gMetrics?.active_edge_count ?? gEdges.length) || null} color="#0d9e74"/>
+                      <Kpi label="Entities (extracted)" value={edaFiles.reduce((s,f) => s+(f.summary?.entity_statistics?.entity_count??0),0) || report?.entity_count || null} color="#0d9e74"/>
                       <Kpi label="Density" value={gMetrics?.stats?.density != null ? gMetrics.stats.density.toFixed(5) : null} color="#2563eb"/>
-                      <Kpi label="Communities" value={Object.keys(commMap).length || null}/>
-                      <Kpi label="Orphan Nodes" value={gMetrics ? (gMetrics.node_count - Math.round(gMetrics.stats.avg_degree * gMetrics.node_count / 2)) : null} color="#d97706"/>
+                      <Kpi label="Communities" value={Object.keys(commMap).length || consistency?.orphan_node_count != null ? Object.keys(commMap).length || null : null}/>
+                      <Kpi label="Orphan Nodes" value={consistency?.orphan_node_count ?? null} color="#d97706"/>
                       <Kpi label="Suppressed Edges" value={gMetrics?.suppressed_edge_count ?? null} color="#d97706"/>
                       <Kpi label="High Risk Edges" value={gMetrics ? `${(gMetrics.high_risk_edge_ratio*100).toFixed(1)}%` : null} color={gMetrics?.high_risk_edge_ratio > 0.1 ? "#e63755" : "#16a34a"}/>
-                      <Kpi label="Overall Quality" value={quality?.overall_quality != null ? `${(quality.overall_quality*100).toFixed(0)}%` : null} color="#16a34a"/>
+                      <Kpi label="Overall Quality" value={avgOverall > 0 ? `${(avgOverall*100).toFixed(0)}%` : null} color="#16a34a"/>
                     </div>
-                    {quality && (
+                    {avgOverall > 0 && (
                       <div className="bg-bg2 border border-dborder rounded-xl p-5">
-                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-4">Quality Profile</div>
+                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-4">Quality Profile · averaged from {qualityScorecards.length || reportScorecards.length} file scorecards</div>
                         <div className="flex items-center justify-around flex-wrap gap-4">
-                          <Gauge val={quality.completeness ?? 0} label="Completeness" color="#6c5cf7"/>
-                          <Gauge val={quality.consistency ?? 0} label="Consistency" color="#0d9e74"/>
-                          <Gauge val={quality.accuracy ?? 0} label="Accuracy" color="#2563eb"/>
-                          <Gauge val={quality.overall_quality ?? 0} label="Overall" color="#16a34a"/>
+                          <Gauge val={avgCompleteness} label="Completeness" color="#6c5cf7"/>
+                          <Gauge val={avgConsistency} label="Consistency" color="#0d9e74"/>
+                          <Gauge val={avgGraphTrust} label="Graph Trust" color="#2563eb"/>
+                          <Gauge val={avgOverall} label="Overall" color="#16a34a"/>
                         </div>
                       </div>
                     )}
@@ -878,7 +1365,7 @@ function ProcessingPage() {
                     {typeChartData.length > 0 && (
                       <div className="bg-bg2 border border-dborder rounded-xl p-4">
                         <div className="text-[12px] font-semibold text-t1 mb-1">Entity Type Distribution</div>
-                        <div className="text-[10px] text-t3 mb-3">{gNodes.length} entities across {typeChartData.length} types</div>
+                        <div className="text-[10px] text-t3 mb-3">{gNodes.length} canonical entities across {typeChartData.length} types</div>
                         <ResponsiveContainer width="100%" height={200}>
                           <BarChart data={typeChartData} layout="vertical">
                             <XAxis type="number" tick={{fontSize:10}}/>
@@ -896,7 +1383,7 @@ function ProcessingPage() {
                     {confChartData.length > 0 && (
                       <div className="bg-bg2 border border-dborder rounded-xl p-4">
                         <div className="text-[12px] font-semibold text-t1 mb-1">Edge Confidence Distribution</div>
-                        <div className="text-[10px] text-t3 mb-3">{gEdges.length} relationships classified by confidence</div>
+                        <div className="text-[10px] text-t3 mb-3">{gEdges.length > 0 ? `${gEdges.length} relationships` : "Canonical graph edges — see EDA tab for per-file edge data"}</div>
                         <ResponsiveContainer width="100%" height={140}>
                           <BarChart data={confChartData}>
                             <XAxis dataKey="band" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}}/>
@@ -908,49 +1395,39 @@ function ProcessingPage() {
                         </ResponsiveContainer>
                       </div>
                     )}
-                    {scorecards.length > 0 && (
+                    {edaFiles.length > 0 && (
                       <div className="space-y-3">
-                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider">Per-File Extraction Statistics</div>
-                        {scorecards.map(({file_id, scorecard: sc}) => (
-                          <div key={file_id} className="border border-dborder rounded-xl overflow-hidden">
-                            <div className="px-4 py-2.5 bg-bg2 border-b border-dborder flex items-center gap-2 flex-wrap">
-                              <span className="text-[11px] font-semibold text-t1 font-mono">{file_id}</span>
-                              {sc.parser_confidence != null && <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-accent/10 text-accent ml-auto">{(sc.parser_confidence*100).toFixed(0)}% confidence</span>}
-                            </div>
-                            <div className="px-4 py-3 grid grid-cols-3 gap-3">
-                              {sc.chunks_extracted != null && <Kpi label="Chunks" value={sc.chunks_extracted}/>}
-                              {sc.entity_count != null && <Kpi label="Entities" value={sc.entity_count} color="#0d9e74"/>}
-                              {sc.relationship_count != null && <Kpi label="Relations" value={sc.relationship_count} color="#2563eb"/>}
-                              {sc.pages_processed != null && <Kpi label="Pages" value={sc.pages_processed}/>}
-                              {sc.row_count != null && <Kpi label="Rows" value={sc.row_count}/>}
-                            </div>
-                            {sc.warnings?.length > 0 && (
-                              <div className="px-4 pb-3 space-y-1">
-                                {sc.warnings.map((w: string, i: number) => (
-                                  <div key={i} className="text-[10px] text-amber bg-amber/8 border border-amber/20 rounded px-2 py-1">⚠ {w}</div>
-                                ))}
+                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider">Per-File Extraction Statistics · from EDA pipeline</div>
+                        {edaFiles.map(f => {
+                          const es = f.summary?.entity_statistics;
+                          const rs = f.summary?.relationship_statistics;
+                          const meta = f.metadata;
+                          return (
+                            <div key={f.file_id} className="border border-dborder rounded-xl overflow-hidden">
+                              <div className="px-4 py-2.5 bg-bg2 border-b border-dborder flex items-center gap-2 flex-wrap">
+                                <span className="text-[11px] font-semibold text-t1 font-mono">{f.file_id}</span>
+                                <span className="text-[9px] text-t3">{meta?.adapter ?? meta?.ext}</span>
+                                {es?.mean_confidence != null && <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-accent/10 text-accent ml-auto">{(es.mean_confidence*100).toFixed(0)}% entity conf</span>}
                               </div>
-                            )}
-                          </div>
-                        ))}
+                              <div className="px-4 py-3 grid grid-cols-4 gap-3">
+                                {es?.entity_count != null && <Kpi label="Entities" value={es.entity_count} color="#6c5cf7"/>}
+                                {rs?.relationship_count != null && <Kpi label="Relations" value={rs.relationship_count} color="#0d9e74"/>}
+                                {meta?.statistics?.chunk_count != null && <Kpi label="Chunks" value={meta.statistics.chunk_count}/>}
+                                {es?.low_confidence_count != null && <Kpi label="Low-conf" value={es.low_confidence_count} color="#d97706"/>}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
-                    {scorecards.map(({file_id, scorecard: sc}) => sc.eda && (
-                      <div key={file_id} className="bg-bg2 border border-dborder rounded-xl p-4">
-                        <div className="text-[11px] font-semibold text-t1 mb-2 font-mono">{file_id} — EDA</div>
-                        <div className="grid grid-cols-3 gap-3">
-                          {sc.eda.semantic_drift != null && <Kpi label="Semantic Drift" value={sc.eda.semantic_drift.toFixed(3)} color={sc.eda.semantic_drift > 0.2 ? "#d97706" : "#16a34a"}/>}
-                        </div>
-                      </div>
-                    ))}
-                    {typeChartData.length === 0 && confChartData.length === 0 && scorecards.length === 0 && <Empty msg="Statistics data not available for this job."/>}
+                    {typeChartData.length === 0 && confChartData.length === 0 && edaFiles.length === 0 && <Empty msg="Statistics data not available for this job."/>}
                   </div>
                 )}
 
                 {/* ── ONTOLOGY TAB ──────────────────────────────────── */}
                 {reviewTab === "ontology" && (
                   <div className="space-y-4">
-                    {typeChartData.length === 0 && !regMetrics && <Empty msg="Ontology data not available for this job."/>}
+                    {typeChartData.length === 0 && !regMetrics && !ontologyData && <Empty msg="Ontology data not available for this job."/>}
                     {typeChartData.length > 0 && (
                       <div className="bg-bg2 border border-dborder rounded-xl p-4">
                         <div className="text-[12px] font-semibold text-t1 mb-1">Entity Type Distribution</div>
@@ -969,9 +1446,50 @@ function ProcessingPage() {
                         </ResponsiveContainer>
                       </div>
                     )}
+                    {ontologyData && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-bg2 border border-dborder rounded-xl p-4">
+                          <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-2">Allowed Relations · from ontology.json</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(ontologyData.allowed_relations ?? []).map((r: string) => (
+                              <span key={r} className="text-[10px] px-2 py-0.5 bg-accent/8 border border-accent/20 rounded-full text-accent font-mono">{r}</span>
+                            ))}
+                          </div>
+                          {Object.keys(ontologyData.proposed_relations ?? {}).length > 0 && (
+                            <div className="mt-3">
+                              <div className="text-[10px] font-semibold text-t3 uppercase tracking-wider mb-1">Proposed (from pipeline)</div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {Object.entries(ontologyData.proposed_relations as Record<string,number>).map(([r, cnt]) => (
+                                  <span key={r} className="text-[10px] px-2 py-0.5 bg-amber/8 border border-amber/20 rounded-full text-amber font-mono">{r} ×{cnt}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="bg-bg2 border border-dborder rounded-xl p-4">
+                          <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-2">Graph Consistency · graph_consistency.json</div>
+                          {consistency && (
+                            <div className="space-y-1.5 text-[11px]">
+                              {[
+                                {l:"Referential integrity", v: consistency.referential_integrity?.valid ? "✓ Valid" : "✗ Errors", color: consistency.referential_integrity?.valid ? "#16a34a" : "#e63755"},
+                                {l:"Orphan nodes", v: String(consistency.orphan_node_count ?? "—"), color: (consistency.orphan_node_count ?? 0) > 0 ? "#d97706" : "#16a34a"},
+                                {l:"Dangling edges", v: String(consistency.dangling_edges ?? "—"), color: (consistency.dangling_edges ?? 0) > 0 ? "#e63755" : "#16a34a"},
+                                {l:"Self loops", v: String(consistency.self_loops ?? "—"), color: "#d97706"},
+                                {l:"Ontology violations", v: String(consistency.ontology_nonconformant_edges ?? "—"), color: (consistency.ontology_nonconformant_edges ?? 0) > 0 ? "#e63755" : "#16a34a"},
+                              ].map(x => (
+                                <div key={x.l} className="flex justify-between items-center px-2 py-1 rounded bg-bg3">
+                                  <span className="text-t2">{x.l}</span>
+                                  <span className="font-semibold font-mono" style={{color:x.color}}>{x.v}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {regMetrics?.entity_types?.length > 0 && (
                       <div className="bg-bg2 border border-dborder rounded-xl p-4">
-                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-2">Entity Taxonomy ({regMetrics.entity_types.length} types)</div>
+                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-2">Entity Taxonomy ({regMetrics.entity_types.length} types) · from entity registry</div>
                         <div className="flex flex-wrap gap-1.5">
                           {regMetrics.entity_types.map((t: string) => (
                             <span key={t} className="text-[10px] px-2 py-0.5 bg-card border border-dborder rounded-full text-t2 font-mono">{t}</span>
@@ -1007,9 +1525,10 @@ function ProcessingPage() {
                 {/* ── KNOWLEDGE GRAPH TAB ───────────────────────────── */}
                 {reviewTab === "graph" && (
                   <div className="space-y-4">
+                    {/* KPI stats row — keep as before */}
                     <div className="grid grid-cols-4 gap-3">
                       <Kpi label="Nodes" value={(gMetrics?.node_count ?? gNodes.length) || null} color="#6c5cf7"/>
-                      <Kpi label="Active Edges" value={(gMetrics?.active_edge_count ?? gEdges.length) || null} color="#0d9e74"/>
+                      <Kpi label="Active Edges" value={(mergedGraph?.edge_count ?? gMetrics?.active_edge_count ?? gEdges.length) || null} color="#0d9e74"/>
                       <Kpi label="Density" value={gMetrics?.stats?.density != null ? gMetrics.stats.density.toFixed(5) : null}/>
                       <Kpi label="Avg Degree" value={gMetrics?.stats?.avg_degree != null ? gMetrics.stats.avg_degree.toFixed(2) : null}/>
                       <Kpi label="Suppressed" value={gMetrics?.suppressed_edge_count ?? null} color="#d97706"/>
@@ -1017,31 +1536,24 @@ function ProcessingPage() {
                       <Kpi label="Contradictions" value={gMetrics?.contradiction_ratio != null ? `${(gMetrics.contradiction_ratio*100).toFixed(1)}%` : null} color={gMetrics?.contradiction_ratio > 0.05 ? "#e63755" : "#16a34a"}/>
                       <Kpi label="Communities" value={Object.keys(commMap).length || null}/>
                     </div>
-                    {/* Top entities by mention */}
-                    <div className="bg-bg2 border border-dborder rounded-xl p-4">
-                      <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Top Entities</div>
-                      <div className="space-y-1.5">
-                        {gNodes.slice(0,20).map((n,i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                              n.type==="ORG"?"bg-accent/10 text-accent":n.type==="PERSON"?"bg-teal/10 text-teal":
-                              n.type==="REGULATION"?"bg-amber/10 text-amber":n.type==="RISK"||n.type==="EVENT"?"bg-coral/10 text-coral":"bg-bg3 text-t3"}`}>{n.type}</span>
-                            <span className="text-[12px] text-t1 flex-1 truncate">{n.label}</span>
-                            {n.count && <><div className="w-16 h-1.5 bg-bg3 rounded-full overflow-hidden"><div className="h-full bg-accent/60 rounded-full" style={{width:`${Math.min(100,(n.count/10)*100)}%`}}/></div><span className="text-[9px] text-t3 w-6">{n.count}</span></>}
-                            {n.community !== undefined && <span className="text-[8px] text-t3 bg-bg3 px-1.5 py-0.5 rounded">c{n.community}</span>}
-                          </div>
-                        ))}
-                        {gNodes.length > 20 && <div className="text-[10px] text-t3 pt-1">+{gNodes.length-20} more entities</div>}
-                        {gNodes.length === 0 && <Empty msg="Graph data not available — pipeline may not have written graph_path to the database yet."/>}
+                    {/* Interactive force-directed graph */}
+                    {mergedGraph?.edge_count > 0 && (
+                      <div className="text-[10px] text-t3 px-1">
+                        Visualising merged per-file graph · {mergedGraph.node_count} entities · {mergedGraph.edge_count} relationships
+                        · Scroll to zoom · drag to pan · drag nodes to reposition · click node for details
                       </div>
-                    </div>
+                    )}
+                    <ForceGraphView
+                      nodes={mergedGraph?.nodes ?? gNodes}
+                      edges={mergedGraph?.edges ?? gEdges}
+                    />
                   </div>
                 )}
 
                 {/* ── QUALITY METRICS TAB ───────────────────────────── */}
                 {reviewTab === "quality" && (
                   <div className="space-y-5">
-                    {!quality && confChartData.length === 0 && <Empty msg="Quality metrics not available for this job."/>}
+                    {avgOverall === 0 && confChartData.length === 0 && <Empty msg="Quality metrics not available for this job."/>}
                     {confChartData.length > 0 && (
                       <>
                         <div className="grid grid-cols-3 gap-3">
@@ -1051,7 +1563,7 @@ function ProcessingPage() {
                           </div>
                           <div className="bg-amber/8 border border-amber/30 rounded-xl p-4 text-center">
                             <div className="text-[22px] font-bold text-amber">{confDist?.medium ?? 0}</div>
-                            <div className="text-[10px] font-semibold text-t3 uppercase mt-0.5">Medium 0.5-0.8</div>
+                            <div className="text-[10px] font-semibold text-t3 uppercase mt-0.5">Medium 0.5–0.8</div>
                           </div>
                           <div className="bg-coral/8 border border-coral/30 rounded-xl p-4 text-center">
                             <div className="text-[22px] font-bold text-coral">{confDist?.low ?? 0}</div>
@@ -1072,19 +1584,19 @@ function ProcessingPage() {
                         </div>
                       </>
                     )}
-                    {quality && (
+                    {avgOverall > 0 && (
                       <div className="bg-bg2 border border-dborder rounded-xl p-5">
-                        <div className="text-[12px] font-semibold text-t1 mb-4">Trust Profile</div>
+                        <div className="text-[12px] font-semibold text-t1 mb-4">Trust Profile · averaged from {qualityScorecards.length || reportScorecards.length} file scorecards</div>
                         <div className="flex items-center justify-around flex-wrap gap-4">
-                          <Gauge val={quality.accuracy ?? 0} label="Graph Trust" color="#16a34a"/>
-                          <Gauge val={gMetrics?.high_risk_edge_ratio != null ? (1 - gMetrics.high_risk_edge_ratio) : (quality.consistency ?? 0)} label="Hallucination Risk ↓" color={gMetrics?.high_risk_edge_ratio > 0.1 ? "#e63755" : "#d97706"}/>
-                          <Gauge val={quality.completeness ?? 0} label="Calibration" color="#6c5cf7"/>
+                          <Gauge val={avgGraphTrust} label="Graph Trust" color="#16a34a"/>
+                          <Gauge val={1 - (gMetrics?.high_risk_edge_ratio ?? 0)} label="Edge Safety" color={gMetrics?.high_risk_edge_ratio > 0.1 ? "#e63755" : "#d97706"}/>
+                          <Gauge val={avgOverall} label="Overall Quality" color="#6c5cf7"/>
                         </div>
                       </div>
                     )}
                     {gMetrics?.high_risk_edge_ratio != null && (
                       <div className="bg-bg2 border border-dborder rounded-xl p-4">
-                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Risk Indicators</div>
+                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Risk Indicators · from graph_metrics</div>
                         <div className="space-y-2">
                           {[
                             {label:"High Risk Edge Ratio", v:gMetrics.high_risk_edge_ratio, danger:0.1},
@@ -1101,26 +1613,30 @@ function ProcessingPage() {
                         </div>
                       </div>
                     )}
-                    {quality && (
+                    {avgOverall > 0 && (
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-bg2 border border-dborder rounded-xl p-4">
-                          <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Entity Metrics</div>
+                          <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Averaged Score Profile · from file_scorecards</div>
                           {[
-                            {label:"Completeness", v: quality.completeness},
-                            {label:"Accuracy", v: quality.accuracy},
-                            {label:"Consistency", v: quality.consistency},
+                            {label:"Completeness",        v: avgCompleteness},
+                            {label:"Consistency",         v: avgConsistency},
+                            {label:"Extraction Conf.",    v: avgConfidence},
+                            {label:"Semantic Coherence",  v: avgSemantic},
+                            {label:"Canonical Resolution",v: avgCanonical},
+                            {label:"Retrieval Readiness", v: avgRetrieval},
+                            {label:"Extraction Reliability",v:avgExtraction},
                           ].map(m => (
                             <div key={m.label} className="flex items-center gap-2 mb-2">
-                              <span className="text-[11px] text-t2 w-28">{m.label}</span>
+                              <span className="text-[10px] text-t2 w-32 flex-shrink-0">{m.label}</span>
                               <div className="flex-1 h-1.5 bg-bg3 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full bg-accent" style={{width:`${((m.v??0)*100).toFixed(0)}%`}}/>
+                                <div className="h-full rounded-full bg-accent" style={{width:`${(m.v*100).toFixed(0)}%`}}/>
                               </div>
-                              <span className="text-[10px] font-bold text-t1 w-10 text-right">{((m.v??0)*100).toFixed(0)}%</span>
+                              <span className="text-[10px] font-bold text-t1 w-10 text-right">{(m.v*100).toFixed(0)}%</span>
                             </div>
                           ))}
                         </div>
                         <div className="bg-bg2 border border-dborder rounded-xl p-4">
-                          <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Relationship Metrics</div>
+                          <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Relationship Confidence · from graph_metrics</div>
                           {confChartData.map(d => (
                             <div key={d.band} className="flex items-center gap-2 mb-2">
                               <span className="text-[11px] text-t2 flex-1 truncate">{d.band}</span>
@@ -1135,6 +1651,62 @@ function ProcessingPage() {
                 )}
 
                 {/* ── GOVERNANCE PLACEHOLDER (data merged into Ontology tab) ── */}
+                {/* ── EDA TAB ───────────────────────────────────────── */}
+                {reviewTab === "eda" && (
+                  <div className="space-y-5">
+                    {edaFiles.length === 0 && <Empty msg="EDA artifacts not available for this job."/>}
+                    {edaFiles.length > 0 && (
+                      <>
+                        <div className="grid grid-cols-4 gap-3">
+                          <Kpi label="Files Analyzed" value={edaFiles.length} color="#6c5cf7"/>
+                          <Kpi label="Total Entities (pre-canonical)" value={edaFiles.reduce((s,f) => s+(f.summary?.entity_statistics?.entity_count??0),0)} color="#0d9e74"/>
+                          <Kpi label="Total Relationships" value={edaFiles.reduce((s,f) => s+(f.summary?.relationship_statistics?.relationship_count??0),0)} color="#2563eb"/>
+                          <Kpi label="Avg Density" value={(edaFiles.reduce((s,f) => s+(f.summary?.graph_metrics?.graph_density??0),0)/edaFiles.length).toFixed(4)} color="#d97706"/>
+                        </div>
+                        {edaFiles.map(f => {
+                          const es = f.summary?.entity_statistics;
+                          const rs = f.summary?.relationship_statistics;
+                          const gm = f.summary?.graph_metrics;
+                          const sq = f.summary?.semantic_quality_metrics;
+                          const cs = f.summary?.confidence_scores;
+                          const meta = f.metadata;
+                          return (
+                            <div key={f.file_id} className="border border-dborder rounded-xl overflow-hidden">
+                              <div className="px-4 py-2.5 bg-bg2 border-b border-dborder flex items-center gap-2 flex-wrap">
+                                <span className="text-[11px] font-semibold text-t1 font-mono">{f.file_id}</span>
+                                <span className="text-[9px] text-t3">{meta?.adapter ?? meta?.doc_type}</span>
+                                <span className="text-[9px] text-t3">{meta?.statistics?.word_count} words · {meta?.statistics?.chunk_count} chunks</span>
+                                {cs?.graph_trust_score != null && <span className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full" style={{background:"#16a34a18",color:"#16a34a"}}>trust {(cs.graph_trust_score*100).toFixed(0)}%</span>}
+                              </div>
+                              <div className="px-4 py-3 grid grid-cols-6 gap-2 text-[10px] text-center">
+                                {[
+                                  {l:"Entities",    v:es?.entity_count,    c:"#6c5cf7"},
+                                  {l:"Relations",   v:rs?.relationship_count, c:"#0d9e74"},
+                                  {l:"Low-conf ent",v:es?.low_confidence_count, c:"#d97706"},
+                                  {l:"Low-conf rel",v:rs?.low_confidence_count, c:"#d97706"},
+                                  {l:"Density",     v:gm?.graph_density?.toFixed(4), c:"#2563eb"},
+                                  {l:"Components",  v:gm?.disconnected_component_count, c:"#7c3aed"},
+                                ].map(x => (
+                                  <div key={x.l} className="bg-bg3 border border-dborder rounded-lg p-2">
+                                    <div className="font-bold" style={{color:x.c}}>{x.v ?? "—"}</div>
+                                    <div className="text-t3 mt-0.5">{x.l}</div>
+                                  </div>
+                                ))}
+                              </div>
+                              {((es?.duplicate_entities?.length ?? 0) > 0 || (sq?.ontology_violations?.length ?? 0) > 0 || (sq?.semantic_contradictions?.length ?? 0) > 0) && (
+                                <div className="px-4 pb-3 flex flex-wrap gap-2 text-[10px]">
+                                  {(es?.duplicate_entities?.length ?? 0) > 0 && <span className="text-amber bg-amber/8 border border-amber/20 rounded px-2 py-0.5">⚠ {es!.duplicate_entities!.length} duplicates</span>}
+                                  {(sq?.ontology_violations?.length ?? 0) > 0 && <span className="text-coral bg-coral/8 border border-coral/20 rounded px-2 py-0.5">✗ {sq!.ontology_violations!.length} violations</span>}
+                                  {(sq?.semantic_contradictions?.length ?? 0) > 0 && <span className="text-coral bg-coral/8 border border-coral/20 rounded px-2 py-0.5">✗ {sq!.semantic_contradictions!.length} contradictions</span>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
+                )}
                 {/* ── ENTITIES TAB ──────────────────────────────────── */}
                 {reviewTab === "entities" && (
                   <div className="space-y-4">
@@ -1169,16 +1741,16 @@ function ProcessingPage() {
                         ))}
                       </div>
                     </div>
-                    {scorecards.length > 0 && (
+                    {reportScorecards.length > 0 && (
                       <div className="space-y-2">
                         <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider">Per-File Entity Counts</div>
-                        {scorecards.map(({file_id, scorecard: sc}) => (
-                          sc.entity_count != null ? (
+                        {reportScorecards.map(({file_id, scorecard: sc}) => (
+                          edaFiles.find(f => f.file_id === file_id)?.summary?.entity_statistics?.entity_count != null ? (
                             <div key={file_id} className="flex items-center gap-3 px-4 py-2.5 border border-dborder rounded-xl bg-bg2">
                               <span className="text-[11px] font-mono text-t1 flex-1 truncate">{file_id}</span>
-                              <span className="text-[12px] font-bold text-accent">{sc.entity_count}</span>
+                              <span className="text-[12px] font-bold text-accent">{edaFiles.find(f=>f.file_id===file_id)?.summary?.entity_statistics?.entity_count}</span>
                               <span className="text-[10px] text-t3">entities</span>
-                              {sc.relationship_count != null && <><span className="text-[12px] font-bold text-teal">{sc.relationship_count}</span><span className="text-[10px] text-t3">relations</span></>}
+                              {edaFiles.find(f=>f.file_id===file_id)?.summary?.relationship_statistics?.relationship_count != null && <><span className="text-[12px] font-bold text-teal">{edaFiles.find(f=>f.file_id===file_id)?.summary?.relationship_statistics?.relationship_count}</span><span className="text-[10px] text-t3">relations</span></>}
                             </div>
                           ) : null
                         ))}
@@ -1191,33 +1763,83 @@ function ProcessingPage() {
                 {reviewTab === "relationships" && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-3">
-                      <Kpi label="Total Edges" value={(gMetrics?.active_edge_count ?? gEdges.length) || null} color="#0d9e74"/>
+                      <Kpi label="Total Edges (canonical)" value={(gMetrics?.active_edge_count ?? gEdges.length) || null} color="#0d9e74"/>
                       <Kpi label="Suppressed" value={gMetrics?.suppressed_edge_count ?? null} color="#d97706"/>
                       <Kpi label="High Risk %" value={gMetrics?.high_risk_edge_ratio != null ? `${(gMetrics.high_risk_edge_ratio*100).toFixed(1)}%` : null} color={gMetrics?.high_risk_edge_ratio > 0.1 ? "#e63755" : "#16a34a"}/>
                     </div>
-                    <div className="bg-bg2 border border-dborder rounded-xl p-4">
-                      <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">
-                        All Relationships {gEdges.length > 0 ? `(${gEdges.length})` : ""}
+                    {gEdges.length === 0 && edaFiles.length > 0 && (
+                      <div className="bg-amber/8 border border-amber/20 rounded-xl p-4">
+                        <div className="text-[11px] font-semibold text-amber mb-1">ℹ Canonical graph has {gMetrics?.edge_count ?? 0} cross-file edges</div>
+                        <div className="text-[11px] text-t2">Cross-source edges require validated cross-links. Per-file relationship data is available below from the EDA pipeline.</div>
                       </div>
-                      <div className="space-y-1 max-h-[460px] overflow-y-auto pr-1">
-                        {gEdges.length === 0 && <Empty msg="No relationship data available — graph endpoint returned no edges for this job."/>}
-                        {gEdges.map((e, i) => (
-                          <div key={i} className="flex items-center gap-2 py-1.5 border-b border-dborder last:border-0 text-[11px]">
-                            <span className="text-t1 font-medium truncate" style={{maxWidth:160}}>{e.source}</span>
-                            <span className="text-[10px] px-2 py-0.5 bg-accent/10 text-accent rounded-full font-semibold shrink-0 truncate" style={{maxWidth:120}}>{e.relation}</span>
-                            <span className="text-t2 truncate flex-1">{e.target}</span>
-                            {e.weight != null && <span className="text-[9px] text-t3 shrink-0">{e.weight.toFixed(2)}</span>}
-                          </div>
-                        ))}
+                    )}
+                    {edaFiles.length > 0 && (
+                      <div className="bg-bg2 border border-dborder rounded-xl p-4">
+                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Per-File Relationships · from EDA pipeline</div>
+                        <div className="space-y-2">
+                          {edaFiles.map(f => {
+                            const rs = f.summary?.relationship_statistics;
+                            if (!rs) return null;
+                            const total = rs.relationship_count || 1;
+                            return (
+                              <div key={f.file_id} className="flex items-center gap-3 px-3 py-2 border border-dborder rounded-xl bg-bg3">
+                                <span className="text-[11px] font-mono text-t1 flex-1 truncate">{f.file_id}</span>
+                                <span className="text-[12px] font-bold text-teal">{rs.relationship_count}</span>
+                                <span className="text-[10px] text-t3">relations</span>
+                                <span className="text-[11px] font-bold text-amber">{rs.low_confidence_count}</span>
+                                <span className="text-[10px] text-t3">low-conf</span>
+                                <span className="text-[11px] font-mono text-t2">{rs.mean_confidence?.toFixed(3)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    {gEdges.length > 0 && (
+                      <div className="bg-bg2 border border-dborder rounded-xl p-4">
+                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">
+                          Canonical Relationships ({gEdges.length})
+                        </div>
+                        <div className="space-y-1 max-h-[460px] overflow-y-auto pr-1">
+                          {gEdges.map((e, i) => (
+                            <div key={i} className="flex items-center gap-2 py-1.5 border-b border-dborder last:border-0 text-[11px]">
+                              <span className="text-t1 font-medium truncate" style={{maxWidth:160}}>{e.source}</span>
+                              <span className="text-[10px] px-2 py-0.5 bg-accent/10 text-accent rounded-full font-semibold shrink-0 truncate" style={{maxWidth:120}}>{e.relation}</span>
+                              <span className="text-t2 truncate flex-1">{e.target}</span>
+                              {e.weight != null && <span className="text-[9px] text-t3 shrink-0">{e.weight.toFixed(2)}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* ── COMMUNITIES TAB ───────────────────────────────── */}
                 {reviewTab === "communities" && (
                   <div className="space-y-3">
-                    {Object.keys(commMap).length === 0 && <Empty msg="No community data available — graph data is required for community detection."/>}
+                    {Object.keys(commMap).length === 0 && edaFiles.length > 0 && (
+                      <div className="bg-bg2 border border-dborder rounded-xl p-4">
+                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Disconnected Components per File · from EDA graph_metrics</div>
+                        <div className="space-y-2">
+                          {edaFiles.map(f => {
+                            const gm = f.summary?.graph_metrics;
+                            if (!gm) return null;
+                            return (
+                              <div key={f.file_id} className="flex items-center gap-3 px-3 py-2 border border-dborder rounded-xl bg-bg3">
+                                <span className="text-[11px] font-mono text-t1 flex-1 truncate">{f.file_id}</span>
+                                <span className="text-[12px] font-bold text-accent">{gm.disconnected_component_count ?? 1}</span>
+                                <span className="text-[10px] text-t3">components</span>
+                                <span className="text-[12px] font-bold text-t2">{gm.node_count}</span>
+                                <span className="text-[10px] text-t3">nodes</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="text-[10px] text-t3 mt-3 italic">Community membership (community field) is assigned during cross-file canonicalization. This corpus has {gNodes.length} canonical nodes.</div>
+                      </div>
+                    )}
+                    {Object.keys(commMap).length === 0 && edaFiles.length === 0 && <Empty msg="No community data available — graph data is required for community detection."/>}
                     {Object.entries(commMap).map(([cId, members]) => (
                       <div key={cId} className="border border-dborder rounded-xl overflow-hidden">
                         <div className="px-4 py-2.5 bg-bg2 border-b border-dborder flex items-center gap-3">
@@ -1239,13 +1861,18 @@ function ProcessingPage() {
                 {/* ── WIKI TAB ─────────────────────────────────────── */}
                 {reviewTab === "wiki" && (
                   <div className="space-y-4">
+                    {wiki && <div className="text-[10px] text-t3">{wiki.article_count ?? articles.length} wiki articles · generated from knowledge graph entities · pipeline status: {wiki.pipeline_status}</div>}
                     {articles.length === 0
-                      ? <Empty msg="No wiki articles available — the pipeline writes wiki pages to wiki_pages/ but the wiki API reads from graphify-out/wiki/."/>
+                      ? <Empty msg="No wiki articles available — pipeline may still be generating wiki content."/>
                       : articles.map((a,i) => (
                         <div key={i} className="border border-dborder rounded-xl overflow-hidden">
-                          <div className="px-4 py-2.5 bg-bg2 border-b border-dborder flex items-center gap-2">
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-t3">Community {(a.community ?? i)+1}</span>
-                            <span className="text-[12px] font-semibold text-t1 ml-1">{a.title}</span>
+                          <div className="px-4 py-2.5 bg-bg2 border-b border-dborder flex items-center gap-2 flex-wrap">
+                            {a.entity_type && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent">{a.entity_type}</span>
+                            )}
+                            <span className="text-[12px] font-semibold text-t1">{a.title}</span>
+                            {a.aliases && a.aliases.length > 1 && <span className="text-[9px] text-t3 ml-auto">+{a.aliases.length-1} alias</span>}
+                            {a.sources && <span className="text-[9px] text-t3">{(a.sources as unknown[]).length} source{(a.sources as unknown[]).length !== 1 ? "s" : ""}</span>}
                           </div>
                           <div className="px-4 py-3 text-[12px] text-t2 leading-relaxed whitespace-pre-wrap max-h-72 overflow-y-auto">
                             {a.content}
@@ -1263,18 +1890,18 @@ function ProcessingPage() {
                       <div className="grid grid-cols-4 gap-3">
                         <Kpi label="Documents" value={(stats.files || report?.file_count) || null}/>
                         <Kpi label="Entities" value={(gNodes.length || stats.entities) || null} color="#6c5cf7"/>
-                        <Kpi label="Relationships" value={gEdges.length || null} color="#0d9e74"/>
-                        <Kpi label="Communities" value={Object.keys(commMap).length || null}/>
+                        <Kpi label="Relationships (per-file total)" value={edaFiles.reduce((s,f) => s+(f.summary?.relationship_statistics?.relationship_count??0),0) || gEdges.length || null} color="#0d9e74"/>
+                        <Kpi label="Wiki Articles" value={wiki?.article_count || articles.length || null}/>
                       </div>
                     </div>
-                    {quality && (
+                    {avgOverall > 0 && (
                       <div className="bg-bg2 border border-dborder rounded-xl p-4">
-                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Quality Assessment</div>
+                        <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Quality Assessment · averaged from {qualityScorecards.length || reportScorecards.length} scorecards</div>
                         <div className="grid grid-cols-4 gap-3">
-                          <Kpi label="Completeness" value={quality.completeness != null ? `${(quality.completeness*100).toFixed(0)}%` : null} color="#6c5cf7"/>
-                          <Kpi label="Consistency" value={quality.consistency != null ? `${(quality.consistency*100).toFixed(0)}%` : null} color="#0d9e74"/>
-                          <Kpi label="Accuracy" value={quality.accuracy != null ? `${(quality.accuracy*100).toFixed(0)}%` : null} color="#2563eb"/>
-                          <Kpi label="Overall" value={quality.overall_quality != null ? `${(quality.overall_quality*100).toFixed(0)}%` : null} color="#16a34a"/>
+                          <Kpi label="Completeness" value={`${(avgCompleteness*100).toFixed(0)}%`} color="#6c5cf7"/>
+                          <Kpi label="Consistency" value={`${(avgConsistency*100).toFixed(0)}%`} color="#0d9e74"/>
+                          <Kpi label="Graph Trust" value={`${(avgGraphTrust*100).toFixed(0)}%`} color="#2563eb"/>
+                          <Kpi label="Overall" value={`${(avgOverall*100).toFixed(0)}%`} color="#16a34a"/>
                         </div>
                       </div>
                     )}
@@ -1517,21 +2144,58 @@ function ProcessingPage() {
 
       <AchievementToast />
 
+      {/* ── Cancel confirmation dialog ─────────────────────────── */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/65 z-50 flex items-center justify-center p-6" style={{backdropFilter:"blur(4px)"}}>
+          <div className="bg-card border border-dborder rounded-2xl overflow-hidden max-w-md w-full shadow-2xl">
+            <div className="px-6 pt-5 pb-4 border-b border-dborder">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-t3 mb-1">Cancel Knowledge Harnessing?</div>
+              <div className="text-[15px] font-semibold text-t1 font-sora">Stop the current pipeline run</div>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <div className="space-y-2 text-[12px] text-t2 leading-relaxed">
+                <div className="flex items-start gap-2"><span className="text-amber mt-0.5">⚠</span> The current harnessing run will be cancelled.</div>
+                <div className="flex items-start gap-2"><span className="text-gg mt-0.5">✓</span> Your uploaded files remain available — you can restart later.</div>
+                <div className="flex items-start gap-2"><span className="text-coral mt-0.5">✕</span> Any partially generated knowledge will be discarded.</div>
+                <div className="flex items-start gap-2"><span className="text-t3 mt-0.5">↩</span> You will be returned to the previous page.</div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setShowCancelConfirm(false)}
+                  className="btn flex-1 border border-dborder2 text-t2 hover:text-t1">Keep Running</button>
+                <button onClick={handleCancelConfirmed}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-t1 text-white text-[13px] font-semibold hover:bg-t1/90 transition-colors">
+                  Cancel & Return
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <div className="bg-card border-b border-dborder px-0 py-7 mb-7">
-        <div className="w-full px-8">
-          <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
-            <span className="inline-block w-4 h-px bg-accent" />
-            Step 2 · Knowledge Harnessing
+        <div className="w-full px-8 flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
+              <span className="inline-block w-4 h-px bg-accent" />
+              Step 2 · Knowledge Harnessing
+            </div>
+            <div className="font-sora text-2xl font-semibold text-t1">
+              {typeof window !== "undefined" && sessionStorage.getItem("project_name")
+                ? sessionStorage.getItem("project_name")
+                : "Knowledge harnessing"}
+            </div>
+            <div className="text-[12px] text-t2 mt-1">
+              {etaSeconds !== null && phase === "ingest" ? formatEta(etaSeconds) : "14-layer semantic-trust pipeline running — watch each layer complete in real time"}
+            </div>
           </div>
-          <div className="font-sora text-2xl font-semibold text-t1">
-            {typeof window !== "undefined" && sessionStorage.getItem("project_name")
-              ? sessionStorage.getItem("project_name")
-              : "Knowledge harnessing"}
-          </div>
-          <div className="text-[12px] text-t2 mt-1">
-            {etaSeconds !== null && phase === "ingest" ? formatEta(etaSeconds) : "14-layer semantic-trust pipeline running — watch each layer complete in real time"}
-          </div>
+          {/* Cancel button — visible at all times during Knowledge Harnessing */}
+          <button
+            onClick={handleCancelRequest}
+            className="flex-shrink-0 flex items-center gap-1.5 text-[11px] px-3 py-1.5 border border-dborder2 text-t3 hover:border-coral/40 hover:text-coral rounded-lg transition-colors mt-1"
+          >
+            ← Cancel
+          </button>
         </div>
       </div>
 
