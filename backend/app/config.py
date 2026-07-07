@@ -23,8 +23,14 @@ class Settings(BaseSettings):
     corpus_store_path: str = "./corpus_store"
 
     # SLM Factory thresholds
+    # slm_match_threshold: composite ≥ this → ROUTE_MIXED (full confidence match)
+    # slm_partial_threshold: composite ≥ this → ROUTE_MIXED (partial match, use SLM)
+    #   Lowered from 0.65 → 0.50 (Phase E calibration):
+    #   With real Ollama models and wiki-title coverage_topics, typical composites
+    #   are 0.45-0.58. At 0.65 everything was EXTEND_EXISTING. 0.50 lets
+    #   same-domain queries reach ROUTE_MIXED so the domain SLM runs decomposition.
     slm_match_threshold: float = 0.82
-    slm_partial_threshold: float = 0.65
+    slm_partial_threshold: float = 0.50
     slm_confidence_threshold: float = 0.25
     slm_max_confidence_threshold: float = 0.40
 

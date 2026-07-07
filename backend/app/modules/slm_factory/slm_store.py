@@ -13,10 +13,9 @@ settings = get_settings()
 MODELFILE_TEMPLATE = """\
 FROM {base_model_path}
 
-# Domain-specific system prompt distilled from knowledge graph
+# Domain-specific system prompt distilled from corpus knowledge graph
 SYSTEM \"\"\"{system_prompt}\"\"\"
 
-# QLoRA adapter applied during build
 PARAMETER stop "<|endoftext|>"
 PARAMETER temperature 0.2
 PARAMETER num_predict 2048
@@ -28,8 +27,12 @@ You have been trained on a curated knowledge graph derived from the user's corpu
 
 Coverage topics: {topics}
 
+== CORPUS KNOWLEDGE (distilled Q&A pairs) ==
+{qa_examples}
+== END CORPUS KNOWLEDGE ==
+
 When answering:
-1. Ground every claim in the knowledge graph context provided.
+1. Ground every claim in the knowledge graph context above.
 2. If a question is outside your domain, state:
    "This question is outside my domain. I specialize in: {domain_label}."
 3. Decompose complex queries into sub-tasks and indicate which sub-tasks
@@ -82,14 +85,43 @@ class SLMStore:
         base_model: str,
         domain_label: str,
         coverage_topics: list[str],
+        qa_pairs_path: str | None = None,
     ) -> str:
-        """Generate and write an Ollama Modelfile. Returns path."""
+        """Generate and write an Ollama Modelfile.
+        Embeds the top distilled QA pairs as few-shot examples in the system
+        prompt so the base Ollama model has genuine corpus knowledge.
+        Returns path to the written Modelfile.
+        """
         model_path = self.model_dir(model_id)
         model_path.mkdir(parents=True, exist_ok=True)
+
+        # Load and embed top QA pairs from the distillation output
+        qa_examples = ""
+        if qa_pairs_path:
+            try:
+                pairs: list[dict] = []
+                with open(qa_pairs_path, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and len(pairs) < 40:
+                            obj = json.loads(line)
+                            msgs = obj.get("messages", [])
+                            q = next((m["content"] for m in msgs if m.get("role") == "user"), "")
+                            a = next((m["content"] for m in msgs if m.get("role") == "assistant"), "")
+                            if q and a and not a.startswith("This question is outside"):
+                                pairs.append({"q": q, "a": a})
+                if pairs:
+                    lines = []
+                    for p in pairs:
+                        lines.append(f"Q: {p['q']}\nA: {p['a']}")
+                    qa_examples = "\n\n".join(lines)
+            except Exception:
+                qa_examples = ""
 
         system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
             domain_label=domain_label,
             topics=", ".join(coverage_topics[:10]),
+            qa_examples=qa_examples or "(No distilled examples available — using base model knowledge.)",
         )
 
         modelfile_content = MODELFILE_TEMPLATE.format(

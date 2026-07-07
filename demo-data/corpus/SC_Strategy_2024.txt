@@ -1,0 +1,162 @@
+NEXUS GLOBAL OPERATIONS
+SUPPLY CHAIN INTELLIGENCE PROGRAMME — PROGRAMME CHARTER v1.3
+Approved: 7 January 2024
+
+================================================================
+SECTION 1: EXECUTIVE SUMMARY
+================================================================
+
+Nexus Global Operations (NGO) is a leading Fortune 500 consumer goods
+manufacturer with 47 distribution centres across 18 countries, annual
+procurement spend of £2.4Bn, and a global logistics network serving
+142 markets. The Supply Chain Intelligence Programme ("the Programme")
+is a strategic initiative to deploy an AI-powered supply chain
+visibility, risk detection, and demand forecasting platform.
+
+Programme Sponsor: James Whitfield, VP Global Supply Chain
+Programme Director: Amara Osei, Head of Supply Chain Analytics
+Delivery Partner: Axiom Analytics Partners (contracted for AI build)
+
+Total approved budget: £4,800,000
+Programme duration: 24 months (January 2024 – December 2025)
+Target go-live: Q3 2024 (Phase 1)
+
+================================================================
+SECTION 2: BUSINESS CASE
+================================================================
+
+Current State:
+- Supply chain disruptions in 2022-2023 cost NGO an estimated £34M in
+  expediting charges, lost sales, and emergency procurement premiums.
+- 73% of disruptions were detected reactively — after the supply impact
+  had already materialised.
+- Demand forecasting accuracy (MAPE) stands at 18.4% across top-50
+  SKUs, generating excess safety stock of approximately £87M.
+- 3PL performance is tracked manually via monthly spreadsheet reviews
+  with a 3-4 week lag from actual delivery performance.
+
+Target State:
+- Real-time disruption detection for tariff changes, port closures,
+  weather events, and supplier financial distress signals.
+- MAPE improvement to below 12% across top-200 SKUs via demand-sensing.
+- OTIF monitoring in near-real-time (T+24h) across all 3PL partners.
+- Working capital reduction of £18M through optimised safety stock.
+
+ROI Assumptions:
+- 60% reduction in reactive disruption events: £20M saving
+- Safety stock optimisation at 18% WC reduction: £15.6M benefit
+- 3PL performance improvement via contract enforcement: £4.3M saving
+- Total 3-year NPV at 12% WACC: £29.4M (after £4.8M programme cost)
+
+================================================================
+SECTION 3: IN-SCOPE DOMAINS
+================================================================
+
+Phase 1 (Q1-Q3 2024):
+  - Tier 1 supplier risk monitoring (250 suppliers)
+  - Freight route optimisation and 3PL scorecard automation
+  - Demand forecasting for top-200 SKUs (FMCG and HPC categories)
+
+Phase 2 (Q4 2024 - Q2 2025):
+  - Tier 2 supplier network mapping
+  - Port and logistics event detection (Bloomberg, Vessel Finder,
+    Lloyd's Intelligence feeds)
+  - Automated purchase order generation for replenishment triggers
+
+Phase 3 (Q3-Q4 2025):
+  - Full procurement co-pilot for category managers
+  - Sustainability reporting integration (Scope 3 Cat 4 - freight)
+
+================================================================
+SECTION 4: KEY STAKEHOLDERS
+================================================================
+
+| Name              | Title                    | Role              |
+|-------------------|--------------------------|-------------------|
+| James Whitfield   | VP Global Supply Chain   | Programme Sponsor |
+| Amara Osei        | Head of SC Analytics     | Programme Director|
+| Patricia Lim      | Chief Procurement Officer| Steering Board    |
+| Rob Davies        | Head of Logistics Ops    | Steering Board    |
+| Yuki Tanaka       | CIO                      | Technology Sign-off|
+| Maria Konstantinou| Head of Finance, Supply  | Financial Oversight|
+
+================================================================
+SECTION 5: SINGLE-SOURCE SUPPLIER RISK REGISTER
+================================================================
+
+The following Tier 1 suppliers represent single-source dependencies
+with potential to halt >15% of production output if disrupted:
+
+1. SemiCore (IC substrates) — 23% production exposure
+   Risk: Geopolitical (Taiwan Strait tensions); lead time 16 weeks
+   Mitigation: Dual-source programme initiated with Kyocera (Japan)
+   Timeline: Qualification expected Q4 2024
+
+2. Nexus Plastics (injection-moulded housings) — 19% exposure
+   Risk: Fire/flood at Coventry facility (no second plant)
+   Mitigation: Evaluate Plastiform SA (France) as second source
+   Timeline: RFQ issued Q1 2024, qualification Q3 2024
+
+3. FlexSeal GmbH (industrial seals) — 17% exposure
+   Risk: Key person dependency (single formulation chemist)
+   Mitigation: Technology transfer to Trelleborg AB under negotiation
+
+4-10: [Additional suppliers on file — Procurement Risk Register v3.2]
+
+Safety stock policy amended: minimum 12-week cover for Category A
+(single-source, >15% production exposure) from previous 4-week policy.
+
+================================================================
+SECTION 6: 3PL PERFORMANCE FRAMEWORK
+================================================================
+
+Master Logistics Agreement (MLA) 2023 defines:
+  - OTIF target: 95% across all contracted lanes
+  - Performance credit: 1.5% monthly freight spend per pp below 95%
+  - Service Improvement Plan (SIP): required within 14 days of breach
+  - Termination for cause: 3 consecutive months below 90%
+
+Q2 2024 OTIF Performance:
+  - FastFreight UK:     88.3% (breach: -6.7pp, credit: £87K/month)
+  - Nordic Express:     91.2% (breach: -3.8pp, credit: £49K/month)
+  - TranzCargo Iberia:  89.7% (breach: -5.3pp, credit: £68K/month)
+  - DHL Freight:        96.1% (compliant)
+  - K+N Freight:        97.3% (compliant)
+  - Geodis:             94.8% (warning — below target, no credit yet)
+
+Total Q2 performance credits: £204K (monthly run-rate £287K annualised)
+
+SIPs received from FastFreight UK (14 June) and TranzCargo Iberia
+(22 June). Nordic Express SIP overdue — legal team engaged.
+
+================================================================
+SECTION 7: TARIFF IMPACT ASSESSMENT — US TARIFFS ON CHINA ELECTRONICS
+================================================================
+
+Effective Date: 1 August 2024 (US Executive Order 14001-Rev)
+Tariff Rate: 25% on HTS Codes 8541-8543 (electronic components)
+
+Affected NGO Categories:
+  - Consumer Electronics Assembly: 14 SKU families, £16.8M annual spend
+  - Smart Home Devices (PCB sourcing): 8 SKU families, £9.2M spend
+
+Financial Impact Assessment:
+  - Direct cost increase at current sourcing: £6.5M annually
+  - Q3 incremental cost (partial year effect): £4.2M
+  - Mitigation via Vietnam re-sourcing (partial): -£2.1M (Year 1)
+  - Net exposure Q3: £4.2M; FY2025 net exposure: £2.8M
+
+Alternative Supplier Qualification Status:
+  Vinatex Electronics (Ho Chi Minh City): QUALIFIED — 6-week onboarding
+  HCM Components Ltd (HCMC): QUALIFIED — 8-week onboarding
+  Saigon Tech Parts (Hanoi): IN QUALIFICATION — expected Q3 2024
+  Monterrey Industrial (Mexico): AUDIT REQUIRED — 3-week process
+    Note: Monterrey qualifies for USMCA tariff treatment (0%)
+
+Action: Category Manager Patricia Lim authorised emergency PO to
+Vinatex for Q3 volumes (£3.1M) on 15 July. Contracts team executing
+10-day vendor onboarding process.
+
+================================================================
+END OF DOCUMENT
+================================================================

@@ -48,7 +48,12 @@ async def list_registry(db: AsyncSession = Depends(get_db)):
 
 @router.post("/build")
 async def trigger_build(request: BuildRequest, db: AsyncSession = Depends(get_db)):
-    """Queue an SLM build via Celery. Skips if same corpus already built (dedup)."""
+    """Queue an SLM build via Celery. Skips if same corpus already built (dedup).
+
+    Uses a Redis distributed lock on corpus_hash to prevent duplicate builds
+    from concurrent requests (race condition: two simultaneous POSTs would both
+    pass the 'exists' check before either task is queued).
+    """
     try:
         registry = SLMRegistry(db)
 
@@ -63,6 +68,24 @@ async def trigger_build(request: BuildRequest, db: AsyncSession = Depends(get_db
                     "model_path": existing.get("model_path"),
                     "task_id": None,
                 }
+
+        # ── Distributed lock: prevent two concurrent builds for the same corpus ──
+        _lock_key = f"slm_build_lock:{request.corpus_hash or request.domain_label}"
+        _lock_acquired = False
+        try:
+            import redis as _redis
+            _rc = _redis.Redis()
+            # NX=only-if-not-exists, EX=expire after 30min (safety release)
+            _lock_acquired = bool(_rc.set(_lock_key, "1", nx=True, ex=1800))
+            if not _lock_acquired:
+                # Another request is already building — return the in-progress status
+                return {
+                    "status": "building",
+                    "task_id": None,
+                    "message": "Build already in progress for this corpus",
+                }
+        except Exception:
+            pass  # Redis unavailable — proceed without lock (degrad gracefully)
 
         # ── Quick rebuild: locate cached QA pairs from prior build ────
         qa_pairs_path: str | None = None
@@ -86,14 +109,14 @@ async def trigger_build(request: BuildRequest, db: AsyncSession = Depends(get_db
             "learning_rate":     request.learning_rate,
             "curriculum_stages": request.curriculum_stages,
         }
-        job = run_slm_build.delay(
+        job = run_slm_build.apply_async(args=[
             request.domain_label,
             request.coverage_topics,
             request.corpus_hash,
             request.trigger_query,
             slm_config,
             qa_pairs_path,
-        )
+        ], queue="kumar1_ingest")
         return {
             "task_id": job.id,
             "status": "queued",
@@ -102,6 +125,7 @@ async def trigger_build(request: BuildRequest, db: AsyncSession = Depends(get_db
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
 
 
 @router.get("/for-corpus")
@@ -173,7 +197,17 @@ async def slm_status(
             if result.state == "FAILURE":
                 return {"status": "failed", "model_id": None, "domain_label": domain_label}
             if result.state in ("PENDING", "STARTED", "RETRY"):
-                return {"status": "building", "model_id": None, "domain_label": domain_label}
+                # Try to fetch granular progress from Redis
+                progress = None
+                try:
+                    import redis as _r, json as _j
+                    _rc = _r.Redis()
+                    raw = _rc.get(f"slm_build_progress:{task_id}") or _rc.get(f"slm_build_progress:{domain_label}")
+                    if raw:
+                        progress = _j.loads(raw)
+                except Exception:
+                    pass
+                return {"status": "building", "model_id": None, "domain_label": domain_label, "progress": progress}
         except Exception:
             pass
     return {"status": "none", "model_id": None, "domain_label": domain_label}
@@ -188,45 +222,144 @@ async def slm_suggestions(
     """
     Return 10 rich suggestion objects for the domain, powered by SLM or fallback templates.
     Each suggestion: {"label": str, "desc": str, "prompt": str}
-    Optional job_id injects top entities from the corpus into the prompt for grounded suggestions.
+    Suggestions are grounded in the actual uploaded corpus via canonical graph + ontology.
+    Results are cached in Redis for 2 hours to avoid repeated Ollama calls.
     """
     import json as _json
 
-    # ── Gather top entity hints from corpus (optional, enhances prompt) ────────
-    entity_hint = ""
+    # ── Redis cache check ──────────────────────────────────────────────────────
+    _cache_key = f"suggestions:{domain_label}:{job_id or 'nodomain'}"
+    try:
+        import redis as _redis
+        _rc = _redis.Redis()
+        _cached = _rc.get(_cache_key)
+        if _cached:
+            return _json.loads(_cached)
+    except Exception:
+        _rc = None
+
+    # ── Build rich corpus context from canonical graph + ontology + files ──────
+    corpus_context = ""
     if job_id:
         try:
             from sqlalchemy import text as _t
             from pathlib import Path as _P
+
             row = (await db.execute(
-                _t("SELECT graph_path, metadata FROM ingest_jobs WHERE job_id = :id"),
+                _t("SELECT graph_path, corpus_path, metadata FROM ingest_jobs WHERE job_id = :id"),
                 {"id": job_id},
             )).mappings().first()
+
+            corpus_dir = ""
             if row:
-                corpus_dir = None
-                if row.get("graph_path"):
-                    corpus_dir = str(_P(row["graph_path"]).parent.parent)
-                elif row.get("metadata"):
+                corpus_dir = row.get("corpus_path") or ""
+                if not corpus_dir and row.get("graph_path"):
+                    gp = _P(row["graph_path"])
+                    corpus_dir = str(gp.parent if gp.name == "canonical_graph.json" else gp.parent.parent)
+                if not corpus_dir and row.get("metadata"):
                     meta = row["metadata"]
                     if isinstance(meta, str):
                         meta = _json.loads(meta)
-                    corpus_dir = (meta or {}).get("corpus_dir")
-                if corpus_dir:
-                    wiki_dir = _P(corpus_dir) / "graphify-out" / "wiki"
-                    entities: list[str] = []
-                    if wiki_dir.exists():
-                        import re as _re
-                        for mdf in sorted(wiki_dir.glob("*.md"))[:5]:
-                            raw = mdf.read_text(encoding="utf-8", errors="replace")
-                            title_m = _re.search(r"^# (.+)$", raw, _re.MULTILINE)
-                            if title_m:
-                                entities.append(title_m.group(1).strip())
-                    if entities:
-                        entity_hint = f" Key topics found in the data: {', '.join(entities[:6])}."
+                    corpus_dir = (meta or {}).get("corpus_dir") or ""
+                if not corpus_dir:
+                    from app.config import get_settings as _gs2
+                    _cand = _P(_gs2().corpus_store_path) / job_id
+                    if _cand.exists():
+                        corpus_dir = str(_cand)
+
+            if corpus_dir:
+                context_parts: list[str] = []
+
+                # 1. Ontology: entity types present in this corpus
+                ont_path = _P(corpus_dir) / "ontology.json"
+                if ont_path.exists():
+                    try:
+                        ont = _json.loads(ont_path.read_text(encoding="utf-8"))
+                        types = [t for t in (ont.get("entity_types") or [])
+                                 if t.upper() not in {"CARDINAL","ORDINAL","QUANTITY","DATE","MONEY","PERCENT","TIME","VALUE"}]
+                        if types:
+                            context_parts.append(f"Domain entity types: {', '.join(types[:8])}")
+                    except Exception:
+                        pass
+
+                # 2. Canonical graph: top business entities (ORG, PERSON, PRODUCT, GPE, EVENT)
+                PRIORITY_TYPES = {
+                    "organization","org","person","product","gpe","event",
+                    "law","group","norp","facility","fac","location","loc",
+                }
+                SKIP_PATTERNS = {"=", "_", "#", "@"}
+                cg_path = _P(corpus_dir) / "canonical_graph.json"
+                if cg_path.exists():
+                    try:
+                        g = _json.loads(cg_path.read_text(encoding="utf-8"))
+                        nodes = g.get("nodes", g.get("canonical_nodes", []))
+                        good = [
+                            n for n in nodes
+                            if n.get("entity_type", "").lower() in PRIORITY_TYPES
+                            and n.get("label")
+                            and len(n.get("label", "")) > 2
+                            and not any(c in n.get("label", "") for c in SKIP_PATTERNS)
+                            and not n.get("label", "").replace(".", "").replace(",", "").replace(" ", "").isdigit()
+                        ]
+                        good.sort(key=lambda n: n.get("confidence", 0), reverse=True)
+                        top_entities = [n["label"] for n in good[:10]]
+                        if top_entities:
+                            context_parts.append(f"Key entities: {', '.join(top_entities)}")
+                    except Exception:
+                        pass
+
+                # 3. Source document names (from corpus_dir files)
+                SKIP_EXTS = {".json", ".faiss", ".pkl", ".bin", ".idx", ".csv_bad"}
+                try:
+                    source_files = sorted([
+                        fp.stem.replace("_", " ").replace("-", " ").title()
+                        for fp in _P(corpus_dir).iterdir()
+                        if fp.is_file()
+                        and fp.suffix.lower() not in SKIP_EXTS
+                        and len(fp.stem) > 2
+                    ])[:5]
+                    if source_files:
+                        context_parts.append(f"Uploaded documents: {', '.join(source_files)}")
+                except Exception:
+                    pass
+
+                # 4. QA pair samples from train.jsonl (if SLM was built)
+                try:
+                    from app.config import get_settings as _gs3
+                    _st = _gs3()
+                    _slm_dir = _P(_st.slm_store_path)
+                    if _slm_dir.exists():
+                        for _mdir in sorted(_slm_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+                            _tjsonl = _mdir / "train.jsonl"
+                            if _tjsonl.exists():
+                                _meta_f = _mdir / "metadata.json"
+                                if _meta_f.exists():
+                                    _m = _json.loads(_meta_f.read_text())
+                                    if _m.get("domain_label") == domain_label:
+                                        _pairs: list[str] = []
+                                        with open(_tjsonl, encoding="utf-8") as _f:
+                                            for _line in _f:
+                                                _line = _line.strip()
+                                                if _line and len(_pairs) < 3:
+                                                    _obj = _json.loads(_line)
+                                                    _msgs = _obj.get("messages", [])
+                                                    _q = next((x["content"] for x in _msgs if x.get("role") == "user"), "")
+                                                    if _q and len(_q) > 10:
+                                                        _pairs.append(_q[:80])
+                                        if _pairs:
+                                            context_parts.append(f"Sample questions from corpus: {'; '.join(_pairs)}")
+                                        break
+                except Exception:
+                    pass
+
+                corpus_context = ". ".join(context_parts)
         except Exception:
             pass
 
     # ── Try SLM (trained Ollama model for this domain) ─────────────────────────
+    # The domain SLM generates prompt suggestions that are optimised for the
+    # SLM-first execution architecture — each suggestion becomes a direct
+    # input to the blueprint planning step, minimising frontier model usage.
     registry = SLMRegistry(db)
     records = await registry.list_all()
     domain_records = [r for r in records if r.get("domain_label") == domain_label]
@@ -238,24 +371,24 @@ async def slm_suggestions(
                 adapter_registry = get_adapter_registry()
                 ollama = adapter_registry.get_ollama()
                 if await ollama.is_available():
+                    context_line = f" {corpus_context}." if corpus_context else ""
                     prompt = (
-                        f'You are an expert analyst on "{domain_label}" data.{entity_hint} '
-                        f'List exactly 10 specific, actionable analyses a user can perform on this {domain_label} corpus. '
-                        "Each analysis must be concrete, descriptive, and produce a useful business or technical insight. "
-                        "Return ONLY a valid JSON array of exactly 10 objects. Each object must have exactly these keys: "
-                        '"label" (5-7 word title), "desc" (one sentence describing what the analysis reveals), '
-                        '"prompt" (2-3 sentence detailed prompt that a user would send to an AI to perform this analysis). '
-                        'No markdown, no explanation, no text outside the JSON array. '
-                        'Example format: [{"label": "Identify top risk factors", "desc": "Surface the highest-impact risks hidden in your data.", "prompt": "Analyze the corpus and identify the top 5 risk factors. For each risk, explain its likelihood, potential impact, and recommended mitigation strategy."}, ...]'
+                        f'You are an expert analyst and planning engine for the "{domain_label}" domain.{context_line} '
+                        f'Generate exactly 10 specific, actionable analysis prompts a user can send to the domain AI. '
+                        "Each prompt must be self-contained, grounded in the corpus described above, and optimised to "
+                        "produce a high-quality response when processed as an execution blueprint by a domain SLM. "
+                        "Return ONLY a valid JSON array of exactly 10 objects with keys: "
+                        '"label" (5-7 word title specific to this corpus), '
+                        '"desc" (one sentence: what insight this analysis unlocks from THIS data), '
+                        '"prompt" (2-3 sentence, fully self-contained query ready to send as-is — no placeholders). '
+                        'No markdown, no explanation, no text outside the JSON array.'
                     )
                     raw = await ollama.generate(ollama_model, prompt, stream=False, max_tokens=1024)
-                    # Extract the first JSON array
                     start = raw.find("[")
                     end = raw.rfind("]") + 1
                     if start != -1 and end > start:
                         parsed = _json.loads(raw[start:end])
                         if isinstance(parsed, list) and len(parsed) >= 3:
-                            # Normalise: accept both {label,desc,prompt} objects and plain strings
                             suggestions = []
                             for item in parsed[:10]:
                                 if isinstance(item, dict) and item.get("label") and item.get("prompt"):
@@ -265,7 +398,6 @@ async def slm_suggestions(
                                         "prompt": str(item["prompt"])[:600],
                                     })
                                 elif isinstance(item, str) and item.strip():
-                                    # Fallback: plain string — derive label from first few words
                                     words = item.strip().split()
                                     suggestions.append({
                                         "label":  " ".join(words[:6]),
@@ -273,25 +405,59 @@ async def slm_suggestions(
                                         "prompt": item,
                                     })
                             if len(suggestions) >= 3:
-                                return {"suggestions": suggestions, "source": "slm", "model_id": ollama_model}
+                                result = {"suggestions": suggestions, "source": "slm", "model_id": ollama_model}
+                                try:
+                                    if _rc:
+                                        _rc.setex(_cache_key, 7200, _json.dumps(result))
+                                except Exception:
+                                    pass
+                                return result
             except Exception:
                 pass
 
-    # ── Fallback: rich domain-aware templates ──────────────────────────────────
+    # ── Fallback: domain-aware templates with corpus context ──────────────────
     d = domain_label.replace("-", " ").replace("_", " ")
+    ctx = f" ({corpus_context})" if corpus_context else ""
     fallback = [
         {"label": f"Key trends in {d[:20]}",         "desc": f"Discover dominant patterns and trends across the {d} dataset.",                          "prompt": f"Analyze the key trends and patterns in the {d} data. Identify what is increasing, decreasing, or changing over time. Explain the significance of each trend and what it means for decision-making."},
         {"label": "Anomaly & outlier detection",      "desc": f"Flag unusual values and statistical outliers that warrant attention in {d}.",             "prompt": f"Scan the {d} dataset for anomalies, outliers, and unexpected values. For each anomaly found, explain what it is, why it is unusual, and what action should be taken."},
-        {"label": "Top performance drivers",          "desc": f"Identify which factors most strongly influence performance in {d}.",                       "prompt": f"Identify the top 5 performance drivers in the {d} data. For each driver, quantify its impact and explain how it can be optimized or leveraged for better outcomes."},
-        {"label": "Risk factor analysis",             "desc": f"Surface hidden risks and vulnerabilities present in the {d} corpus.",                      "prompt": f"Analyze the {d} corpus and identify the main risk factors. For each risk, assess its likelihood, potential impact, and recommend a mitigation strategy."},
-        {"label": "Build predictive dashboard",       "desc": f"Create an AI-powered dashboard that forecasts future {d} outcomes.",                       "prompt": f"Design and describe an AI-powered analytics dashboard for {d}. Specify the key KPIs to track, the predictive models to use, and how the dashboard should alert users to emerging trends or risks."},
-        {"label": "Actionable insight summary",       "desc": f"Condense the most valuable findings from the {d} corpus into executive-ready insights.",   "prompt": f"Summarize the most important actionable insights from the {d} data. Present each insight with supporting evidence, business implication, and a recommended next step. Format for an executive audience."},
-        {"label": "Process improvement roadmap",      "desc": f"Design a step-by-step improvement plan based on {d} findings.",                            "prompt": f"Based on the {d} data, design a practical process improvement roadmap. Identify the 3-5 highest-impact improvement opportunities, prioritize them, and outline concrete implementation steps for each."},
-        {"label": "Comparative benchmarking",         "desc": f"Compare performance segments, time periods, or categories within {d}.",                    "prompt": f"Perform a comparative analysis of the {d} dataset. Identify the best and worst performing segments, compare them across key metrics, and explain what separates top performers from the rest."},
-        {"label": "Compliance & gap audit",           "desc": f"Check {d} data against policies, standards, or regulatory requirements.",                  "prompt": f"Audit the {d} corpus against relevant policies, standards, or compliance requirements. Identify gaps, non-conformances, and areas of risk. Provide a prioritized remediation plan."},
-        {"label": "Strategic recommendation report",  "desc": f"Generate a board-level strategic report grounded in the {d} evidence.",                    "prompt": f"Generate a strategic recommendation report from the {d} data. Include an executive summary, 3-5 key findings with evidence, strategic implications, and a prioritized list of recommended actions for leadership."},
+        {"label": "Top performance drivers",          "desc": f"Identify which factors most strongly influence performance in {d}.",                       "prompt": f"Identify the top 5 performance drivers in the {d} data{ctx}. For each driver, quantify its impact and explain how it can be optimized or leveraged for better outcomes."},
+        {"label": "Risk factor analysis",             "desc": f"Surface hidden risks and vulnerabilities present in the {d} corpus.",                      "prompt": f"Analyze the {d} corpus{ctx} and identify the main risk factors. For each risk, assess its likelihood, potential impact, and recommend a mitigation strategy."},
+        {"label": "Build predictive dashboard",       "desc": f"Create an AI-powered dashboard that forecasts future {d} outcomes.",                       "prompt": f"Design and describe an AI-powered analytics dashboard for {d}{ctx}. Specify the key KPIs to track, the predictive models to use, and how the dashboard should alert users to emerging trends or risks."},
+        {"label": "Actionable insight summary",       "desc": f"Condense the most valuable findings from the {d} corpus into executive-ready insights.",   "prompt": f"Summarize the most important actionable insights from the {d} data{ctx}. Present each insight with supporting evidence, business implication, and a recommended next step. Format for an executive audience."},
+        {"label": "Process improvement roadmap",      "desc": f"Design a step-by-step improvement plan based on {d} findings.",                            "prompt": f"Based on the {d} data{ctx}, design a practical process improvement roadmap. Identify the 3-5 highest-impact improvement opportunities, prioritize them, and outline concrete implementation steps for each."},
+        {"label": "Comparative benchmarking",         "desc": f"Compare performance segments, time periods, or categories within {d}.",                    "prompt": f"Perform a comparative analysis of the {d} dataset{ctx}. Identify the best and worst performing segments, compare them across key metrics, and explain what separates top performers from the rest."},
+        {"label": "Compliance & gap audit",           "desc": f"Check {d} data against policies, standards, or regulatory requirements.",                  "prompt": f"Audit the {d} corpus{ctx} against relevant policies, standards, or compliance requirements. Identify gaps, non-conformances, and areas of risk. Provide a prioritized remediation plan."},
+        {"label": "Strategic recommendation report",  "desc": f"Generate a board-level strategic report grounded in the {d} evidence.",                    "prompt": f"Generate a strategic recommendation report from the {d} data{ctx}. Include an executive summary, 3-5 key findings with evidence, strategic implications, and a prioritized list of recommended actions for leadership."},
     ]
-    return {"suggestions": fallback, "source": "fallback"}
+    result = {"suggestions": fallback, "source": "fallback"}
+    try:
+        if _rc and corpus_context:
+            # Cache fallback for 30 min (shorter than slm since it's less personalised)
+            _rc.setex(_cache_key, 1800, _json.dumps(result))
+    except Exception:
+        pass
+    return result
+
+
+@router.delete("/suggestions/cache")
+async def clear_suggestions_cache(domain_label: str | None = None, job_id: str | None = None):
+    """Clear cached suggestions so they regenerate on next request.
+    Call this after a new corpus is ingested or a new SLM is built.
+    """
+    try:
+        import redis as _redis
+        r = _redis.Redis()
+        if domain_label or job_id:
+            pattern = f"suggestions:{domain_label or '*'}:{job_id or '*'}"
+            keys = r.keys(pattern)
+        else:
+            keys = r.keys("suggestions:*")
+        if keys:
+            r.delete(*keys)
+        return {"cleared": len(keys)}
+    except Exception as exc:
+        return {"cleared": 0, "error": str(exc)}
 
 
 @router.get("/stats")
@@ -368,4 +534,66 @@ async def learning_progress(db: AsyncSession = Depends(get_db)):
             "any_converged": any_converged,
             "active_models": len(result),
         },
+    }
+
+
+@router.get("/workers/health")
+async def workers_health():
+    """Return Celery worker health: active workers, queue depths, and task states.
+
+    Used to surface worker status in the dashboard and alert if workers are down.
+    Polling this endpoint every 30s gives early warning of Celery failures.
+    """
+    import redis as _redis, json as _json
+    try:
+        r = _redis.Redis()
+        r.ping()
+        redis_ok = True
+    except Exception as exc:
+        return {"status": "degraded", "error": f"Redis unavailable: {exc}",
+                "workers": [], "queue_depth": None}
+
+    # Queue depths (tasks waiting to be picked up)
+    try:
+        queue_depth = r.llen("kumar1_ingest")
+    except Exception:
+        queue_depth = None
+
+    # Active/reserved tasks via Celery inspect (non-blocking, 2s timeout)
+    workers = []
+    try:
+        from app.tasks import celery_app
+        inspect = celery_app.control.inspect(timeout=2.0, destination=None)
+        active   = inspect.active()  or {}
+        reserved = inspect.reserved() or {}
+        ping     = inspect.ping()    or {}
+        for worker_name in set(list(active.keys()) + list(ping.keys())):
+            workers.append({
+                "name":        worker_name,
+                "online":      worker_name in ping,
+                "active_tasks":   len(active.get(worker_name, [])),
+                "reserved_tasks": len(reserved.get(worker_name, [])),
+            })
+    except Exception as exc:
+        workers = [{"error": str(exc)}]
+
+    # Last SLM build progress from Redis
+    build_progress = {}
+    try:
+        for key in r.keys("slm_build_progress:*"):
+            raw = r.get(key)
+            if raw:
+                build_progress[key.decode()] = _json.loads(raw)
+    except Exception:
+        pass
+
+    our_workers = [w for w in workers if "kumar1" in w.get("name", "")]
+    status = "ok" if any(w.get("online") for w in our_workers) else "no_workers"
+
+    return {
+        "status": status,
+        "redis_ok": redis_ok,
+        "queue_depth": queue_depth,
+        "workers": our_workers or workers,
+        "active_builds": build_progress,
     }

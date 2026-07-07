@@ -177,9 +177,30 @@ class GraphBuilder:
             return {"nodes": [], "edges": [], "stats": self._graph_stats(0, 0), "updated_at": None}
 
     def _save_canonical_graph(self, graph: Dict):
+        # Prune orphaned edges: remove any edge whose source or target node
+        # no longer exists in the canonical node set.  These arise when nodes
+        # are merged/deduplicated but their old IDs remain in edge records.
+        nodes = graph.get("nodes", [])
+        node_ids = {n.get("canonical_id") for n in nodes if n.get("canonical_id")}
+        original_edges = graph.get("edges", [])
+        pruned_edges = [
+            e for e in original_edges
+            if e.get("source_canonical_id") in node_ids
+            and e.get("target_canonical_id") in node_ids
+        ]
+        orphaned = len(original_edges) - len(pruned_edges)
+        if orphaned > 0:
+            import logging as _log
+            _log.getLogger(__name__).info(
+                "graph_builder: pruned %d orphaned edge(s) (source/target not in canonical nodes)",
+                orphaned,
+            )
+            graph["edges"] = pruned_edges
+
         graph["stats"] = self._graph_stats(len(graph.get("nodes", [])), len(graph.get("edges", [])))
         with open(self._canonical_graph_path, "w") as f:
             json.dump(graph, f)
+
 
     @staticmethod
     def _edge_key(source_id: str, relation: str, target_id: str) -> str:

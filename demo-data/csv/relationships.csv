@@ -1,0 +1,106 @@
+relationship_id,source_entity,source_type,target_entity,target_type,relation,domain,weight,source_doc
+REL-001,Nexus Global Operations,ORG,FastFreight UK,ORG,contracted_3pl,supply_chain_logistics,0.90,MLA_2023_v2.pdf
+REL-002,Nexus Global Operations,ORG,Nordic Express,ORG,contracted_3pl,supply_chain_logistics,0.70,MLA_2023_v2.pdf
+REL-003,Nexus Global Operations,ORG,TranzCargo Iberia,ORG,contracted_3pl,supply_chain_logistics,0.70,MLA_2023_v2.pdf
+REL-004,Nexus Global Operations,ORG,SemiCore,ORG,single_source_supplier,supply_chain_logistics,0.95,Single_Source_Risk_Register.pdf
+REL-005,Nexus Global Operations,ORG,Nexus Plastics,ORG,single_source_supplier,supply_chain_logistics,0.90,Single_Source_Risk_Register.pdf
+REL-006,Nexus Global Operations,ORG,FlexSeal GmbH,ORG,single_source_supplier,supply_chain_logistics,0.85,Single_Source_Risk_Register.pdf
+REL-007,Nexus Global Operations,ORG,Vinatex Electronics,ORG,alternative_supplier,supply_chain_logistics,0.60,Supplier_Qualification_Report.xlsx
+REL-008,US Tariff China Electronics 25%,REGULATION,SemiCore,ORG,affects_supplier,supply_chain_logistics,0.80,Trade_Policy_Alert_2024.pdf
+REL-009,Rotterdam Port,LOCATION,Hamburg Port,LOCATION,reroute_to,supply_chain_logistics,0.80,Freight_Routes_2024.pdf
+REL-010,FastFreight UK,ORG,OTIF KPI 95%,METRIC,below_threshold,supply_chain_logistics,0.70,3PL_Scorecard_Q2_2024.xlsx
+REL-011,Master Logistics Agreement,CONTRACT,FastFreight UK,ORG,governs,supply_chain_logistics,0.90,MLA_2023_v2.pdf
+REL-012,Demand Forecast Q4,PROCESS,SKU FMCG-HPC-022,PRODUCT,covers,supply_chain_logistics,0.80,Forecast_Model_Q4.xlsx
+REL-013,Inventory Optimisation Model,MODEL,SKU FMCG-HPC-022,PRODUCT,optimises_stock_for,supply_chain_logistics,0.85,SC_Strategy_2024.pdf
+REL-014,James Whitfield,PERSON,Nexus Global Operations,ORG,vp_supply_chain,supply_chain_logistics,0.80,SC_Strategy_2024.pdf
+REL-015,US Tariff China Electronics 25%,REGULATION,Q3 Procurement Cost,METRIC,increases,supply_chain_logistics,0.85,Trade_Policy_Alert_2024.pdf
+REL-016,Meridian Bank Group,ORG,Prudential Regulation Authority,ORG,regulated_by,financial_risk_compliance,0.95,Annual_Report_2024.pdf
+REL-017,Meridian Bank Group,ORG,Financial Conduct Authority,ORG,regulated_by,financial_risk_compliance,0.90,Annual_Report_2024.pdf
+REL-018,Basel IV Framework,REGULATION,CET1 Ratio,METRIC,governs,financial_risk_compliance,0.90,Basel_IV_CRR3_Summary.pdf
+REL-019,Basel IV Framework,REGULATION,Output Floor 72.5%,REGULATION,mandates,financial_risk_compliance,0.95,Basel_IV_CRR3_Summary.pdf
+REL-020,Output Floor 72.5%,REGULATION,Credit RWA £14.8Bn,METRIC,binding_constraint,financial_risk_compliance,0.85,Capital_Report_Jun2024.xlsx
+REL-021,Meridian Bank Group,ORG,Deutsche Bank,ORG,counterparty_exposure,financial_risk_compliance,0.90,Counterparty_Risk_Report.pdf
+REL-022,Meridian Bank Group,ORG,BNP Paribas,ORG,counterparty_exposure,financial_risk_compliance,0.85,Counterparty_Risk_Report.pdf
+REL-023,CVA Hedge Portfolio,INSTRUMENT,Deutsche Bank,ORG,hedges_exposure_to,financial_risk_compliance,0.75,Trading_Book_Report.pdf
+REL-024,Meridian Bank Group,ORG,Argent Properties plc,ORG,credit_exposure_breach,financial_risk_compliance,0.80,Large_Exposure_Monitor.xlsx
+REL-025,AML Monitoring System,SYSTEM,SAR Filing Process,PROCESS,triggers,financial_risk_compliance,0.90,AML_Policy_v4.pdf
+REL-026,SBP Stress Test Scenario,PROCESS,CET1 Ratio,METRIC,reduces,financial_risk_compliance,0.80,Stress_Test_Framework_2024.pdf
+REL-027,Retail Mortgage PD Model v7.2,MODEL,CRD VI / CRR III,REGULATION,validated_under,financial_risk_compliance,0.85,Model_Risk_Register.xlsx
+REL-028,Dr. Priya Nair,PERSON,Meridian Bank Group,ORG,chief_data_officer,financial_risk_compliance,0.80,Executive_Bio.pdf
+REL-029,PRA,ORG,ICAAP 2024,DOCUMENT,requires_submission,financial_risk_compliance,0.90,PRA_SS1_23.pdf
+REL-030,HHI Concentration Index,METRIC,ICAAP 2024,DOCUMENT,disclosed_in,financial_risk_compliance,0.85,ICAAP_2024_Draft.pdf
+REL-031,Nexus Retail Bank,ORG,Mass Affluent Segment,SEGMENT,serves,customer_experience_analytics,0.90,CX_Strategy_2024.pdf
+REL-032,Mass Affluent Segment,SEGMENT,CLV Prediction Model v4,MODEL,scored_by,customer_experience_analytics,0.85,Model_Catalogue_2024.pdf
+REL-033,Churn Prediction Model,MODEL,Mass Affluent Segment,SEGMENT,identifies_churn_in,customer_experience_analytics,0.80,Model_Catalogue_2024.pdf
+REL-034,Churn Prediction Model,MODEL,Young Professional Segment,SEGMENT,identifies_churn_in,customer_experience_analytics,0.80,Model_Catalogue_2024.pdf
+REL-035,NPS Driver Analysis,PROCESS,Salesforce FSC,SYSTEM,pulls_data_from,customer_experience_analytics,0.75,CX_Measurement_Framework.pdf
+REL-036,Digital Savers 25-35,SEGMENT,Lifetime ISA,PRODUCT,recommended_product,customer_experience_analytics,0.85,Segmentation_Model_2024.pdf
+REL-037,Digital Savers 25-35,SEGMENT,Green Mortgage,PRODUCT,recommended_product,customer_experience_analytics,0.80,Segmentation_Model_2024.pdf
+REL-038,Consumer Duty,REGULATION,CLV Prediction Model v4,MODEL,governs_deployment_of,customer_experience_analytics,0.90,FCA_Consumer_Duty.pdf
+REL-039,Personalisation Engine,SYSTEM,Salesforce FSC,SYSTEM,integrates_with,customer_experience_analytics,0.75,Technology_Landscape.pdf
+REL-040,Sarah Chen,PERSON,Nexus Retail Bank,ORG,head_of_cx,customer_experience_analytics,0.80,CX_Team_Structure.pdf
+REL-041,Nexus Global Workforce,ORG,Data Science & AI Engineering,FUNCTION,contains,hr_talent_workforce,0.90,Skills_Gap_Analysis.pdf
+REL-042,Data Science & AI Engineering,FUNCTION,Fast-Track Programme,INITIATIVE,targeted_by,hr_talent_workforce,0.85,Talent_Development_2024.pdf
+REL-043,HR Attrition Model,MODEL,Nexus Global Workforce,ORG,monitors_attrition_for,hr_talent_workforce,0.80,Model_Catalogue_HR.pdf
+REL-044,Succession Planning Framework,PROCESS,Enterprise Architecture Function,FUNCTION,covers,hr_talent_workforce,0.75,HR_Policy_Succession.pdf
+REL-045,DEI Equity Audit 2024,DOCUMENT,Gender Pay Gap Report,DOCUMENT,includes,hr_talent_workforce,0.85,DEI_Report_Q2_2024.pdf
+REL-046,Transformation Programme,INITIATIVE,Upskilling Pathways,INITIATIVE,funds,hr_talent_workforce,0.80,Transformation_Plan_2024.pdf
+REL-047,Nicole Baptiste,PERSON,Nexus Global Workforce,ORG,chro,hr_talent_workforce,0.80,HR_Leadership_Team.pdf
+REL-048,Henley Business School,ORG,Data Science & AI Engineering,FUNCTION,develops_talent_for,hr_talent_workforce,0.70,Learning_Partnerships.pdf
+REL-049,Workforce Capacity Plan 2024-2027,DOCUMENT,Transformation Programme,INITIATIVE,plans_headcount_for,hr_talent_workforce,0.85,Workforce_Plan_2024.pdf
+REL-050,Fast-Track Programme,INITIATIVE,Succession Planning Framework,PROCESS,feeds_into,hr_talent_workforce,0.75,Talent_Development_2024.pdf
+REL-051,Nexus Technology Group,ORG,CrowdStrike Falcon,SYSTEM,deployed,it_infrastructure_security,0.90,Security_Architecture.pdf
+REL-052,Nexus Technology Group,ORG,BeyondTrust PAM,SYSTEM,deployed,it_infrastructure_security,0.85,Security_Architecture.pdf
+REL-053,Zero-Trust Architecture,FRAMEWORK,CrowdStrike Falcon,SYSTEM,enforced_via,it_infrastructure_security,0.80,ZTNA_Design_2024.pdf
+REL-054,NCSC Cyber Essentials Plus,STANDARD,Zero-Trust Architecture,FRAMEWORK,aligns_with,it_infrastructure_security,0.85,Compliance_Register.pdf
+REL-055,CorePayments v2,SYSTEM,PCI-DSS Scope,REGULATION,in_scope_of,it_infrastructure_security,0.90,Application_Risk_Register.pdf
+REL-056,Cloud Migration Programme,INITIATIVE,CorePayments v2,SYSTEM,migrates,it_infrastructure_security,0.80,Cloud_Strategy_2024.pdf
+REL-057,SOC,FACILITY,SIEM Platform,SYSTEM,uses,it_infrastructure_security,0.90,SOC_Procedures.pdf
+REL-058,FIN-WKS-0847,ASSET,SOC,FACILITY,monitored_by,it_infrastructure_security,0.75,Incident_Report_P1_2024.pdf
+REL-059,David Kang,PERSON,Nexus Technology Group,ORG,cto,it_infrastructure_security,0.80,IT_Leadership_Team.pdf
+REL-060,ITIL Problem Management,PROCESS,Nexus Technology Group,ORG,governs_service_for,it_infrastructure_security,0.80,ITIL_Procedures.pdf
+REL-061,Aurora Health Monitor,PRODUCT,FDA 510(k) Clearance,REGULATION,requires,product_rd_innovation,0.90,Regulatory_Affairs_Brief.pdf
+REL-062,Aurora Health Monitor,PRODUCT,CE Mark,CERTIFICATION,requires,product_rd_innovation,0.85,Regulatory_Affairs_Brief.pdf
+REL-063,Aurora Health Monitor,PRODUCT,Technology Readiness Level 6,METRIC,achieved,product_rd_innovation,0.85,Project_Aurora_Brief.pdf
+REL-064,Solid-State Battery Technology,TECHNOLOGY,QuantumScape,ORG,ip_dominated_by,product_rd_innovation,0.80,Patent_Landscape_SSB.pdf
+REL-065,Solid-State Battery Technology,TECHNOLOGY,Toyota,ORG,ip_dominated_by,product_rd_innovation,0.85,Patent_Landscape_SSB.pdf
+REL-066,Stage-Gate Process,PROCESS,Aurora Health Monitor,PRODUCT,governs_development_of,product_rd_innovation,0.90,NPD_Framework.pdf
+REL-067,John Lewis Partnership,ORG,Aurora Health Monitor,PRODUCT,retail_partner_for,product_rd_innovation,0.75,GTM_Agreements.pdf
+REL-068,Solid Power,ORG,Solid-State Battery Technology,TECHNOLOGY,co_development_candidate,product_rd_innovation,0.70,Patent_Landscape_SSB.pdf
+REL-069,Nexus Carbon Account,ORG,IEA NZE2050,FRAMEWORK,aligned_with,esg_sustainability,0.90,Net_Zero_Pathway.pdf
+REL-070,Nexus Carbon Account,ORG,TCFD Framework,STANDARD,discloses_under,esg_sustainability,0.90,TCFD_Report_2024.pdf
+REL-071,TCFD Framework,STANDARD,CSRD,REGULATION,feeds_into,esg_sustainability,0.80,ESG_Regulatory_Calendar.pdf
+REL-072,Scope 3 Cat 1 Emissions,METRIC,PrecisionCast Ltd,ORG,largest_contributor_in,esg_sustainability,0.85,Carbon_Accounting_2024.pdf
+REL-073,SBTi,FRAMEWORK,IEA NZE2050,FRAMEWORK,references,esg_sustainability,0.80,Net_Zero_Pathway.pdf
+REL-074,Woodland Carbon Code,STANDARD,SBTi,FRAMEWORK,allowed_offset_under,esg_sustainability,0.75,Net_Zero_Pathway.pdf
+REL-075,KPMG External Assurance,ORG,TCFD Framework,STANDARD,assures,esg_sustainability,0.85,TCFD_Report_2024.pdf
+REL-076,Manchester Site,FACILITY,Nexus Carbon Account,ORG,highest_physical_risk_site_of,esg_sustainability,0.80,Physical_Risk_Assessment.pdf
+REL-077,ChemBase Industrial,ORG,Scope 3 Cat 1 Emissions,METRIC,contributes_to,esg_sustainability,0.75,Supplier_ESG_Scores.xlsx
+REL-078,Nexus Pharma Manufacturing,ORG,Line 7,ASSET,operates,manufacturing_quality,0.90,MFG_Quality_Manual.pdf
+REL-079,Line 7,ASSET,Thermocouple TH-L7-04,ASSET,contains,manufacturing_quality,0.85,CAPA_MFG_2024_0142.pdf
+REL-080,Thermocouple TH-L7-04,ASSET,CAPA-MFG-2024-0142,DOCUMENT,subject_of,manufacturing_quality,0.90,CAPA_MFG_2024_0142.pdf
+REL-081,FDA 21 CFR Part 11,REGULATION,Batch L7-20240614-003,DOCUMENT,governs,manufacturing_quality,0.90,Compliance_Register.pdf
+REL-082,Six Sigma DMAIC,METHODOLOGY,Line 7,ASSET,applied_to,manufacturing_quality,0.80,Quality_Improvement_Plan.pdf
+REL-083,OEE Target 75%,METRIC,Line 7,ASSET,applies_to,manufacturing_quality,0.85,OEE_Policy.pdf
+REL-084,Fill-Seal Machine FS-03,ASSET,SKF Bearing 6308-2RS,COMPONENT,contains,manufacturing_quality,0.85,Maintenance_Log.pdf
+REL-085,ISO 9001:2015,STANDARD,Nexus Pharma Manufacturing,ORG,certified_standard,manufacturing_quality,0.90,Quality_Manual.pdf
+REL-086,FMEA Registry,DOCUMENT,Fill-Seal Machine FS-03,ASSET,covers,manufacturing_quality,0.80,FMEA_Registry_2024.pdf
+REL-087,PathogenIQ Ltd,ORG,PathogenIQ Synergy Model,MODEL,valued_by,mergers_acquisitions,0.90,Synergy_Model_PathogenIQ.xlsx
+REL-088,PathogenIQ Ltd,ORG,MHRA Device Registration,PROCESS,constrained_by,mergers_acquisitions,0.85,Regulatory_Constraints.pdf
+REL-089,Nexus Analytics (acquired),ORG,Integration Management Office,ORG,overseen_by,mergers_acquisitions,0.90,PMI_Status_Report.pdf
+REL-090,100-Day Integration Plan,DOCUMENT,Integration Management Office,ORG,executed_by,mergers_acquisitions,0.85,PMI_Playbook.pdf
+REL-091,DiagnoSys GmbH,ORG,PathogenIQ Ltd,ORG,competed_against_in_screen,mergers_acquisitions,0.70,M_A_Target_Screen.pdf
+REL-092,Master Supply Agreement Schedule 7,CONTRACT,PrecisionCast Ltd,ORG,governs_supplier,mergers_acquisitions,0.80,MSA_2022_v3.pdf
+REL-093,PathogenIQ Synergy Model,MODEL,PathogenIQ Ltd,ORG,models_value_of,mergers_acquisitions,0.90,Synergy_Model_PathogenIQ.xlsx
+REL-094,Nexus Digital Architecture,ORG,ERP Monolith (SAP S/4HANA),SYSTEM,migrating_away_from,digital_transformation,0.90,Digital_Strategy_2024.pdf
+REL-095,ERP Monolith (SAP S/4HANA),SYSTEM,Order Management Microservice,SYSTEM,decomposed_into,digital_transformation,0.85,Microservices_Design.pdf
+REL-096,Strangler Fig Pattern,METHOD,Order Management Microservice,SYSTEM,migration_method,digital_transformation,0.80,Microservices_Design.pdf
+REL-097,Apache Kafka on AWS MSK,TECHNOLOGY,Order Management Microservice,SYSTEM,event_bus_for,digital_transformation,0.85,Platform_Architecture.pdf
+REL-098,Data Mesh Architecture,FRAMEWORK,DataHub,SYSTEM,catalogued_in,digital_transformation,0.80,Data_Mesh_Design.pdf
+REL-099,OneTrust,SYSTEM,Data Mesh Architecture,FRAMEWORK,provides_consent_mgmt_for,digital_transformation,0.75,Data_Governance_Policy.pdf
+REL-100,BCBS 239,REGULATION,Data Mesh Architecture,FRAMEWORK,constrains,digital_transformation,0.85,Data_Governance_Policy.pdf
+REL-101,AI Governance Framework,DOCUMENT,SS1/23 Guidance,REGULATION,aligned_with,digital_transformation,0.85,AI_Governance_v1.pdf
+REL-102,Technical Debt Register,DOCUMENT,ERP Monolith (SAP S/4HANA),SYSTEM,quantifies_debt_of,digital_transformation,0.80,Legacy_Estate_Assessment.pdf
+REL-103,CAST Assessment,PROCESS,Technical Debt Register,DOCUMENT,generates,digital_transformation,0.85,Legacy_Estate_Assessment.pdf
+REL-104,Victoria Okonkwo,PERSON,Nexus Digital Architecture,ORG,chief_digital_officer,digital_transformation,0.80,Digital_Leadership.pdf
+REL-105,Domain Data Council,ORG,Data Mesh Architecture,FRAMEWORK,governs,digital_transformation,0.85,Data_Mesh_Design.pdf

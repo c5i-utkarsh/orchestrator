@@ -1,0 +1,112 @@
+[
+  {
+    "domain_id": "DOM-001",
+    "label": "supply_chain_logistics",
+    "display_name": "Supply Chain & Logistics",
+    "business_unit": "Global Operations",
+    "description": "End-to-end supply chain visibility, procurement analytics, freight optimisation, and demand forecasting across 47 distribution centres.",
+    "industry": "Manufacturing & Logistics",
+    "tags": ["procurement", "freight", "demand-forecast", "inventory", "3PL", "tariffs"],
+    "session_id": "sess-sc-001",
+    "job_id": "job-sc-001"
+  },
+  {
+    "domain_id": "DOM-002",
+    "label": "financial_risk_compliance",
+    "display_name": "Financial Risk & Compliance",
+    "business_unit": "Group Risk",
+    "description": "Basel IV capital adequacy, credit risk modelling, AML transaction monitoring, and regulatory reporting for 140+ jurisdictions.",
+    "industry": "Financial Services",
+    "tags": ["basel-iv", "credit-risk", "AML", "regulatory-reporting", "stress-test"],
+    "session_id": "sess-fr-002",
+    "job_id": "job-fr-002"
+  },
+  {
+    "domain_id": "DOM-003",
+    "label": "customer_experience_analytics",
+    "display_name": "Customer Experience & Analytics",
+    "business_unit": "Digital & Marketing",
+    "description": "CLV modelling, NPS driver analysis, omnichannel journey mapping, churn prediction, and personalisation engine for 8.4M retail customers.",
+    "industry": "Retail Banking",
+    "tags": ["CLV", "churn", "NPS", "personalisation", "omnichannel", "retention"],
+    "session_id": "sess-cx-003",
+    "job_id": "job-cx-003"
+  },
+  {
+    "domain_id": "DOM-004",
+    "label": "hr_talent_workforce",
+    "display_name": "HR, Talent & Workforce Planning",
+    "business_unit": "People & Culture",
+    "description": "Workforce capacity planning, skills gap analysis, attrition modelling, succession planning, and DEI reporting for 62,000 employees globally.",
+    "industry": "Enterprise HR",
+    "tags": ["workforce-planning", "attrition", "succession", "skills-gap", "DEI"],
+    "session_id": "sess-hr-004",
+    "job_id": "job-hr-004"
+  },
+  {
+    "domain_id": "DOM-005",
+    "label": "it_infrastructure_security",
+    "display_name": "IT Infrastructure & Cybersecurity",
+    "business_unit": "Technology & Security",
+    "description": "Zero-trust architecture rollout, SOC threat detection, cloud migration (AWS/Azure hybrid), incident response playbooks, and ITIL v4 service management.",
+    "industry": "Enterprise IT",
+    "tags": ["zero-trust", "SOC", "cloud-migration", "ITIL", "incident-response", "SIEM"],
+    "session_id": "sess-it-005",
+    "job_id": "job-it-005"
+  },
+  {
+    "domain_id": "DOM-006",
+    "label": "product_rd_innovation",
+    "display_name": "Product R&D & Innovation",
+    "business_unit": "Innovation Lab",
+    "description": "Stage-gate product development, patent landscape analysis, go-to-market planning, and open innovation partnership management.",
+    "industry": "Consumer Goods",
+    "tags": ["stage-gate", "patent", "GTM", "open-innovation", "NPD", "roadmap"],
+    "session_id": "sess-rd-006",
+    "job_id": "job-rd-006"
+  },
+  {
+    "domain_id": "DOM-007",
+    "label": "esg_sustainability",
+    "display_name": "ESG & Sustainability",
+    "business_unit": "Corporate Affairs",
+    "description": "Scope 1/2/3 emissions tracking, TCFD disclosure, supplier ESG scoring, net-zero pathway modelling, and biodiversity impact assessment.",
+    "industry": "Cross-Sector ESG",
+    "tags": ["TCFD", "scope-3", "net-zero", "supplier-ESG", "biodiversity", "CSRD"],
+    "session_id": "sess-esg-007",
+    "job_id": "job-esg-007"
+  },
+  {
+    "domain_id": "DOM-008",
+    "label": "manufacturing_quality",
+    "display_name": "Manufacturing & Quality Engineering",
+    "business_unit": "Operations Excellence",
+    "description": "Six Sigma defect reduction, predictive maintenance (OEE), SPC dashboards, FDA 21 CFR Part 11 compliance, and ISO 9001 audit management.",
+    "industry": "Pharmaceutical Manufacturing",
+    "tags": ["six-sigma", "OEE", "SPC", "FDA-CFR-21", "ISO-9001", "predictive-maintenance"],
+    "session_id": "sess-mfg-008",
+    "job_id": "job-mfg-008"
+  },
+  {
+    "domain_id": "DOM-009",
+    "label": "mergers_acquisitions",
+    "display_name": "Mergers, Acquisitions & Corporate Development",
+    "business_unit": "Strategy & Corp Dev",
+    "description": "M&A target screening, financial due diligence, integration playbooks, synergy tracking, and post-merger performance monitoring.",
+    "industry": "Corporate Strategy",
+    "tags": ["due-diligence", "synergy", "integration", "valuation", "deal-flow", "PMI"],
+    "session_id": "sess-ma-009",
+    "job_id": "job-ma-009"
+  },
+  {
+    "domain_id": "DOM-010",
+    "label": "digital_transformation",
+    "display_name": "Digital Transformation & Platform Engineering",
+    "business_unit": "Digital Architecture",
+    "description": "API-first modernisation, microservices migration, data mesh implementation, AI platform governance, and digital product portfolio management.",
+    "industry": "Enterprise Technology",
+    "tags": ["microservices", "data-mesh", "API-first", "AI-governance", "platform-engineering"],
+    "session_id": "sess-dt-010",
+    "job_id": "job-dt-010"
+  }
+]

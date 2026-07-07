@@ -1,0 +1,146 @@
+entity_id,entity_label,entity_type,domain,domain_label,community,mentions,source_doc,is_event_trigger
+ENT-001,Nexus Global Operations,ORG,DOM-001,supply_chain_logistics,1,24,SC_Strategy_2024.pdf,false
+ENT-002,Vinatex Electronics,ORG,DOM-001,supply_chain_logistics,2,8,Supplier_Qualification_Report.xlsx,false
+ENT-003,HCM Components Ltd,ORG,DOM-001,supply_chain_logistics,2,6,Supplier_Qualification_Report.xlsx,false
+ENT-004,Monterrey Industrial,ORG,DOM-001,supply_chain_logistics,2,5,Alternative_Supplier_Registry.pdf,false
+ENT-005,FastFreight UK,ORG,DOM-001,supply_chain_logistics,3,11,3PL_Scorecard_Q2_2024.xlsx,false
+ENT-006,Nordic Express,ORG,DOM-001,supply_chain_logistics,3,7,3PL_Scorecard_Q2_2024.xlsx,false
+ENT-007,TranzCargo Iberia,ORG,DOM-001,supply_chain_logistics,3,6,3PL_Scorecard_Q2_2024.xlsx,false
+ENT-008,SemiCore,ORG,DOM-001,supply_chain_logistics,4,9,Single_Source_Risk_Register.pdf,false
+ENT-009,Nexus Plastics,ORG,DOM-001,supply_chain_logistics,4,7,Single_Source_Risk_Register.pdf,false
+ENT-010,FlexSeal GmbH,ORG,DOM-001,supply_chain_logistics,4,6,Single_Source_Risk_Register.pdf,false
+ENT-011,DC-Birmingham,FACILITY,DOM-001,supply_chain_logistics,1,8,DC_Network_Map.pdf,false
+ENT-012,Rotterdam Port,LOCATION,DOM-001,supply_chain_logistics,3,12,Freight_Routes_2024.pdf,true
+ENT-013,Hamburg Port,LOCATION,DOM-001,supply_chain_logistics,3,9,Freight_Routes_2024.pdf,false
+ENT-014,US Tariff China Electronics 25%,REGULATION,DOM-001,supply_chain_logistics,5,14,Trade_Policy_Alert_2024.pdf,true
+ENT-015,James Whitfield,PERSON,DOM-001,supply_chain_logistics,1,6,SC_Strategy_2024.pdf,false
+ENT-016,Amara Osei,PERSON,DOM-001,supply_chain_logistics,1,5,SC_Strategy_2024.pdf,false
+ENT-017,Demand Forecast Q4,PROCESS,DOM-001,supply_chain_logistics,1,10,Forecast_Model_Q4.xlsx,false
+ENT-018,Master Logistics Agreement,CONTRACT,DOM-001,supply_chain_logistics,3,9,MLA_2023_v2.pdf,false
+ENT-019,SKU FMCG-HPC-022,PRODUCT,DOM-001,supply_chain_logistics,1,7,Product_Catalog_2024.xlsx,false
+ENT-020,OTIF KPI 95%,METRIC,DOM-001,supply_chain_logistics,3,11,MLA_2023_v2.pdf,false
+ENT-021,Meridian Bank Group,ORG,DOM-002,financial_risk_compliance,1,31,Annual_Report_2024.pdf,false
+ENT-022,Prudential Regulation Authority,ORG,DOM-002,financial_risk_compliance,5,14,PRA_SS1_23.pdf,false
+ENT-023,Financial Conduct Authority,ORG,DOM-002,financial_risk_compliance,5,11,FCA_Consumer_Duty.pdf,false
+ENT-024,European Central Bank,ORG,DOM-002,financial_risk_compliance,5,9,ECB_Stress_Test_Framework.pdf,false
+ENT-025,Deutsche Bank,ORG,DOM-002,financial_risk_compliance,2,8,Counterparty_Risk_Report.pdf,false
+ENT-026,BNP Paribas,ORG,DOM-002,financial_risk_compliance,2,7,Counterparty_Risk_Report.pdf,false
+ENT-027,Argent Properties plc,ORG,DOM-002,financial_risk_compliance,3,6,Large_Exposure_Monitor.xlsx,false
+ENT-028,Basel IV Framework,REGULATION,DOM-002,financial_risk_compliance,5,16,Basel_IV_CRR3_Summary.pdf,false
+ENT-029,CET1 Ratio,METRIC,DOM-002,financial_risk_compliance,4,14,Capital_Report_Jun2024.xlsx,false
+ENT-030,Output Floor 72.5%,REGULATION,DOM-002,financial_risk_compliance,5,10,Basel_IV_CRR3_Summary.pdf,false
+ENT-031,ICAAP 2024,DOCUMENT,DOM-002,financial_risk_compliance,4,12,ICAAP_2024_Draft.pdf,false
+ENT-032,Retail Mortgage PD Model v7.2,MODEL,DOM-002,financial_risk_compliance,6,8,Model_Risk_Register.xlsx,false
+ENT-033,SME Scorecard v3.1,MODEL,DOM-002,financial_risk_compliance,6,7,Model_Risk_Register.xlsx,false
+ENT-034,Dr. Priya Nair,PERSON,DOM-002,financial_risk_compliance,1,9,Executive_Bio.pdf,false
+ENT-035,Marcus Webb,PERSON,DOM-002,financial_risk_compliance,1,6,Executive_Bio.pdf,false
+ENT-036,SBP Stress Test Scenario,PROCESS,DOM-002,financial_risk_compliance,4,10,Stress_Test_Framework_2024.pdf,true
+ENT-037,AML Monitoring System,SYSTEM,DOM-002,financial_risk_compliance,1,11,AML_Policy_v4.pdf,false
+ENT-038,CVA Hedge Portfolio,INSTRUMENT,DOM-002,financial_risk_compliance,2,7,Trading_Book_Report.pdf,false
+ENT-039,HHI Concentration Index,METRIC,DOM-002,financial_risk_compliance,3,8,ICAAP_2024_Draft.pdf,false
+ENT-040,6th AML Directive,REGULATION,DOM-002,financial_risk_compliance,5,8,AML_Policy_v4.pdf,false
+ENT-041,Nexus Retail Bank,ORG,DOM-003,customer_experience_analytics,1,28,CX_Strategy_2024.pdf,false
+ENT-042,Mass Affluent Segment,SEGMENT,DOM-003,customer_experience_analytics,2,12,Segmentation_Model_2024.pdf,false
+ENT-043,Young Professional Segment,SEGMENT,DOM-003,customer_experience_analytics,2,10,Segmentation_Model_2024.pdf,false
+ENT-044,CLV Prediction Model v4,MODEL,DOM-003,customer_experience_analytics,3,9,Model_Catalogue_2024.pdf,false
+ENT-045,NPS Driver Analysis,PROCESS,DOM-003,customer_experience_analytics,4,11,CX_Measurement_Framework.pdf,false
+ENT-046,Churn Prediction Model,MODEL,DOM-003,customer_experience_analytics,3,8,Model_Catalogue_2024.pdf,false
+ENT-047,Salesforce FSC,SYSTEM,DOM-003,customer_experience_analytics,1,13,Technology_Landscape.pdf,false
+ENT-048,Digital Savers 25-35,SEGMENT,DOM-003,customer_experience_analytics,2,9,Segmentation_Model_2024.pdf,false
+ENT-049,Lifetime ISA,PRODUCT,DOM-003,customer_experience_analytics,5,7,Product_Catalogue.pdf,false
+ENT-050,Green Mortgage,PRODUCT,DOM-003,customer_experience_analytics,5,6,Product_Catalogue.pdf,false
+ENT-051,Sarah Chen,PERSON,DOM-003,customer_experience_analytics,1,5,CX_Team_Structure.pdf,false
+ENT-052,Consumer Duty,REGULATION,DOM-003,customer_experience_analytics,6,9,FCA_Consumer_Duty.pdf,false
+ENT-053,FCA Consumer Duty,REGULATION,DOM-003,customer_experience_analytics,6,8,FCA_Consumer_Duty.pdf,false
+ENT-054,Omnichannel Journey Map,DOCUMENT,DOM-003,customer_experience_analytics,4,7,Journey_Map_2024.pdf,false
+ENT-055,Personalisation Engine,SYSTEM,DOM-003,customer_experience_analytics,3,8,Technology_Landscape.pdf,false
+ENT-056,Nexus Global Workforce,ORG,DOM-004,hr_talent_workforce,1,21,Workforce_Plan_2024.pdf,false
+ENT-057,Data Science & AI Engineering,FUNCTION,DOM-004,hr_talent_workforce,2,8,Skills_Gap_Analysis.pdf,false
+ENT-058,Regulatory Affairs Function,FUNCTION,DOM-004,hr_talent_workforce,2,6,Skills_Gap_Analysis.pdf,false
+ENT-059,Enterprise Architecture Function,FUNCTION,DOM-004,hr_talent_workforce,2,5,Skills_Gap_Analysis.pdf,false
+ENT-060,HR Attrition Model,MODEL,DOM-004,hr_talent_workforce,3,7,Model_Catalogue_HR.pdf,false
+ENT-061,DEI Equity Audit 2024,DOCUMENT,DOM-004,hr_talent_workforce,4,9,DEI_Report_Q2_2024.pdf,false
+ENT-062,Succession Planning Framework,PROCESS,DOM-004,hr_talent_workforce,1,8,HR_Policy_Succession.pdf,false
+ENT-063,Henley Business School,ORG,DOM-004,hr_talent_workforce,5,4,Learning_Partnerships.pdf,false
+ENT-064,Gender Pay Gap Report,DOCUMENT,DOM-004,hr_talent_workforce,4,7,DEI_Report_Q2_2024.pdf,false
+ENT-065,Fast-Track Programme,INITIATIVE,DOM-004,hr_talent_workforce,2,6,Talent_Development_2024.pdf,false
+ENT-066,Transformation Programme,INITIATIVE,DOM-004,hr_talent_workforce,1,9,Transformation_Plan_2024.pdf,false
+ENT-067,Nicole Baptiste,PERSON,DOM-004,hr_talent_workforce,1,5,HR_Leadership_Team.pdf,false
+ENT-068,Workforce Capacity Plan 2024-2027,DOCUMENT,DOM-004,hr_talent_workforce,1,7,Workforce_Plan_2024.pdf,false
+ENT-069,CHRO Office,ORG,DOM-004,hr_talent_workforce,1,6,HR_Leadership_Team.pdf,false
+ENT-070,Upskilling Pathways,INITIATIVE,DOM-004,hr_talent_workforce,2,5,L_D_Strategy_2024.pdf,false
+ENT-071,Nexus Technology Group,ORG,DOM-005,it_infrastructure_security,1,24,IT_Strategy_2024.pdf,false
+ENT-072,CrowdStrike Falcon,SYSTEM,DOM-005,it_infrastructure_security,2,9,Security_Architecture.pdf,false
+ENT-073,BeyondTrust PAM,SYSTEM,DOM-005,it_infrastructure_security,2,7,Security_Architecture.pdf,false
+ENT-074,Zero-Trust Architecture,FRAMEWORK,DOM-005,it_infrastructure_security,3,12,ZTNA_Design_2024.pdf,false
+ENT-075,SOC (Security Operations Centre),FACILITY,DOM-005,it_infrastructure_security,2,11,SOC_Procedures.pdf,false
+ENT-076,FIN-WKS-0847,ASSET,DOM-005,it_infrastructure_security,4,6,Incident_Report_P1_2024.pdf,false
+ENT-077,Velociraptor,TOOL,DOM-005,it_infrastructure_security,4,4,Incident_Response_Playbook.pdf,false
+ENT-078,NCSC Cyber Essentials Plus,STANDARD,DOM-005,it_infrastructure_security,3,8,Compliance_Register.pdf,false
+ENT-079,CorePayments v2,SYSTEM,DOM-005,it_infrastructure_security,5,10,Application_Risk_Register.pdf,false
+ENT-080,Cloud Migration Programme,INITIATIVE,DOM-005,it_infrastructure_security,5,13,Cloud_Strategy_2024.pdf,false
+ENT-081,ITIL Problem Management,PROCESS,DOM-005,it_infrastructure_security,6,8,ITIL_Procedures.pdf,false
+ENT-082,AWS MSK,SYSTEM,DOM-005,it_infrastructure_security,5,6,Cloud_Architecture_2024.pdf,false
+ENT-083,PCI-DSS Scope,REGULATION,DOM-005,it_infrastructure_security,3,7,Compliance_Register.pdf,false
+ENT-084,SIEM Platform,SYSTEM,DOM-005,it_infrastructure_security,2,10,Security_Architecture.pdf,false
+ENT-085,David Kang,PERSON,DOM-005,it_infrastructure_security,1,5,IT_Leadership_Team.pdf,false
+ENT-086,Aurora Health Monitor,PRODUCT,DOM-006,product_rd_innovation,1,14,Project_Aurora_Brief.pdf,false
+ENT-087,QuantumScape,ORG,DOM-006,product_rd_innovation,2,8,Patent_Landscape_SSB.pdf,false
+ENT-088,Solid Power,ORG,DOM-006,product_rd_innovation,2,6,Patent_Landscape_SSB.pdf,false
+ENT-089,Toyota,ORG,DOM-006,product_rd_innovation,2,11,Patent_Landscape_SSB.pdf,false
+ENT-090,Samsung SDI,ORG,DOM-006,product_rd_innovation,2,9,Patent_Landscape_SSB.pdf,false
+ENT-091,Stage-Gate Process,PROCESS,DOM-006,product_rd_innovation,3,10,NPD_Framework.pdf,false
+ENT-092,Solid-State Battery Technology,TECHNOLOGY,DOM-006,product_rd_innovation,2,12,Patent_Landscape_SSB.pdf,false
+ENT-093,FDA 510(k) Clearance,REGULATION,DOM-006,product_rd_innovation,4,7,Regulatory_Affairs_Brief.pdf,false
+ENT-094,CE Mark,CERTIFICATION,DOM-006,product_rd_innovation,4,6,Regulatory_Affairs_Brief.pdf,false
+ENT-095,John Lewis Partnership,ORG,DOM-006,product_rd_innovation,5,5,GTM_Agreements.pdf,false
+ENT-096,Technology Readiness Level 6,METRIC,DOM-006,product_rd_innovation,1,6,Project_Aurora_Brief.pdf,false
+ENT-097,Nexus Carbon Account,ORG,DOM-007,esg_sustainability,1,18,ESG_Report_2024.pdf,false
+ENT-098,IEA NZE2050,FRAMEWORK,DOM-007,esg_sustainability,2,11,Net_Zero_Pathway.pdf,false
+ENT-099,TCFD Framework,STANDARD,DOM-007,esg_sustainability,3,13,TCFD_Report_2024.pdf,false
+ENT-100,CSRD,REGULATION,DOM-007,esg_sustainability,3,8,ESG_Regulatory_Calendar.pdf,false
+ENT-101,PrecisionCast Ltd,ORG,DOM-007,esg_sustainability,4,6,Supplier_ESG_Scores.xlsx,false
+ENT-102,ChemBase Industrial,ORG,DOM-007,esg_sustainability,4,5,Supplier_ESG_Scores.xlsx,false
+ENT-103,Scope 3 Cat 1 Emissions,METRIC,DOM-007,esg_sustainability,2,12,Carbon_Accounting_2024.pdf,false
+ENT-104,Woodland Carbon Code,STANDARD,DOM-007,esg_sustainability,2,5,Net_Zero_Pathway.pdf,false
+ENT-105,SBTi,FRAMEWORK,DOM-007,esg_sustainability,2,9,Net_Zero_Pathway.pdf,false
+ENT-106,KPMG External Assurance,ORG,DOM-007,esg_sustainability,3,6,TCFD_Report_2024.pdf,false
+ENT-107,Manchester Site,FACILITY,DOM-007,esg_sustainability,5,7,Physical_Risk_Assessment.pdf,false
+ENT-108,Rotterdam Site,FACILITY,DOM-007,esg_sustainability,5,6,Physical_Risk_Assessment.pdf,false
+ENT-109,Nexus Pharma Manufacturing,ORG,DOM-008,manufacturing_quality,1,26,MFG_Quality_Manual.pdf,false
+ENT-110,Line 7,ASSET,DOM-008,manufacturing_quality,1,14,OEE_Dashboard_Jun2024.xlsx,false
+ENT-111,Fill-Seal Machine FS-03,ASSET,DOM-008,manufacturing_quality,6,8,Maintenance_Log.pdf,false
+ENT-112,FDA 21 CFR Part 11,REGULATION,DOM-008,manufacturing_quality,2,12,Compliance_Register.pdf,false
+ENT-113,ISO 9001:2015,STANDARD,DOM-008,manufacturing_quality,2,10,Quality_Manual.pdf,false
+ENT-114,Thermocouple TH-L7-04,ASSET,DOM-008,manufacturing_quality,1,7,CAPA_MFG_2024_0142.pdf,false
+ENT-115,CAPA-MFG-2024-0142,DOCUMENT,DOM-008,manufacturing_quality,1,9,CAPA_MFG_2024_0142.pdf,false
+ENT-116,OEE Target 75%,METRIC,DOM-008,manufacturing_quality,3,8,OEE_Policy.pdf,false
+ENT-117,Six Sigma DMAIC,METHODOLOGY,DOM-008,manufacturing_quality,4,9,Quality_Improvement_Plan.pdf,false
+ENT-118,FMEA Registry,DOCUMENT,DOM-008,manufacturing_quality,4,6,FMEA_Registry_2024.pdf,false
+ENT-119,SKF Bearing 6308-2RS,COMPONENT,DOM-008,manufacturing_quality,6,5,Spares_Catalogue.pdf,false
+ENT-120,Batch L7-20240614-003,DOCUMENT,DOM-008,manufacturing_quality,1,5,Batch_Records_Jun2024.pdf,false
+ENT-121,PathogenIQ Ltd,ORG,DOM-009,mergers_acquisitions,1,18,M_A_Target_Screen.pdf,false
+ENT-122,Nexus Analytics (acquired),ORG,DOM-009,mergers_acquisitions,2,14,PMI_Status_Report.pdf,false
+ENT-123,DiagnoSys GmbH,ORG,DOM-009,mergers_acquisitions,3,9,M_A_Target_Screen.pdf,false
+ENT-124,PrecisionLab Inc,ORG,DOM-009,mergers_acquisitions,3,7,M_A_Target_Screen.pdf,false
+ENT-125,BioScan UK,ORG,DOM-009,mergers_acquisitions,3,8,M_A_Target_Screen.pdf,false
+ENT-126,PathogenIQ Synergy Model,MODEL,DOM-009,mergers_acquisitions,1,9,Synergy_Model_PathogenIQ.xlsx,false
+ENT-127,Integration Management Office,ORG,DOM-009,mergers_acquisitions,2,7,IMO_Charter.pdf,false
+ENT-128,Master Supply Agreement Schedule 7,CONTRACT,DOM-009,mergers_acquisitions,4,6,MSA_2022_v3.pdf,false
+ENT-129,MHRA Device Registration,PROCESS,DOM-009,mergers_acquisitions,5,7,Regulatory_Constraints.pdf,false
+ENT-130,100-Day Integration Plan,DOCUMENT,DOM-009,mergers_acquisitions,2,10,PMI_Playbook.pdf,false
+ENT-131,Nexus Digital Architecture,ORG,DOM-010,digital_transformation,1,22,Digital_Strategy_2024.pdf,false
+ENT-132,Apache Kafka on AWS MSK,TECHNOLOGY,DOM-010,digital_transformation,2,9,Platform_Architecture.pdf,false
+ENT-133,DataHub,SYSTEM,DOM-010,digital_transformation,3,8,Data_Mesh_Design.pdf,false
+ENT-134,OneTrust,SYSTEM,DOM-010,digital_transformation,3,6,Data_Governance_Policy.pdf,false
+ENT-135,ERP Monolith (SAP S/4HANA),SYSTEM,DOM-010,digital_transformation,4,14,Legacy_Estate_Assessment.pdf,false
+ENT-136,Order Management Microservice,SYSTEM,DOM-010,digital_transformation,5,9,Microservices_Design.pdf,false
+ENT-137,Data Mesh Architecture,FRAMEWORK,DOM-010,digital_transformation,3,12,Data_Mesh_Design.pdf,false
+ENT-138,BCBS 239,REGULATION,DOM-010,digital_transformation,3,8,Data_Governance_Policy.pdf,false
+ENT-139,AI Governance Framework,DOCUMENT,DOM-010,digital_transformation,6,11,AI_Governance_v1.pdf,false
+ENT-140,Technical Debt Register,DOCUMENT,DOM-010,digital_transformation,7,9,Legacy_Estate_Assessment.pdf,false
+ENT-141,Domain Data Council,ORG,DOM-010,digital_transformation,3,7,Data_Mesh_Design.pdf,false
+ENT-142,CAST Assessment,PROCESS,DOM-010,digital_transformation,7,6,Legacy_Estate_Assessment.pdf,false
+ENT-143,Strangler Fig Pattern,METHOD,DOM-010,digital_transformation,5,8,Microservices_Design.pdf,false
+ENT-144,Victoria Okonkwo,PERSON,DOM-010,digital_transformation,1,5,Digital_Leadership.pdf,false
+ENT-145,SS1/23 Guidance,REGULATION,DOM-010,digital_transformation,6,6,AI_Governance_v1.pdf,false

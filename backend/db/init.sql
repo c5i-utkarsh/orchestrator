@@ -81,6 +81,9 @@ CREATE TABLE IF NOT EXISTS ingest_jobs (
     corpus_path    TEXT,
     graph_path     TEXT,
     domain_label   TEXT DEFAULT 'general',
+    project_name   TEXT,                              -- human-readable project name
+    version        INTEGER DEFAULT 1,                 -- increments on each update
+    file_list      JSONB DEFAULT '[]',                -- [{name, size, added_at}]
     file_count     INTEGER DEFAULT 0,
     entity_count   INTEGER DEFAULT 0,
     community_count INTEGER DEFAULT 0,

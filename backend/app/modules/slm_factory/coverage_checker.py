@@ -96,12 +96,22 @@ class CoverageChecker:
         self,
         query: str,
         query_embedding: list[float] | None = None,
+        domain_label: str | None = None,
     ) -> CoverageResult:
-        """Gate 1: Multi-signal composite matching."""
+        """Gate 1: Multi-signal composite matching.
+
+        domain_label: when provided, the registry will prefer SLMs registered
+        under that exact domain before falling back to global vector search.
+        This prevents cross-domain routing (e.g. a 'technova-e2e' query routing
+        to 'it_industry_v10' because their embeddings are geometrically closer).
+        """
         if query_embedding is None:
             query_embedding = await self._embed(query)
 
-        best_match = await self._registry.find_best_match(query_embedding)
+        best_match = await self._registry.find_best_match(
+            query_embedding,
+            domain_label=domain_label or None,
+        )
         if not best_match:
             return CoverageResult(
                 action=CoverageAction.BUILD_NEW,
@@ -111,6 +121,13 @@ class CoverageChecker:
             )
 
         cosine = float(best_match.get("similarity", 0.0))
+        # Guard against NaN: pgvector cosine distance returns NaN when the stored
+        # embedding is a zero vector (fallback embedder produced all-zeros due to
+        # SentenceTransformer SSL failure). Treat NaN as 0.0 so the composite score
+        # remains a valid float and routing decisions are stable.
+        import math as _math
+        if _math.isnan(cosine):
+            cosine = 0.0
 
         # Parse coverage_topics (may be a list or JSON string from DB)
         topics = best_match.get("coverage_topics") or []
@@ -144,14 +161,31 @@ class CoverageChecker:
 
         ollama_name = best_match.get("ollama_model_name") or best_match["model_id"]
 
-        if composite < settings.slm_partial_threshold:
+        # Minimum viable threshold — if a model exists and has ANY resemblance to the query,
+        # route to it rather than declaring BUILD_NEW. The orchestrator no longer blocks queries
+        # for SLM builds; BUILD_NEW is only advisory now.
+        _MIN_ROUTING_THRESHOLD = 0.30
+
+        if composite < _MIN_ROUTING_THRESHOLD:
+            # No usable match at all — advise build and let orchestrator pick fallback model
             return CoverageResult(
                 action=CoverageAction.BUILD_NEW,
                 model_id=None,
                 similarity=cosine,
                 composite_score=composite,
                 coverage_topics=topics,
-                reason=f"Composite {composite:.3f} < threshold {settings.slm_partial_threshold} | {reason}",
+                reason=f"Composite {composite:.3f} < min-routing threshold {_MIN_ROUTING_THRESHOLD} | {reason}",
+            )
+
+        if composite < settings.slm_partial_threshold:
+            # Below full-match threshold but a relevant model exists: route to it with advisory
+            return CoverageResult(
+                action=CoverageAction.EXTEND_EXISTING,
+                model_id=ollama_name,
+                similarity=cosine,
+                composite_score=composite,
+                coverage_topics=topics,
+                reason=f"Composite {composite:.3f} < partial threshold {settings.slm_partial_threshold} — using best match | {reason}",
             )
 
         return CoverageResult(

@@ -23,10 +23,30 @@ from app.modules.slm_factory.slm_registry import SLMRegistry, SLMRecord
 
 settings = get_settings()
 
-# Student model candidates ordered by VRAM preference
+# Student model candidates ordered by VRAM preference.
+# IMPORTANT: These are local HuggingFace cache paths or hub IDs that MUST be
+# accessible without internet (offline mode).  Only include models confirmed to
+# exist in ~/.cache/huggingface/hub on this server.
 STUDENT_CANDIDATES = [
-    {"name": "HuggingFaceTB/SmolLM2-1.7B-Instruct",  "params_b": 1.7, "vram_gb": 1.5},
-    {"name": "Qwen/Qwen2.5-0.5B-Instruct",            "params_b": 0.5, "vram_gb": 0.6},
+    {
+        "name": "microsoft/Phi-3.5-mini-instruct",
+        "hf_id": "microsoft/Phi-3.5-mini-instruct",
+        "params_b": 3.8,
+        "vram_gb": 3.5,   # 4-bit NF4 quantised; needs ~3.5GB + ~1.5GB overhead
+    },
+]
+
+# Ollama model to use when QLoRA is skipped — the Modelfile will embed
+# distilled QA pairs as few-shot examples in the system prompt.
+# Ordered by preference: smaller/faster models first for quick deployment.
+OLLAMA_FALLBACK_PREFERENCE = [
+    "llama3:8b",
+    "mistral:latest",
+    "gemma3:latest",
+    "qwen2.5:7b",
+    "qwen2.5-coder:7b",
+    "qwen2.5:32b",
+    "app_builder_v6:latest",
 ]
 
 
@@ -45,11 +65,15 @@ def _estimate_available_vram_gb() -> float:
 
 
 def _select_student(available_vram_gb: float) -> dict:
+    """Select the best student model that fits in available VRAM.
+
+    Requires model VRAM + 1.5 GB overhead for QLoRA (gradients, optimizer states).
+    Returns the smallest candidate that fits, or the last candidate as fallback.
+    """
     for candidate in STUDENT_CANDIDATES:
-        # Need model VRAM + ~1.5 GB for QLoRA overhead
         if candidate["vram_gb"] + 1.5 <= available_vram_gb:
             return candidate
-    return STUDENT_CANDIDATES[-1]  # smallest fallback
+    return STUDENT_CANDIDATES[-1]  # smallest available fallback
 
 
 class SLMBuilder:
@@ -158,11 +182,16 @@ class SLMBuilder:
         # ── Step 2: Student selection ─────────────────────────────────
         available_vram = _estimate_available_vram_gb()
         if student_override:
-            # Map display name to candidate dict
+            # Map display name or HF ID to candidate dict
             STUDENT_MAP = {
-                "SmolLM2-1.7B": {"name": "SmolLM2-1.7B", "hf_id": "HuggingFaceTB/SmolLM2-1.7B-Instruct", "vram_gb": 1.5},
-                "Qwen2.5-0.5B": {"name": "Qwen2.5-0.5B", "hf_id": "Qwen/Qwen2.5-0.5B-Instruct", "vram_gb": 0.6},
+                c["name"]: c for c in STUDENT_CANDIDATES
             }
+            # Also allow short names like "Phi-3.5-mini"
+            STUDENT_MAP.update({
+                "Phi-3.5-mini": {"name": "microsoft/Phi-3.5-mini-instruct",
+                                  "hf_id": "microsoft/Phi-3.5-mini-instruct",
+                                  "vram_gb": 3.5, "params_b": 3.8},
+            })
             student = STUDENT_MAP.get(student_override) or _select_student(available_vram)
         else:
             student = _select_student(available_vram)
@@ -211,10 +240,21 @@ class SLMBuilder:
         }
 
         # ── Step 4: Store + generate Modelfile ───────────────────────
-        yield {"type": "step", "step": 4, "total": 5, "label": "Packaging model", "status": "running"}
+        # When QLoRA training succeeded:
+        #   → merge LoRA weights into base model (CPU, ~5 min)
+        #   → convert merged model to GGUF F16 (~7.6 GB)
+        #   → quantize to Q4_K_M (~2.3 GB, fits in 10.6 GB VRAM)
+        #   → write Modelfile with FROM /abs/path/to/model.q4_k_m.gguf
+        #
+        # When QLoRA was skipped:
+        #   → existing Modelfile path with FROM ollama_model_name
+        #   → embed QA pairs as few-shot examples in system prompt
+        #
+        # This replaces the previous broken path that wrote:
+        #   FROM microsoft/Phi-3.5-mini-instruct  ← not a valid Ollama model name
+        yield {"type": "step", "step": 4, "total": 7, "label": "Packaging model", "status": "running"}
 
         # Pick best available Ollama model as fallback when QLoRA skipped
-        OLLAMA_PREFERENCE = ["qwen2.5:32b", "qwen2.5:7b", "llama3:8b", "mistral:latest", "gemma3:latest"]
         fallback_ollama_model: str | None = None
         try:
             best = await self._adapter_registry.get_best_local_model()
@@ -222,46 +262,109 @@ class SLMBuilder:
         except Exception:
             pass
         if fallback_ollama_model is None:
-            fallback_ollama_model = OLLAMA_PREFERENCE[0]
+            fallback_ollama_model = OLLAMA_FALLBACK_PREFERENCE[0]
+
+        gguf_path: str | None = None
 
         if not qlora_skipped:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self._slm_store.save_adapter, model_id, adapter_path)
+            # The QLoRA trainer already saves the adapter to build_dir/"adapter"
+            # (output_dir=str(build_dir / "adapter") in _run_qlora).
+            # save_adapter() is NOT called here because calling
+            # copytree(build_dir/adapter, build_dir/adapter) would raise a
+            # shutil.Error ("src and dst is the same").  The adapter is already
+            # in the correct location inside slm_store.
+
+            # ── C.5: Merge + convert adapter to GGUF ─────────────────
+            yield {"type": "step", "step": 5, "total": 7,
+                   "label": "Merging adapter weights", "status": "running"}
+            try:
+                from app.modules.slm_factory.gguf_exporter import merge_and_export
+
+                _model_dir = Path(self._slm_store_path) / model_id
+                _log_msgs: list[str] = []
+
+                def _progress_cb(msg: str) -> None:
+                    _log_msgs.append(msg)
+                    import logging as _log; _log.getLogger(__name__).info("gguf: %s", msg)
+
+                gguf_result = await merge_and_export(
+                    adapter_dir=Path(adapter_path),
+                    output_dir=_model_dir,
+                    model_id=model_id,
+                    progress_cb=_progress_cb,
+                    quantize=True,
+                )
+                gguf_path = str(gguf_result)
+                yield {"type": "step", "step": 6, "total": 7,
+                       "label": "Converting to GGUF", "status": "done",
+                       "gguf_path": gguf_path,
+                       "log": _log_msgs[-3:] if _log_msgs else []}
+            except Exception as _gguf_exc:
+                yield {"type": "warning",
+                       "message": f"GGUF conversion failed: {_gguf_exc}. Falling back to Modelfile approach."}
+                gguf_path = None
+                import logging as _log; _log.getLogger(__name__).error("GGUF conversion error", exc_info=True)
+
+        # Determine the FROM base for the Modelfile
+        if gguf_path and Path(gguf_path).exists():
+            # QLoRA path: FROM /absolute/path/to/model.gguf
+            modelfile_base = gguf_path
+        else:
+            # Fallback path (QLoRA skipped or GGUF failed): FROM ollama_model_name
+            modelfile_base = fallback_ollama_model
+
         modelfile_path = self._slm_store.write_modelfile(
             model_id=model_id,
-            base_model=student["name"] if not qlora_skipped else fallback_ollama_model,
+            base_model=modelfile_base,
             domain_label=domain_label,
             coverage_topics=coverage_topics,
+            qa_pairs_path=qa_path if Path(qa_path).exists() else None,
         )
         self._slm_store.save_metadata(model_id, {
-            "domain_label": domain_label,
-            "coverage_topics": coverage_topics,
-            "val_loss": val_loss,
-            "student_model": student["name"],
-            "qlora_skipped": qlora_skipped,
+            "domain_label":          domain_label,
+            "coverage_topics":       coverage_topics,
+            "val_loss":              val_loss,
+            "student_model":         student["name"],
+            "qlora_skipped":         qlora_skipped,
+            "gguf_path":             gguf_path,
             "fallback_ollama_model": fallback_ollama_model if qlora_skipped else None,
         })
 
-        yield {"type": "step", "step": 4, "total": 5, "label": "Packaging model", "status": "done"}
+        yield {"type": "step", "step": 4, "total": 7, "label": "Packaging model", "status": "done"}
 
-        # ── Step 5: Register + deploy to Ollama ──────────────────────
-        yield {"type": "step", "step": 5, "total": 5, "label": "Deploying to Ollama", "status": "running"}
+        # ── Step 7: Register + deploy to Ollama ──────────────────────
+        yield {"type": "step", "step": 7, "total": 7, "label": "Deploying to Ollama", "status": "running"}
 
-        # When QLoRA was skipped, use the fallback Ollama model directly
-        ollama_name: str | None = fallback_ollama_model if qlora_skipped else None
-        if not qlora_skipped:
-            try:
-                ollama_adapter = self._adapter_registry.get_ollama()
-                if ollama_adapter and await ollama_adapter.is_available():
-                    await ollama_adapter.create_model(
-                        model_name=model_id,
-                        modelfile_path=modelfile_path,
-                    )
+        # Always create the Ollama model from the Modelfile.
+        # QLoRA path:    FROM /abs/path/to/model.q4_k_m.gguf  (fine-tuned GGUF)
+        # Fallback path: FROM ollama_model_name + system prompt with QA pairs
+        ollama_name: str | None = None
+        try:
+            ollama_adapter = self._adapter_registry.get_ollama()
+            if ollama_adapter and await ollama_adapter.is_available():
+                success = await ollama_adapter.create_model(
+                    model_id,
+                    modelfile_path,
+                )
+                if success:
                     ollama_name = model_id
-            except Exception as exc:
-                yield {"type": "warning", "message": f"Ollama deploy skipped: {exc}"}
-                ollama_name = fallback_ollama_model
+                else:
+                    raise RuntimeError("create_model returned False")
+        except Exception as exc:
+            yield {"type": "warning", "message": f"Ollama deploy failed ({exc}); falling back to base model"}
+            # When QLoRA+GGUF path: GGUF is already built even if Ollama import fails
+            # The model can be manually imported later with: ollama create model_id -f Modelfile
+            ollama_name = fallback_ollama_model if qlora_skipped else None
+
+        # adapter_type reflects what actually ran:
+        #   "qlora+gguf" → QLoRA trained AND converted to GGUF for deployment
+        #   "qlora"      → QLoRA trained but GGUF conversion failed (adapter saved, not deployed)
+        #   "none"       → QLoRA skipped; using Modelfile system-prompt fallback
+        _adapter_type = (
+            "qlora+gguf" if (not qlora_skipped and gguf_path and Path(gguf_path).exists())
+            else "qlora"  if not qlora_skipped
+            else "none"
+        )
 
         # Register in DB
         record = SLMRecord(
@@ -271,7 +374,7 @@ class SLMBuilder:
             coverage_topics=coverage_topics,
             training_corpus_hash=corpus_hash,
             base_model=student["name"] if not qlora_skipped else (fallback_ollama_model or student["name"]),
-            adapter_type="qlora" if not qlora_skipped else "none",
+            adapter_type=_adapter_type,
             val_loss=val_loss,
             model_path=str(build_dir),
             ollama_model_name=ollama_name,
@@ -287,6 +390,8 @@ class SLMBuilder:
             "val_loss": val_loss,
             "student_model": student["name"],
             "qlora_skipped": qlora_skipped,
+            "gguf_path": gguf_path,
+            "adapter_type": _adapter_type,
         }
 
     async def _run_qlora(
@@ -354,7 +459,11 @@ class SLMBuilder:
             bnb_4bit_use_double_quant=True,
         )
 
-        tokenizer = AutoTokenizer.from_pretrained(student_model, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(
+            student_model,
+            trust_remote_code=True,
+            local_files_only=True,   # never make network calls — model must be cached
+        )
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
 
@@ -363,6 +472,7 @@ class SLMBuilder:
             quantization_config=bnb_config,
             device_map="auto",
             trust_remote_code=True,
+            local_files_only=True,   # never make network calls — model must be cached
         )
 
         lora_config = LoraConfig(
@@ -389,6 +499,9 @@ class SLMBuilder:
             load_best_model_at_end=True,
             report_to="none",
             max_seq_length=2048,
+            # TRL ≥20.11 requires explicit field name; the 'text' column is
+            # produced by format_pair() above.
+            dataset_text_field="text",
         )
 
         trainer = SFTTrainer(

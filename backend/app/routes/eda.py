@@ -7,15 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional
 from app.db.database import get_db
+from app.modules.corpus_resolver import resolve_corpus_dir as _corpus_dir
 
 router = APIRouter(prefix="/eda", tags=["eda"])
-
-
-async def _corpus_dir(job_id: str, db: AsyncSession) -> str:
-    row = (await db.execute(text("SELECT job_id FROM ingest_jobs WHERE job_id=:id"), {"id": job_id})).fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="job not found")
-    return f"corpus_store/{job_id}"
 
 
 def _load_json(path: str):

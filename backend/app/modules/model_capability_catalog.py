@@ -237,3 +237,35 @@ class ModelCapabilityCatalog:
                 )
 
         return results
+
+    def validate_and_resolve(
+        self,
+        model_name: str,
+        task_type: str,
+        available_names: list[str],
+    ) -> tuple[str, bool]:
+        """
+        Validate that model_name is available; return a fallback if not.
+
+        Returns:
+            (resolved_model, was_substituted)
+
+        Used by the SLM-first architecture where the catalog's only role is
+        confirming availability and substituting unavailable models.
+        Catalog never selects models for planning — that is the SLM's job.
+        """
+        available_set = set(available_names)
+        if model_name and model_name in available_set:
+            return model_name, False
+
+        # Find best available candidate for this task type
+        candidates = self.get_candidates(task_type)
+        for cand in candidates:
+            if cand["model"] in available_set:
+                return cand["model"], True
+
+        # Last resort: return the first available model regardless of task type
+        if available_names:
+            return available_names[0], True
+
+        return model_name, False

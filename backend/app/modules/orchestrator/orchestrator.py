@@ -1,20 +1,32 @@
 """
-Orchestrator Core — main engine.
+Orchestrator Core — SLM-First Execution Architecture.
 
-Flow per query:
-  1. Semantic cache check
-  2. Task classifier → DOMAIN | CAPABILITY | HYBRID
-  3. Coverage checker → ROUTE_MIXED | EXTEND_EXISTING | BUILD_NEW
-  4. If BUILD_NEW/EXTEND_EXISTING: start SLM build, hold query (no fallback)
-  5. If ROUTE_MIXED: SLM decomposes query into sub-tasks
-  6. Model capability catalog selects specialists per sub-task
-  7. Sub-tasks execute (domain SLM + specialists in parallel for HYBRID)
-  8. Synthesize final answer with graph citations
-  9. Hallucination evaluation
-  10. Bandit update
-  11. SSE stream all progress events
+The domain SLM is the single planning engine after corpus ingestion.
+The model capability catalog is a validation/fallback layer only.
+
+Query flow:
+  1. Task classification → intent (DOMAIN | CAPABILITY | HYBRID)
+  2. Coverage check → resolve domain SLM from registry
+  3. SLM Planning → domain SLM generates ExecutionBlueprint:
+       • Subtasks with descriptions and task types
+       • Recommended model per subtask (SLM-chosen from available list)
+       • Execution order, overall reasoning, expected output format
+       • Follow-up detection (is_followup flag)
+  4. Catalog Validation → catalog validates SLM model choices against availability;
+       substitutes unavailable models with best catalog alternative for that task type.
+       Catalog NEVER drives planning — validation/fallback only.
+  5. Blueprint Execution → orchestrator invokes each subtask with the resolved model.
+       Follow-up fast path: if is_followup=true, SLM answers directly from context.
+  6. SLM Synthesis → domain SLM generates final answer + reasoning trail
+       (includes wiki context for richer domain grounding)
+  7. Hallucination evaluation (if graph context available)
+  8. Bandit update
+
+SLM builds NEVER run inline. They are Celery-only tasks triggered via POST /slm/build.
 """
 import asyncio
+import json
+import re
 import time
 import uuid
 from typing import AsyncGenerator
@@ -23,8 +35,6 @@ from app.adapters.registry import AdapterRegistry
 from app.modules.task_classifier import TaskClassifier, TaskIntent
 from app.modules.slm_factory.coverage_checker import CoverageChecker, CoverageAction
 from app.modules.slm_factory.slm_registry import SLMRegistry
-from app.modules.slm_factory.slm_builder import SLMBuilder
-from app.modules.slm_factory.slm_store import SLMStore
 from app.modules.slm_factory.bandit import get_bandit, save_bandit
 from app.modules.model_capability_catalog import ModelCapabilityCatalog
 from app.modules.token_efficiency.compressor import get_compressor
@@ -32,6 +42,7 @@ from app.modules.evaluation.hallucination_detector import HallucinationDetector
 from app.modules.orchestrator.orchestrator_output import (
     OrchestratorOutput, OrchestratorStep, StepExplanation,
     SubTaskResult, ModelRecommendationCard,
+    ExecutionBlueprint, BlueprintSubtask,
 )
 from app.config import get_settings
 
@@ -45,38 +56,168 @@ def _conf(value: float | None, default: float = 0.5) -> float:
         return default
     return max(0.0, min(1.0, float(value)))
 
-DECOMPOSITION_PROMPT = """\
-You are a domain specialist. Decompose this query into sub-tasks.
-For each sub-task, specify:
-  - task_type: one of [domain_qa, code_generation, data_analysis, time_series, general_reasoning, ui_building, financial, geospatial]
-  - query_fragment: the specific sub-question
-  - my_confidence: 0.0-1.0 (how confident you are you can answer this from your domain knowledge)
 
-Respond ONLY with a JSON array. Example:
-[
-  {{"task_type": "domain_qa", "query_fragment": "What entities are involved?", "my_confidence": 0.9}},
-  {{"task_type": "code_generation", "query_fragment": "Write SQL for this", "my_confidence": 0.1}}
-]
+# ── Prompts ───────────────────────────────────────────────────────────────────
 
-Query: {query}
+BLUEPRINT_PROMPT = """\
+You are the planning engine for the "{domain_label}" domain.
+
+Domain knowledge graph summary:
+{graph_summary}
+
+Available execution models (choose ONLY from this list):
+{available_models}
+
+User query: {query}
+
+Generate a complete execution blueprint. Respond ONLY with a JSON object — no markdown fences, no text outside the JSON.
+
+{{
+  "overall_reasoning": "<1-2 sentences: why this decomposition approach for this query>",
+  "expected_output_format": "<narrative_report|structured_analysis|code|data_table|conversational>",
+  "is_followup": <true|false>,
+  "subtasks": [
+    {{
+      "id": 1,
+      "task_description": "<specific sub-question or action to perform>",
+      "task_type": "<domain_qa|code_generation|data_analysis|time_series|general_reasoning|ui_building|financial|geospatial>",
+      "recommended_model": "<exact model name from the available list above>",
+      "recommended_model_reason": "<why this model fits this subtask>",
+      "expected_output": "<what this subtask will produce>",
+      "depends_on": [],
+      "my_confidence": 0.9
+    }}
+  ],
+  "execution_order": [1]
+}}
+
+Planning rules:
+- Domain knowledge questions (entity lookups, corpus Q&A, relationships): assign to "{domain_slm}" when it appears in the available list
+- Code generation or scripting tasks: prefer qwen2.5-coder or deepseek-coder from the available list
+- Complex reasoning, analysis, or synthesis tasks: prefer larger models (32b, 70b) if available
+- Batch consecutive similar tasks to the same model to minimise switching overhead
+- Set is_followup=true ONLY if the query clearly references a prior turn ("it", "that result", "the previous", "as mentioned", "elaborate on that", "what about", "and also")
+- If is_followup=true, produce exactly one subtask with task_type "domain_qa" assigned to "{domain_slm}"
 """
 
 SYNTHESIS_PROMPT = """\
-You are synthesizing a final answer from multiple specialist responses.
-Cite the graph entities used to derive each point.
+You are the synthesis engine for the "{domain_label}" domain.
 
 Original query: {query}
-Sub-task results:
+
+Execution results from assigned models:
 {sub_results}
 
-Graph context summary:
+Knowledge graph and wiki context:
 {graph_context}
 
-Provide a comprehensive answer that:
-1. Integrates all sub-task results coherently
-2. Explicitly cites entity IDs as [entity_id] when stating a fact
-3. Flags any areas of uncertainty
+Produce the final answer in "{expected_output_format}" format. Your response must:
+1. Directly and completely address the original query
+2. Integrate all execution results into a coherent, well-structured response
+3. Include a brief reasoning trail: explain how each result contributes to the conclusion
+4. Cite specific entities as [entity_label] where a fact is derived from the corpus
+5. Flag any areas of uncertainty or where the data is insufficient
+
+Provide only the final answer — no meta-commentary about what you are doing.
 """
+
+FOLLOWUP_SYNTHESIS_PROMPT = """\
+You are the domain expert for "{domain_label}".
+
+Knowledge graph context:
+{graph_context}
+
+Wiki knowledge:
+{wiki_context}
+
+Follow-up question: {query}
+
+Answer this follow-up directly and concisely using your domain knowledge above. Begin with a brief reasoning sentence, then provide the answer.
+"""
+
+_VALID_OUTPUT_FORMATS = frozenset({
+    "narrative_report", "structured_analysis", "code",
+    "data_table", "conversational",
+})
+_VALID_TASK_TYPES = frozenset({
+    "domain_qa", "code_generation", "data_analysis", "time_series",
+    "general_reasoning", "ui_building", "financial", "geospatial",
+})
+
+
+def _parse_blueprint(raw: str, domain_slm: str | None, query: str,
+                     fallback_task_type: str) -> ExecutionBlueprint:
+    """
+    Parse the SLM's blueprint JSON.  Returns a single-subtask fallback on any
+    error so the pipeline always has something to execute.
+    """
+    raw = re.sub(r"```(?:json)?\s*", "", raw).strip().rstrip("`")
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if m:
+        try:
+            bp_data = json.loads(m.group())
+            subtasks_raw = bp_data.get("subtasks", [])
+            subtasks: list[BlueprintSubtask] = []
+            for s in subtasks_raw:
+                if not isinstance(s, dict) or not s.get("task_description"):
+                    continue
+                task_type_raw = str(s.get("task_type", "domain_qa"))
+                st = BlueprintSubtask(
+                    id=int(s.get("id", len(subtasks) + 1)),
+                    task_description=str(s["task_description"])[:500],
+                    task_type=task_type_raw if task_type_raw in _VALID_TASK_TYPES else "domain_qa",
+                    recommended_model=str(s.get("recommended_model", domain_slm or ""))[:100],
+                    recommended_model_reason=str(s.get("recommended_model_reason", ""))[:300],
+                    expected_output=str(s.get("expected_output", ""))[:300],
+                    depends_on=[
+                        int(x) for x in s.get("depends_on", [])
+                        if str(x).lstrip("-").isdigit()
+                    ],
+                    my_confidence=_conf(s.get("my_confidence", 0.7)),
+                )
+                subtasks.append(st)
+
+            if not subtasks:
+                raise ValueError("empty subtasks")
+
+            raw_order = bp_data.get("execution_order", [])
+            execution_order = (
+                [int(x) for x in raw_order if str(x).lstrip("-").isdigit()]
+                or [s.id for s in subtasks]
+            )
+
+            fmt = str(bp_data.get("expected_output_format", "narrative_report"))
+            if fmt not in _VALID_OUTPUT_FORMATS:
+                fmt = "narrative_report"
+
+            return ExecutionBlueprint(
+                overall_reasoning=str(bp_data.get("overall_reasoning", ""))[:600],
+                expected_output_format=fmt,
+                is_followup=bool(bp_data.get("is_followup", False)),
+                subtasks=subtasks,
+                execution_order=execution_order,
+                planning_model=domain_slm or "",
+            )
+        except Exception:
+            pass
+
+    # ── Fallback: single-subtask blueprint ───────────────────────────────────
+    ft = fallback_task_type if fallback_task_type in _VALID_TASK_TYPES else "domain_qa"
+    return ExecutionBlueprint(
+        overall_reasoning="Single-task execution (blueprint parse failed — fallback mode)",
+        expected_output_format="narrative_report",
+        is_followup=False,
+        subtasks=[BlueprintSubtask(
+            id=1,
+            task_description=query,
+            task_type=ft,
+            recommended_model=domain_slm or "",
+            recommended_model_reason="Domain SLM fallback",
+            expected_output="Complete answer to the user query",
+        )],
+        execution_order=[1],
+        planning_model=domain_slm or "",
+    )
 
 
 class Orchestrator:
@@ -84,20 +225,19 @@ class Orchestrator:
         self,
         adapter_registry: AdapterRegistry,
         slm_registry: SLMRegistry,
-        slm_store: SLMStore,
-        embed_fn,           # async (str) -> list[float]
+        slm_store=None,     # kept for API compatibility
+        embed_fn=None,      # async (str) -> list[float]
         redis_client=None,
     ):
         self._adapters = adapter_registry
         self._slm_registry = slm_registry
-        self._slm_store = slm_store
         self._embed = embed_fn
         self._classifier = TaskClassifier(embed_fn=embed_fn)
         self._coverage = CoverageChecker(slm_registry, embed_fn)
+        # Catalog is validation/fallback only — never drives planning
         self._catalog = ModelCapabilityCatalog(adapter_registry, get_bandit())
         self._compressor = get_compressor()
         self._detector = HallucinationDetector(adapter_registry)
-        self._builder = SLMBuilder(slm_registry, adapter_registry, slm_store, settings.slm_store_path)
 
     async def run(
         self,
@@ -110,10 +250,10 @@ class Orchestrator:
         corpus_hash: str = "",
         available_models: list[str] | None = None,
         system_prompt: str = "",
-        scoring_weights=None,   # app.routes.orchestrator.ModelWeights | None
+        scoring_weights=None,
     ) -> AsyncGenerator[dict, None]:
         """
-        Full orchestration pipeline. Yields SSE-compatible events.
+        SLM-first orchestration pipeline. Yields SSE-compatible events.
         Last event has type="output" containing OrchestratorOutput.
         """
         session_id = session_id or str(uuid.uuid4())
@@ -125,14 +265,14 @@ class Orchestrator:
             coverage_action="",
         )
         steps: list[OrchestratorStep] = []
+        wiki_articles = wiki_articles or []
 
-        # Build sys_prefix once — prepended to every LLM call this session
         sys_prefix = f"[System] {system_prompt.strip()}\n\n" if system_prompt.strip() else ""
 
-        # Pre-compute embedding once — reused by classifier, coverage checker, and bandit
+        # Pre-compute embedding once — reused by classifier, coverage checker, bandit
         query_embedding = await self._embed(query)
 
-        # ── Step 1: Task Classification ───────────────────────────────
+        # ── Step 1: Task Classification ───────────────────────────────────────
         t0 = time.monotonic()
         classification = await self._classifier.classify(query, query_embedding)
         output.intent = classification.intent.value
@@ -140,25 +280,30 @@ class Orchestrator:
 
         steps.append(OrchestratorStep(
             step_number=1,
-            step_name="Task Classification",
+            step_name="Understanding Query",
             duration_ms=int((time.monotonic() - t0) * 1000),
             explanation=StepExplanation(
-                what="Classified the query intent using keyword analysis",
+                what="Classified the query intent",
                 why="Determines whether to route to domain SLM, capability model, or both",
                 what_we_found=classification.reasoning,
                 decision_made=f"Intent: {classification.intent.value} | Task: {classification.primary_task_type}",
                 confidence=_conf(classification.confidence),
-                caveats=["Keyword-based; may be updated after SLM routing plan"],
+                caveats=[],
                 graph_entity_ids=[],
             ),
         ))
-        yield {"type": "step", "step": 1, "data": steps[-1].model_dump()}
+        yield {"type": "step", "step": 1, "step_name": "Understanding Query", "data": steps[-1].model_dump()}
 
-        # ── Step 2: Coverage Check ────────────────────────────────────
+        # ── Step 2: Coverage Check ─────────────────────────────────────────────
         t0 = time.monotonic()
-        coverage = await self._coverage.check(query, query_embedding)
+        coverage = await self._coverage.check(
+            query,
+            query_embedding,
+            domain_label=domain_label if domain_label and domain_label != "general" else None,
+        )
         output.coverage_action = coverage.action.value
-        # Validate that the matched Ollama model is actually available; fall back to best if not
+
+        # Validate matched model is actually available
         if coverage.model_id:
             adapter = await self._adapters.get_adapter_for_model(coverage.model_id)
             if adapter is None:
@@ -167,316 +312,441 @@ class Orchestrator:
                 coverage.reason += f" | model unavailable, using {coverage.model_id}"
         output.slm_model_id = coverage.model_id
 
+        _slm_status = (
+            f"Using {coverage.model_id}" if coverage.model_id
+            else "No domain SLM — will use best available"
+        )
         steps.append(OrchestratorStep(
             step_number=2,
-            step_name="Coverage Check",
+            step_name="Loading Domain SLM",
             duration_ms=int((time.monotonic() - t0) * 1000),
             explanation=StepExplanation(
-                what="Checked SLM registry for domain coverage via vector similarity",
-                why="Determine if existing SLM can handle this query or a new one must be built",
+                what="Resolved domain SLM from registry via embedding similarity",
+                why="Domain SLM drives planning and synthesis; general models execute specialist tasks",
                 what_we_found=coverage.reason,
-                decision_made=coverage.action.value,
+                decision_made=_slm_status,
                 confidence=_conf(coverage.similarity),
-                caveats=["Similarity threshold 0.82 for full match, 0.65 for partial"],
-                graph_entity_ids=[],
-            ),
-        ))
-        yield {"type": "step", "step": 2, "data": steps[-1].model_dump()}
-
-        # ── Step 3: SLM Build (if needed) ────────────────────────────
-        if coverage.action in (CoverageAction.BUILD_NEW, CoverageAction.EXTEND_EXISTING):
-            output.build_in_progress = True
-            output.estimated_build_minutes = 74
-            yield {"type": "build_start", "model_id": "pending", "message": "Building domain SLM — no fallback, your query will be answered after build completes"}
-
-            if wiki_articles:
-                # Enrich domain embedding with a sample of the actual corpus text
-                _corpus_sample = " ".join(
-                    a.get("text", a.get("content", ""))[:200]
-                    for a in (wiki_articles or [])[:5]
-                )[:500]
-                _emb_text = f"{domain_label} {' '.join(coverage_topics or [])} {_corpus_sample}".strip()
-                domain_embedding = await self._embed(_emb_text)
-                async for event in self._builder.build(
-                    domain_label=domain_label,
-                    wiki_articles=wiki_articles,
-                    domain_embedding=domain_embedding,
-                    coverage_topics=coverage_topics or [],
-                    corpus_hash=corpus_hash,
-                    trigger_query=query,
-                ):
-                    yield {**event, "phase": "slm_build"}
-                    if event.get("type") == "done":
-                        # Use the actual Ollama model name (fallback or trained), not the registry ID
-                        output.slm_model_id = event.get("ollama_name") or event.get("model_id")
-                        output.build_in_progress = False
-                        # Refresh available_models so the newly built SLM is included in scoring
-                        _refreshed = await self._adapters.list_all_models()
-                        available_models = [m.model_id for m in _refreshed]
-            else:
-                yield {"type": "warning", "message": "No wiki articles provided — cannot build SLM"}
-                output.error = "No corpus available for SLM build"
-
-        # ── Step 4: Query Decomposition ───────────────────────────────
-        sub_tasks = []
-        if output.slm_model_id:
-            t0 = time.monotonic()
-            decomp_prompt = sys_prefix + DECOMPOSITION_PROMPT.format(query=query)
-            try:
-                raw_decomp = await asyncio.wait_for(
-                    self._adapters.generate(
-                        output.slm_model_id, decomp_prompt, temperature=0.1
-                    ),
-                    timeout=120.0,
-                )
-            except asyncio.TimeoutError:
-                raw_decomp = ""
-            import json, re
-            match = re.search(r"\[.*?\]", raw_decomp, re.DOTALL)
-            if match:
-                try:
-                    sub_tasks = json.loads(match.group())
-                except Exception:
-                    sub_tasks = []
-
-            # Gate 2+3: re-evaluate coverage with SLM confidence
-            if sub_tasks:
-                routing_plan = {"sub_tasks": sub_tasks}
-                coverage = await self._coverage.evaluate_routing_plan(routing_plan, coverage)
-                output.coverage_action = coverage.action.value
-
-            steps.append(OrchestratorStep(
-                step_number=3,
-                step_name="Query Decomposition",
-                duration_ms=int((time.monotonic() - t0) * 1000),
-                explanation=StepExplanation(
-                    what="Domain SLM decomposed the query into sub-tasks",
-                    why="Identify which parts need domain knowledge vs specialist capability",
-                    what_we_found=f"Found {len(sub_tasks)} sub-tasks",
-                    decision_made=f"Routing: {coverage.action.value}",
-                    confidence=_conf(coverage.max_confidence, 0.5),
-                    caveats=["SLM confidence used to re-evaluate coverage action"],
-                    graph_entity_ids=[],
-                ),
-            ))
-            yield {"type": "step", "step": 3, "data": steps[-1].model_dump()}
-
-        # ── Step 5: Model Recommendations ────────────────────────────
-        t0 = time.monotonic()
-        all_recs: list[ModelRecommendationCard] = []
-
-        task_types_needed = list({st.get("task_type", "domain_qa") for st in sub_tasks})
-        if not task_types_needed:
-            task_types_needed = [classification.primary_task_type]
-
-        for task_type in task_types_needed:
-            recs = await self._catalog.recommend(
-                task_type=task_type,
-                query_embedding=query_embedding,
-                available_models=available_models or [],
-                token_count=len(query.split()),
-                # slm_model_id intentionally not passed — SLM is for orchestration only
-                scoring_weights=scoring_weights,
-            )
-            for r in recs[:2]:
-                all_recs.append(ModelRecommendationCard(
-                    model_name=r.model_name,
-                    provider=r.provider,
-                    task_type=task_type,
-                    benchmark_score=r.benchmark_score,
-                    composite_score=r.composite_score,
-                    speed_score=r.speed_score,
-                    why_primary=r.why_primary,
-                    why_not_alternatives=r.why_not_alternatives,
-                    is_primary=r.is_primary,
-                    is_available_locally=r.availability_score >= 0.9,
-                ))
-
-        output.model_recommendations = all_recs
-        steps.append(OrchestratorStep(
-            step_number=4,
-            step_name="Model Recommendations",
-            duration_ms=int((time.monotonic() - t0) * 1000),
-            explanation=StepExplanation(
-                what="Selected optimal models per sub-task using capability catalog + bandit scores",
-                why="Match each sub-task to the model with the best benchmark + availability + learning history",
-                what_we_found=f"Evaluated {sum(len(MODEL_CATALOG.get(t, [])) for t in task_types_needed)} candidate models",
-                decision_made=f"Recommended {len(all_recs)} models for {len(task_types_needed)} task types",
-                confidence=_conf(max((r.composite_score for r in all_recs), default=0.5)),
-                caveats=["Bandit scores improve with usage; cold-start defaults to benchmark-only"],
-                graph_entity_ids=[],
-            ),
-        ))
-        yield {"type": "step", "step": 4, "data": steps[-1].model_dump()}
-
-        # ── Step 6: Sub-task Execution ────────────────────────────────
-        t0 = time.monotonic()
-        compressed_context = graph_context
-        if graph_context and len(graph_context) > 2000:
-            compressed_context = self._compressor.compress(graph_context, query)
-            output.tokens_saved_by_compression = max(0, len(graph_context.split()) - len(compressed_context.split()))
-
-        sub_results: list[SubTaskResult] = []
-        for st in sub_tasks:
-            task_type = st.get("task_type", "domain_qa")
-            fragment = st.get("query_fragment", query)
-
-            # Pick primary model for this task_type
-            model_for_task = None
-            for rec in all_recs:
-                if rec.task_type == task_type and rec.is_primary:
-                    model_for_task = rec.model_name
-                    break
-            if not model_for_task:
-                _best = await self._adapters.get_best_local_model()
-                model_for_task = _best.model_id if _best else None
-            if not model_for_task:
-                continue
-
-            context_prefix = f"{sys_prefix}Knowledge Graph Context:\n{compressed_context}\n\n" if compressed_context else sys_prefix
-            try:
-                response = await asyncio.wait_for(
-                    self._adapters.generate(
-                        model_for_task,
-                        f"{context_prefix}Question: {fragment}",
-                        temperature=0.2,
-                    ),
-                    timeout=180.0,
-                )
-            except asyncio.TimeoutError:
-                response = "[Response timed out — model took too long. Try a smaller model.]"
-            except Exception as exc:
-                # Primary model unavailable (no API key / not installed) — fall back to best local
-                _fallback_info = await self._adapters.get_best_local_model()
-                fallback_model = _fallback_info.model_id if _fallback_info else None
-                if fallback_model and fallback_model != model_for_task:
-                    try:
-                        response = await asyncio.wait_for(
-                            self._adapters.generate(
-                                fallback_model,
-                                f"{context_prefix}Question: {fragment}",
-                                temperature=0.2,
-                            ),
-                            timeout=180.0,
-                        )
-                        model_for_task = fallback_model
-                    except Exception as exc2:
-                        response = f"[Error: {exc2}]"
-                else:
-                    response = f"[Error: {exc}]"
-
-            sub_results.append(SubTaskResult(
-                task_type=task_type,
-                query_fragment=fragment,
-                assigned_model=model_for_task,
-                response=response,
-                confidence=_conf(st.get("my_confidence", 0.5)),
-            ))
-
-        if not sub_results:
-            # No decomposition — use catalog recommendation for the direct answer
-            _exec_recs = await self._catalog.recommend(
-                task_type=classification.primary_task_type,
-                query_embedding=query_embedding,
-                available_models=available_models or [],
-                token_count=len(query.split()),
-                scoring_weights=scoring_weights,
-            )
-            _exec_model = next((r.model_name for r in _exec_recs if r.is_primary), None)
-            if not _exec_model:
-                _best = await self._adapters.get_best_local_model()
-                _exec_model = _best.model_id if _best else None
-            if _exec_model:
-                context_prefix = f"{sys_prefix}Knowledge Graph Context:\n{compressed_context}\n\n" if compressed_context else sys_prefix
-                try:
-                    response = await asyncio.wait_for(
-                        self._adapters.generate(
-                            _exec_model,
-                            f"{context_prefix}Question: {query}",
-                            temperature=0.2,
-                        ),
-                        timeout=180.0,
-                    )
-                    sub_results.append(SubTaskResult(
-                        task_type=classification.primary_task_type,
-                        query_fragment=query,
-                        assigned_model=_exec_model,
-                        response=response,
-                        confidence=0.7,
-                    ))
-                except Exception:
-                    pass
-
-        output.sub_task_results = sub_results
-        steps.append(OrchestratorStep(
-            step_number=5,
-            step_name="Sub-task Execution",
-            duration_ms=int((time.monotonic() - t0) * 1000),
-            explanation=StepExplanation(
-                what="Executed each sub-task with its assigned specialist model",
-                why="Domain knowledge + capability separation ensures each part uses the best model",
-                what_we_found=f"Completed {len(sub_results)} sub-tasks",
-                decision_made="All sub-tasks answered",
-                confidence=_conf(sum(r.confidence for r in sub_results) / max(len(sub_results), 1)),
                 caveats=[],
                 graph_entity_ids=[],
             ),
         ))
-        yield {"type": "step", "step": 5, "data": steps[-1].model_dump()}
+        yield {"type": "step", "step": 2, "step_name": "Loading Domain SLM", "data": steps[-1].model_dump()}
 
-        # ── Step 7: Synthesis ─────────────────────────────────────────
+        # ── No-SLM fallback ────────────────────────────────────────────────────
+        if coverage.action == CoverageAction.BUILD_NEW:
+            _fb = await self._adapters.get_best_local_model()
+            if _fb:
+                coverage.model_id = _fb.model_id
+                output.slm_model_id = _fb.model_id
+            yield {
+                "type": "stage",
+                "step_name": "Domain Model Selected",
+                "detail": f"No domain SLM for '{domain_label}' — using {coverage.model_id or 'best available'}",
+            }
+        elif coverage.action == CoverageAction.EXTEND_EXISTING:
+            yield {
+                "type": "stage",
+                "step_name": "Domain Model Selected",
+                "detail": f"{coverage.model_id} ready (partial match, score {coverage.composite_score:.2f})",
+            }
+
+        domain_slm = output.slm_model_id   # planning + synthesis model
+
+        # ── Compress context once ──────────────────────────────────────────────
+        compressed_context = graph_context
+        if graph_context and len(graph_context) > 2000:
+            compressed_context = self._compressor.compress(graph_context, query)
+            output.tokens_saved_by_compression = max(
+                0, len(graph_context.split()) - len(compressed_context.split())
+            )
+
+        # ── Step 3: SLM Planning ───────────────────────────────────────────────
+        # The domain SLM generates a complete ExecutionBlueprint:
+        #   • Task decomposition with descriptions
+        #   • Recommended model per subtask (from available list)
+        #   • Execution order, overall reasoning, expected output format
+        #   • Follow-up detection (is_followup flag)
         t0 = time.monotonic()
-        sub_results_text = "\n\n".join(
-            f"[{r.task_type}] {r.query_fragment}\n→ {r.response}" for r in sub_results
-        )
-        _best_synth = await self._adapters.get_best_local_model()
-        synth_model = output.slm_model_id or (_best_synth.model_id if _best_synth else None)
-        final_answer = ""
-        if synth_model and sub_results_text:
-            synth_prompt = sys_prefix + SYNTHESIS_PROMPT.format(
+        blueprint: ExecutionBlueprint
+
+        if domain_slm:
+            # Build a compact graph summary for the prompt (entity names only)
+            graph_lines = [l.strip() for l in graph_context.splitlines() if l.strip().startswith("- ")]
+            graph_summary = "\n".join(graph_lines[:20]) or "(no graph context loaded)"
+
+            # Build available models list; mark domain SLM prominently
+            avail_list: list[str] = []
+            if domain_slm:
+                avail_list.append(f"{domain_slm} [domain SLM — use for domain_qa]")
+            avail_list.extend(
+                m for m in (available_models or [])[:15] if m != domain_slm
+            )
+            available_models_str = "\n".join(f"  • {m}" for m in avail_list)
+
+            bp_prompt = sys_prefix + BLUEPRINT_PROMPT.format(
+                domain_label=domain_label,
+                domain_slm=domain_slm,
+                graph_summary=graph_summary,
+                available_models=available_models_str,
                 query=query,
-                sub_results=sub_results_text[:3000],
-                graph_context=compressed_context[:1000],
             )
             try:
-                final_answer = await asyncio.wait_for(
-                    self._adapters.generate(synth_model, synth_prompt, temperature=0.15),
-                    timeout=180.0,
+                raw_bp = await asyncio.wait_for(
+                    self._adapters.generate(domain_slm, bp_prompt, temperature=0.05),
+                    timeout=35.0,
                 )
-            except asyncio.TimeoutError:
-                final_answer = sub_results_text
-            except Exception:
-                final_answer = sub_results_text
+            except (asyncio.TimeoutError, Exception):
+                raw_bp = ""
 
-        output.final_answer = final_answer
+            blueprint = _parse_blueprint(
+                raw_bp, domain_slm, query, classification.primary_task_type
+            )
+        else:
+            # No SLM available — trivial single-task blueprint
+            blueprint = ExecutionBlueprint(
+                overall_reasoning="No domain SLM available — direct execution with best local model",
+                expected_output_format="narrative_report",
+                is_followup=False,
+                subtasks=[BlueprintSubtask(
+                    id=1,
+                    task_description=query,
+                    task_type=classification.primary_task_type
+                              if classification.primary_task_type in _VALID_TASK_TYPES
+                              else "domain_qa",
+                    recommended_model="",
+                    recommended_model_reason="Best available fallback",
+                    expected_output="Complete answer to the user query",
+                )],
+                execution_order=[1],
+                planning_model="",
+            )
+
+        output.execution_blueprint = blueprint
+        _bp_detail = (
+            f"{'Follow-up fast path' if blueprint.is_followup else f'{len(blueprint.subtasks)} subtask(s)'} | "
+            f"Format: {blueprint.expected_output_format}"
+        )
+
         steps.append(OrchestratorStep(
-            step_number=6,
-            step_name="Answer Synthesis",
+            step_number=3,
+            step_name="SLM Planning",
             duration_ms=int((time.monotonic() - t0) * 1000),
             explanation=StepExplanation(
-                what="Domain SLM synthesized all sub-task results into a final coherent answer",
-                why="Coherent integration with graph citations and uncertainty flagging",
-                what_we_found=f"Synthesized {len(sub_results)} results into final answer",
-                decision_made="Final answer ready",
-                confidence=0.8,
-                caveats=["Citations are entity IDs from graph.json"],
+                what="Domain SLM generated a complete execution blueprint",
+                why="SLM-driven planning uses distilled domain knowledge instead of generic catalog scoring",
+                what_we_found=blueprint.overall_reasoning or "Blueprint generated",
+                decision_made=_bp_detail,
+                confidence=_conf(
+                    sum(s.my_confidence for s in blueprint.subtasks) / max(len(blueprint.subtasks), 1)
+                ),
+                caveats=(
+                    ["is_followup=true: fast-path synthesis, subtask execution skipped"]
+                    if blueprint.is_followup else []
+                ),
                 graph_entity_ids=[],
             ),
         ))
-        yield {"type": "step", "step": 6, "data": steps[-1].model_dump()}
+        yield {"type": "step", "step": 3, "step_name": "SLM Planning", "data": steps[-1].model_dump()}
 
-        # ── Step 8: Hallucination Check ───────────────────────────────
-        if final_answer and graph_context:
-            hall_result = await self._detector.detect(final_answer, graph_context[:2000])
+        # ── Step 4: Catalog Validation ─────────────────────────────────────────
+        # Catalog role: validate the SLM's model choices against actual availability.
+        # Substitute unavailable models with best available alternative for that task type.
+        # Catalog NEVER selects models — only resolves availability conflicts.
+        t0 = time.monotonic()
+        available_set = set(available_models or [])
+        all_recs: list[ModelRecommendationCard] = []
+        substitutions: list[str] = []
+
+        for subtask in blueprint.subtasks:
+            rec_model = subtask.recommended_model
+            task_type = subtask.task_type
+
+            if rec_model and rec_model in available_set:
+                subtask.resolved_model = rec_model
+                avail = True
+            else:
+                # Unavailable → catalog finds best available alternative
+                fallback_recs = await self._catalog.recommend(
+                    task_type=task_type,
+                    query_embedding=query_embedding,
+                    available_models=available_models or [],
+                    token_count=len(query.split()),
+                    scoring_weights=scoring_weights,
+                )
+                resolved = next(
+                    (r.model_name for r in fallback_recs if r.availability_score >= 0.9),
+                    None,
+                )
+                if not resolved:
+                    _best = await self._adapters.get_best_local_model()
+                    resolved = _best.model_id if _best else (domain_slm or rec_model)
+                subtask.resolved_model = resolved or rec_model
+                avail = False
+                if rec_model and rec_model != subtask.resolved_model:
+                    substitutions.append(f"{rec_model} → {subtask.resolved_model}")
+                    subtask.recommended_model_reason = (
+                        (subtask.recommended_model_reason + f" [substituted: {rec_model} unavailable]").strip()
+                    )
+
+            all_recs.append(ModelRecommendationCard(
+                model_name=subtask.resolved_model,
+                provider="ollama" if subtask.resolved_model in available_set else "unknown",
+                task_type=task_type,
+                benchmark_score=0.0,
+                composite_score=_conf(subtask.my_confidence),
+                speed_score=0.0,
+                why_primary=subtask.recommended_model_reason or f"SLM-selected for {task_type}",
+                is_primary=True,
+                is_available_locally=avail,
+            ))
+
+        output.model_recommendations = all_recs
+        _val_detail = (
+            f"All {len(blueprint.subtasks)} model choice(s) confirmed available"
+            if not substitutions
+            else f"{len(substitutions)} substitution(s): {'; '.join(substitutions)}"
+        )
+
+        steps.append(OrchestratorStep(
+            step_number=4,
+            step_name="Validating Model Availability",
+            duration_ms=int((time.monotonic() - t0) * 1000),
+            explanation=StepExplanation(
+                what="Validated SLM-recommended models against available model list",
+                why="Catalog is fallback only — resolves availability conflicts without overriding SLM planning",
+                what_we_found=_val_detail,
+                decision_made=f"Resolved {len(blueprint.subtasks)} model assignment(s)",
+                confidence=1.0 if not substitutions else 0.7,
+                caveats=[f"Substituted: {s}" for s in substitutions],
+                graph_entity_ids=[],
+            ),
+        ))
+        yield {"type": "step", "step": 4, "step_name": "Validating Model Availability", "data": steps[-1].model_dump()}
+
+        # ── Step 5: Blueprint Execution ────────────────────────────────────────
+        t0 = time.monotonic()
+        sub_results: list[SubTaskResult] = []
+
+        if blueprint.is_followup:
+            # Fast path: domain SLM answers directly from context
+            yield {
+                "type": "stage",
+                "step_name": "Follow-up Detected",
+                "detail": "Answering directly from domain context — planning pipeline skipped",
+            }
+            wiki_text = "\n\n".join(
+                f"### {a.get('title', '')}\n{a.get('content', '')[:400]}"
+                for a in wiki_articles[:10]
+            )[:2000]
+            followup_prompt = sys_prefix + FOLLOWUP_SYNTHESIS_PROMPT.format(
+                domain_label=domain_label,
+                graph_context=compressed_context[:1500],
+                wiki_context=wiki_text or "(no wiki context)",
+                query=query,
+            )
+            exec_model = domain_slm
+            if not exec_model:
+                _best = await self._adapters.get_best_local_model()
+                exec_model = _best.model_id if _best else None
+
+            followup_response = ""
+            if exec_model:
+                try:
+                    followup_response = await asyncio.wait_for(
+                        self._adapters.generate(exec_model, followup_prompt, temperature=0.15),
+                        timeout=60.0,
+                    )
+                except asyncio.TimeoutError:
+                    followup_response = "[Follow-up response timed out — try again.]"
+                except Exception as exc:
+                    followup_response = f"[Error: {exc}]"
+
+            sub_results = [SubTaskResult(
+                task_type="domain_qa",
+                query_fragment=query,
+                assigned_model=exec_model or "unknown",
+                response=followup_response,
+                confidence=0.85,
+            )]
+            output.sub_task_results = sub_results
+            output.final_answer = followup_response
+
+        else:
+            # Standard path: execute each blueprint subtask in declared order
+            executed: dict[int, SubTaskResult] = {}
+
+            # Build ordered list; append any subtasks missing from execution_order
+            seen_ids: set[int] = set()
+            ordered_subtasks: list[BlueprintSubtask] = []
+            for st_id in blueprint.execution_order:
+                st = next((s for s in blueprint.subtasks if s.id == st_id), None)
+                if st and st.id not in seen_ids:
+                    ordered_subtasks.append(st)
+                    seen_ids.add(st.id)
+            for st in blueprint.subtasks:
+                if st.id not in seen_ids:
+                    ordered_subtasks.append(st)
+
+            for subtask in ordered_subtasks:
+                exec_model = subtask.resolved_model or domain_slm
+                if not exec_model:
+                    _best = await self._adapters.get_best_local_model()
+                    exec_model = _best.model_id if _best else None
+                if not exec_model:
+                    continue
+
+                # Build context: graph + dependency outputs
+                ctx_parts: list[str] = []
+                if compressed_context:
+                    ctx_parts.append(f"Knowledge Graph Context:\n{compressed_context}")
+                if subtask.depends_on:
+                    dep_text = "\n".join(
+                        f"[Subtask {d} result]: {executed[d].response[:600]}"
+                        for d in subtask.depends_on if d in executed
+                    )
+                    if dep_text:
+                        ctx_parts.append(f"Prior subtask results:\n{dep_text}")
+                context_prefix = sys_prefix + ("\n\n".join(ctx_parts) + "\n\n" if ctx_parts else "")
+
+                try:
+                    response = await asyncio.wait_for(
+                        self._adapters.generate(
+                            exec_model,
+                            f"{context_prefix}Task: {subtask.task_description}",
+                            temperature=0.2,
+                        ),
+                        timeout=60.0,
+                    )
+                except asyncio.TimeoutError:
+                    response = "[Response timed out — model took too long.]"
+                except Exception as exc:
+                    _fb = await self._adapters.get_best_local_model()
+                    fallback_model = _fb.model_id if _fb else None
+                    if fallback_model and fallback_model != exec_model:
+                        try:
+                            response = await asyncio.wait_for(
+                                self._adapters.generate(
+                                    fallback_model,
+                                    f"{context_prefix}Task: {subtask.task_description}",
+                                    temperature=0.2,
+                                ),
+                                timeout=60.0,
+                            )
+                            exec_model = fallback_model
+                        except Exception as exc2:
+                            response = f"[Error: {exc2}]"
+                    else:
+                        response = f"[Error: {exc}]"
+
+                result = SubTaskResult(
+                    task_type=subtask.task_type,
+                    query_fragment=subtask.task_description,
+                    assigned_model=exec_model,
+                    response=response,
+                    confidence=_conf(subtask.my_confidence),
+                )
+                sub_results.append(result)
+                executed[subtask.id] = result
+
+            output.sub_task_results = sub_results
+
+        steps.append(OrchestratorStep(
+            step_number=5,
+            step_name="Generating Response",
+            duration_ms=int((time.monotonic() - t0) * 1000),
+            explanation=StepExplanation(
+                what="Executed blueprint subtasks with SLM-assigned models",
+                why="SLM-chosen models provide domain-appropriate responses with minimal token waste",
+                what_we_found=f"Completed {len(sub_results)} subtask(s)",
+                decision_made="Follow-up fast path" if blueprint.is_followup else "Blueprint execution complete",
+                confidence=_conf(
+                    sum(r.confidence for r in sub_results) / max(len(sub_results), 1)
+                ),
+                caveats=[],
+                graph_entity_ids=[],
+            ),
+        ))
+        yield {"type": "step", "step": 5, "step_name": "Generating Response", "data": steps[-1].model_dump()}
+
+        # ── Step 6: SLM Synthesis ──────────────────────────────────────────────
+        # Domain SLM produces the final answer with reasoning trail.
+        # For follow-up queries the final_answer is already set — skip synthesis.
+        if not blueprint.is_followup:
+            t0 = time.monotonic()
+            sub_results_text = "\n\n".join(
+                f"[Subtask {i + 1}: {r.task_type}] {r.query_fragment}\n→ {r.response}"
+                for i, r in enumerate(sub_results)
+            )
+            synth_model = domain_slm
+            if not synth_model:
+                _best_synth = await self._adapters.get_best_local_model()
+                synth_model = _best_synth.model_id if _best_synth else None
+
+            final_answer = ""
+            if synth_model and sub_results_text:
+                wiki_text = "\n\n".join(
+                    f"### {a.get('title', '')}\n{a.get('content', '')[:300]}"
+                    for a in wiki_articles[:8]
+                )[:1500]
+                graph_and_wiki = compressed_context[:1200]
+                if wiki_text:
+                    graph_and_wiki += f"\n\nWiki context:\n{wiki_text}"
+
+                synth_prompt = sys_prefix + SYNTHESIS_PROMPT.format(
+                    domain_label=domain_label,
+                    query=query,
+                    sub_results=sub_results_text[:3500],
+                    graph_context=graph_and_wiki[:2500],
+                    expected_output_format=blueprint.expected_output_format,
+                )
+                try:
+                    final_answer = await asyncio.wait_for(
+                        self._adapters.generate(synth_model, synth_prompt, temperature=0.15),
+                        timeout=60.0,
+                    )
+                except asyncio.TimeoutError:
+                    final_answer = sub_results_text
+                except Exception:
+                    final_answer = sub_results_text
+            elif sub_results_text:
+                final_answer = sub_results_text
+
+            output.final_answer = final_answer
+
+            steps.append(OrchestratorStep(
+                step_number=6,
+                step_name="Synthesizing Answer",
+                duration_ms=int((time.monotonic() - t0) * 1000),
+                explanation=StepExplanation(
+                    what="Domain SLM integrated subtask results and produced the final answer with reasoning trail",
+                    why="Domain SLM synthesis minimises tokens vs. frontier models while maintaining domain accuracy",
+                    what_we_found=(
+                        f"Synthesised {len(sub_results)} result(s) with "
+                        f"wiki context ({len(wiki_articles)} articles)"
+                    ),
+                    decision_made="Final answer ready",
+                    confidence=0.85,
+                    caveats=[],
+                    graph_entity_ids=[],
+                ),
+            ))
+            yield {"type": "step", "step": 6, "step_name": "Synthesizing Answer", "data": steps[-1].model_dump()}
+
+        # ── Step 7: Hallucination Check ────────────────────────────────────────
+        if output.final_answer and graph_context:
+            yield {"type": "step", "step": 7, "step_name": "Validating Response", "data": {
+                "step_number": 7, "step_name": "Validating Response", "duration_ms": 0,
+            }}
+            hall_result = await self._detector.detect(output.final_answer, graph_context[:2000])
             output.hallucination_rate = hall_result.hallucination_rate
             for sr in sub_results:
                 sr.hallucination_verdict = hall_result.verdict
 
-        # ── Step 9: Bandit Update ─────────────────────────────────────
+        # ── Bandit Update ──────────────────────────────────────────────────────
         if output.slm_model_id and query_embedding:
             bandit = get_bandit()
             reward = bandit.compute_reward(
-                task_completion=0.9 if final_answer else 0.0,
+                task_completion=0.9 if output.final_answer else 0.0,
                 hallucination_rate=output.hallucination_rate,
                 user_acceptance=0.7,
             )
@@ -488,7 +758,3 @@ class Orchestrator:
 
         output.steps = steps
         yield {"type": "output", "data": output.model_dump()}
-
-
-# Import MODEL_CATALOG for Step 5 count
-from app.modules.model_capability_catalog import MODEL_CATALOG

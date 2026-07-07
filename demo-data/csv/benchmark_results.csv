@@ -1,0 +1,39 @@
+benchmark_id,domain,model_id,task_type,metric,value,baseline_value,delta,test_date,notes
+BM-001,supply_chain_logistics,dhs-slm-supply-chain-v3,analysis,gini,0.891,0.710,0.181,2024-05-15,Outperforms llama3:8b baseline on supply chain queries
+BM-002,supply_chain_logistics,dhs-slm-supply-chain-v3,planning,task_completion_rate,0.941,0.762,0.179,2024-05-15,Tested on 50 planning queries from corpus
+BM-003,supply_chain_logistics,dhs-slm-supply-chain-v3,forecasting,mape,0.112,0.184,0.072,2024-05-15,MAPE improvement vs baseline model
+BM-004,supply_chain_logistics,dhs-slm-supply-chain-v3,hallucination,hallucination_rate,0.047,0.134,0.087,2024-05-15,Graph-grounded fact checking
+BM-005,supply_chain_logistics,llama3:8b,analysis,gini,0.710,0.710,0.000,2024-05-15,Baseline
+BM-006,supply_chain_logistics,llama3:8b,planning,task_completion_rate,0.762,0.762,0.000,2024-05-15,Baseline
+BM-007,financial_risk_compliance,dhs-slm-financial-risk-v2,regulatory,task_completion_rate,0.963,0.741,0.222,2024-06-01,PRA regulatory reporting queries
+BM-008,financial_risk_compliance,dhs-slm-financial-risk-v2,detection,precision,0.947,0.723,0.224,2024-06-01,AML detection test set (100 labelled txns)
+BM-009,financial_risk_compliance,dhs-slm-financial-risk-v2,stress_test,accuracy,0.968,0.798,0.170,2024-06-01,SBP scenario calculations vs actuals
+BM-010,financial_risk_compliance,dhs-slm-financial-risk-v2,hallucination,hallucination_rate,0.031,0.118,0.087,2024-06-01,Regulatory citation accuracy
+BM-011,financial_risk_compliance,llama3:8b,regulatory,task_completion_rate,0.741,0.741,0.000,2024-06-01,Baseline
+BM-012,customer_experience_analytics,dhs-slm-cx-analytics-v2,analysis,f1_score,0.887,0.721,0.166,2024-06-08,Churn prediction evaluation
+BM-013,customer_experience_analytics,dhs-slm-cx-analytics-v2,recommendation,ndcg,0.834,0.671,0.163,2024-06-08,Product recommendation ranking
+BM-014,customer_experience_analytics,dhs-slm-cx-analytics-v2,attribution,r_squared,0.812,0.644,0.168,2024-06-08,CLV attribution model quality
+BM-015,customer_experience_analytics,dhs-slm-cx-analytics-v2,hallucination,hallucination_rate,0.053,0.141,0.088,2024-06-08,Customer data factual accuracy
+BM-016,hr_talent_workforce,dhs-slm-hr-workforce-v1,analysis,task_completion_rate,0.919,0.748,0.171,2024-06-12,Workforce planning query set
+BM-017,hr_talent_workforce,dhs-slm-hr-workforce-v1,reporting,coherence_score,0.887,0.712,0.175,2024-06-12,DEI report generation quality
+BM-018,hr_talent_workforce,dhs-slm-hr-workforce-v1,hallucination,hallucination_rate,0.062,0.147,0.085,2024-06-12,HR policy citation accuracy
+BM-019,it_infrastructure_security,dhs-slm-cybersecurity-v2,incident_response,task_completion_rate,0.957,0.778,0.179,2024-06-14,IR playbook generation quality
+BM-020,it_infrastructure_security,dhs-slm-cybersecurity-v2,policy,compliance_score,0.934,0.756,0.178,2024-06-14,Zero-trust policy NCSC CE+ alignment
+BM-021,it_infrastructure_security,dhs-slm-cybersecurity-v2,hallucination,hallucination_rate,0.039,0.122,0.083,2024-06-14,Security standard citation accuracy
+BM-022,esg_sustainability,dhs-slm-esg-v2,calculation,accuracy,0.951,0.773,0.178,2024-06-18,Scope 3 calculation vs reference values
+BM-023,esg_sustainability,dhs-slm-esg-v2,disclosure,tcfd_alignment_score,0.924,0.748,0.176,2024-06-18,TCFD section compliance check
+BM-024,esg_sustainability,dhs-slm-esg-v2,hallucination,hallucination_rate,0.044,0.131,0.087,2024-06-18,ESG standard citation accuracy
+BM-025,manufacturing_quality,dhs-slm-manufacturing-v3,root_cause,task_completion_rate,0.972,0.784,0.188,2024-06-20,RCA quality assessment
+BM-026,manufacturing_quality,dhs-slm-manufacturing-v3,maintenance,prediction_accuracy,0.961,0.774,0.187,2024-06-20,Predictive maintenance recall
+BM-027,manufacturing_quality,dhs-slm-manufacturing-v3,compliance,fda_alignment_score,0.978,0.801,0.177,2024-06-20,21 CFR Part 11 compliance check
+BM-028,manufacturing_quality,dhs-slm-manufacturing-v3,hallucination,hallucination_rate,0.028,0.109,0.081,2024-06-20,ISO/FDA standard citation accuracy
+BM-029,mergers_acquisitions,dhs-slm-ma-strategy-v1,screening,precision_at_10,0.841,0.668,0.173,2024-06-22,M&A target scoring accuracy
+BM-030,mergers_acquisitions,dhs-slm-ma-strategy-v1,financial_modelling,task_completion_rate,0.929,0.754,0.175,2024-06-22,Synergy model generation quality
+BM-031,mergers_acquisitions,dhs-slm-ma-strategy-v1,hallucination,hallucination_rate,0.055,0.138,0.083,2024-06-22,Financial data citation accuracy
+BM-032,digital_transformation,dhs-slm-digital-transform-v2,architecture,task_completion_rate,0.938,0.764,0.174,2024-06-25,Architecture design quality
+BM-033,digital_transformation,dhs-slm-digital-transform-v2,governance,compliance_score,0.921,0.748,0.173,2024-06-25,AI governance framework alignment
+BM-034,digital_transformation,dhs-slm-digital-transform-v2,hallucination,hallucination_rate,0.048,0.136,0.088,2024-06-25,Technical standard citation accuracy
+BM-035,all_domains,dhs-slm-supply-chain-v3,latency,avg_latency_ms,2847,3800,953,2024-06-25,vs baseline llama3:8b avg latency
+BM-036,all_domains,dhs-slm-financial-risk-v2,latency,avg_latency_ms,3124,4200,1076,2024-06-25,vs baseline llama3:8b avg latency
+BM-037,all_domains,dhs-slm-cx-analytics-v2,latency,avg_latency_ms,2987,3900,913,2024-06-25,vs baseline llama3:8b avg latency
+BM-038,all_domains,dhs-slm-manufacturing-v3,latency,avg_latency_ms,2748,3750,1002,2024-06-25,vs baseline llama3:8b avg latency

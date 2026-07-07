@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}";
+self.__REACT_LOADABLE_MANIFEST='{"app/components/DemoModeProvider.tsx -> ../lib/mockFetch":{"id":36366,"files":["static/chunks/366.6080e0ef314842ba.js"]}}';

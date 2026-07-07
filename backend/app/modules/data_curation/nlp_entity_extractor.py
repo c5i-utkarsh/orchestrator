@@ -29,9 +29,46 @@ _LABEL_TYPE_MAP = {
     "NORP": "group", "WORK_OF_ART": "artifact", "LANGUAGE": "language",
 }
 
+# NER labels that produce raw-value entities (dates, counts, percentages, etc.).
+# Entities with these labels are useful for relationship extraction but should NOT
+# propagate into the canonical graph or wiki pages as standalone nodes, because
+# they generate nonsensical QA pairs (e.g. "Is the entity 'date' a person? yes").
+_SKIP_NER_LABELS: set = {
+    "DATE", "TIME", "CARDINAL", "ORDINAL", "QUANTITY",
+    "PERCENT", "MONEY", "DURATION",
+}
+
+# Regex patterns that identify raw value strings (dates, numbers, key=value, etc.)
+_VALUE_PATTERNS = [
+    re.compile(r"^\d{4}-\d{2}-\d{2}"),          # ISO date: 2024-01-15
+    re.compile(r"^[a-z_]+=\S+$", re.I),           # key=value: resolution_time_hours=1.0
+    re.compile(r"^[A-Za-z][A-Za-z0-9_%]+=[-\d.]", re.I),  # COLUMN_NAME=value (CSV headers with digits)
+    re.compile(r"^[A-Z]{2,10}_[A-Z_0-9]+="),     # ALL_CAPS_COL=value
+    re.compile(r"^[-\d.,]+[%]?$"),                 # pure numeric / percentage
+    re.compile(r"^[\\d,\\.\\s%$€£]+$"),            # currency/percent
+    re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$"),    # date: 01/15/2024
+    re.compile(r"^Q[1-4]\\s+\d{4}$", re.I),       # Q1 2024
+]
+
+
+def _is_value_artifact(text: str, label: str) -> bool:
+    """Return True if this entity is a raw data value that should not become a graph node."""
+    if label in _SKIP_NER_LABELS:
+        return True
+    if len(text.strip()) < 3:
+        return True
+    stripped = text.replace(",", "").replace(".", "").replace(" ", "")
+    if stripped.isdigit():
+        return True
+    for pattern in _VALUE_PATTERNS:
+        if pattern.match(text.strip()):
+            return True
+    return False
+
 
 def _label_to_type(label: str) -> str:
     return _LABEL_TYPE_MAP.get(label, "entity")
+
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -71,13 +108,20 @@ def _spacy_entities(text: str) -> List[Dict]:
     seen: set = set()
     out: List[Dict] = []
     for ent in doc.ents:
-        key = (ent.text.strip(), ent.label_)
-        if key not in seen and ent.text.strip():
+        raw = ent.text.strip()
+        label = ent.label_
+        if not raw:
+            continue
+        # Skip raw-value entities: they clutter the graph and produce garbage QA
+        if _is_value_artifact(raw, label):
+            continue
+        key = (raw, label)
+        if key not in seen:
             seen.add(key)
             out.append({
-                "text": ent.text.strip(),
-                "label": ent.label_,
-                "type": _label_to_type(ent.label_),
+                "text": raw,
+                "label": label,
+                "type": _label_to_type(label),
             })
     return out
 
@@ -155,6 +199,11 @@ def extract_entities_from_chunks(chunks: List[Dict]) -> Tuple[List[Dict], List[D
       - chunk_preview: str — first 80 chars of the source chunk text
     Entities are de-duplicated by (text, label); the first-seen chunk_idx is kept.
     Up to 3 chunk_occurrences recorded per entity.
+
+    Raw-value entities (dates, numbers, percentages, key=value patterns) are
+    excluded from the entity list so they do not become canonical graph nodes
+    or wiki pages.  They are still used within this function to extract
+    relationships (co-occurrence signals) but are not returned as entities.
     """
     seen_entities: dict = {}   # (text, label) -> entity dict
     all_relationships: List[Dict] = []
@@ -166,6 +215,11 @@ def extract_entities_from_chunks(chunks: List[Dict]) -> Tuple[List[Dict], List[D
 
         chunk_ents = extract_entities(ctext)
         for ent in chunk_ents:
+            # extract_entities already filters via _spacy_entities/_regex_entities,
+            # but apply the artifact check here as a final guard for any path that
+            # bypasses _spacy_entities (e.g. direct calls to _regex_entities).
+            if _is_value_artifact(ent["text"], ent.get("label", "")):
+                continue
             key = (ent["text"], ent["label"])
             if key not in seen_entities:
                 seen_entities[key] = {

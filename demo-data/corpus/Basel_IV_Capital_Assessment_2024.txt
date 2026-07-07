@@ -1,0 +1,169 @@
+MERIDIAN BANK GROUP
+BASEL IV IMPLEMENTATION PROGRAMME — CAPITAL IMPACT ASSESSMENT
+Document Reference: RMD-2024-0089
+Author: Marcus Webb, CFO; Dr. Priya Nair, CDO
+Status: APPROVED — Board Risk Committee 12 April 2024
+Classification: CONFIDENTIAL
+
+================================================================
+1. EXECUTIVE SUMMARY
+================================================================
+
+This assessment quantifies Meridian Bank Group's capital position
+under the Basel IV / CRR III framework effective 1 January 2025,
+identifies binding constraints arising from the Output Floor, and
+sets out the management actions to maintain CET1 headroom above
+the Supervisory Review and Evaluation Process (SREP) requirement.
+
+Key findings:
+  - Standardised Approach (SA) RWA: £14.8Bn (corporate portfolio)
+  - Output Floor (72.5% of IRB RWA): Binding at £13.4Bn
+  - CET1 capital requirement uplift: £176M (additional to current hold)
+  - Post-floor CET1 ratio: 14.2% (vs 10.5% regulatory minimum + buffers)
+  - Headroom above combined buffer requirement: 370bps
+
+================================================================
+2. OUTPUT FLOOR MECHANICS
+================================================================
+
+The Output Floor requires that RWAs calculated under the IRB approach
+do not fall below 72.5% of the equivalent SA calculation.
+
+  IRB RWA (corporate lending):       £11.2Bn
+  SA RWA (corporate lending):        £14.8Bn
+  Output Floor (72.5% × £14.8Bn):   £13.4Bn
+  Binding constraint:                 Floor (not IRB)
+  Incremental RWA vs pre-Basel IV:   +£2.2Bn
+  CET1 impact (at 8% Pillar 1):      £176M additional capital required
+
+The Group holds sufficient surplus capital to absorb this requirement
+without a rights issue. Management action options (£200M capacity):
+  a) AT1 issuance (planned Q4 2024, £150M tap): mitigates 85%
+  b) RWA optimisation: secured lending substitution in corporate book
+  c) Portfolio rebalancing: selective de-risking of high-risk SME book
+
+================================================================
+3. LARGE EXPOSURE LIMITS — SINGLE NAME BREACHES
+================================================================
+
+Per CRR Article 395, single-name exposures must not exceed 25% of Tier
+1 capital (£2.9Bn for Meridian).
+
+Current breaches (as at 31 March 2024):
+  - Argent Properties plc: £3.1Bn exposure (107% of limit — BREACH)
+    Route: unsecured revolving credit + bilateral TL + bond holding
+    Action: 90-day remediation plan agreed with Risk Committee.
+    Board notification: 12 April 2024.
+    Remediation: mature £200M bilateral at July facility review; no
+    new origination without CRO approval.
+
+  - Nexus Financial: £3.0Bn (103% of limit — BREACH)
+    Route: repo exposure + derivatives portfolio (netted)
+    Action: Netting agreement renegotiation underway (Linklaters).
+
+================================================================
+4. COUNTERPARTY CREDIT RISK — TOP BANK EXPOSURES
+================================================================
+
+Post-netting counterparty exposures (IAS 32 netting agreements):
+
+  Counterparty           Gross     Net Post-Netting   CDS Hedge
+  ──────────────────     ──────    ─────────────────   ─────────
+  Deutsche Bank          £3.8Bn    £2.1Bn              62% hedged
+  BNP Paribas            £2.9Bn    £1.8Bn              55% hedged
+  Société Générale       £2.1Bn    £1.4Bn              48% hedged
+  ING Group              £1.7Bn    £1.1Bn              0% — unhedged
+  UniCredit              £1.4Bn    £0.9Bn              38% hedged
+
+CVA sensitivity (200bp spread widening scenario):
+  Total CVA P&L impact: -£87M
+  Hedged portion recovery: +£54M
+  Net P&L at risk: -£33M
+
+Recommendation: Extend CDS hedge to ING Group (estimated £8M premium
+for £200M notional 5yr CDS). Reduces net CVA at risk by £14M.
+CRO approval required for hedge extension.
+
+================================================================
+5. STRESS TEST RESULTS — SEVERE BUT PLAUSIBLE SCENARIO (SBP)
+================================================================
+
+Macro scenario (PRA Annual Cyclical Scenario equivalent):
+  - GDP contraction: -4.8% (peak-to-trough, 5-quarter recession)
+  - Unemployment: rises to 9.2% (from 4.1% current)
+  - House prices: -28% (from current index)
+  - Base rate: 0.1% (emergency cut)
+  - Commercial real estate: -35%
+
+Credit loss projections:
+
+  Portfolio          PD (Base)  PD (Stress)   Stage 3 ECL Uplift
+  ────────────────   ─────────  ──────────     ──────────────────
+  Retail Mortgage     1.2%       4.7% (+3.5pp)  £720M
+  Unsecured Consumer  3.8%       9.1% (+5.3pp)  £580M
+  SME Commercial      2.4%       7.3% (+4.9pp)  £480M
+  Corporate           0.9%       2.8% (+1.9pp)  £60M
+  ────────────────────────────────────────────  ────────
+  Total Stage 3 provision increase:             £1.84Bn
+
+  Post-stress CET1 ratio: 11.8% (vs 14.2% pre-stress)
+  Above 10.5% combined buffer: 130bps headroom
+
+  Management action reserve: 80bps (AT1 issuance, secured lending
+  switches, dividend reduction). Net stressed CET1 with actions: 12.6%.
+
+================================================================
+6. AML MONITORING — TRADE-BASED MONEY LAUNDERING ALERTS
+================================================================
+
+Review period: 1 May – 31 May 2024
+Alert engine: AML Monitoring System v4.1 (vendor: NovaSentinel)
+
+Total alerts generated: 847
+  High priority (SAR-eligible): 23
+  Medium priority (analyst review): 124
+  Low priority (auto-cleared): 700
+
+TBML over-invoicing pattern — 23 high-priority alerts:
+  Detection criteria: invoice-to-market-price ratio >200% on
+  international goods transactions >£500K.
+
+  8 alerts recommended for SAR filing (MLRO notified 3 June):
+    Entity 1: Goldstream Trading Ltd (UAE) — ratio 248%, 3 transactions
+    Entity 2: Apex Commodities DMCC (Dubai) — ratio 312%, electronics
+    Entity 3: Horizon Tech HK Ltd (Hong Kong) — ratio 267%, textiles
+    Entity 4: Pacific Bridge Imports (Cyprus) — ratio 291%, 4 txns
+    [Entities 5-8 under legal review — names withheld in this document]
+
+SAR filings submitted to National Crime Agency: 8 (as at 7 June 2024)
+Accounts frozen pending NCA review: 3 (with NCA consent)
+
+================================================================
+7. MODEL RISK — DEGRADED PERFORMANCE ALERTS
+================================================================
+
+Quarterly model monitoring summary (Q2 2024):
+
+Models with >15% performance degradation vs validation benchmarks:
+
+1. Retail Mortgage PD Model v7.2 (MRM Status: RED)
+   Development Gini: 0.73 | Current Gini: 0.61 | Degradation: -16.4%
+   Probable cause: Post-pandemic house price dynamics, base rate lag
+   Action: Immediate redevelopment authorised. Timeline: 9 months.
+
+2. SME Scorecard v3.1 (MRM Status: RED)
+   Development Gini: 0.67 | Current Gini: 0.54 | Degradation: -19.4%
+   Probable cause: COVID-era financial support distorted training data
+   Action: Immediate redevelopment. External validation by PWC ordered.
+
+3. LGD Residential v5 (MRM Status: AMBER)
+   RMSE: +22% vs baseline | Action: Recalibrate within 90 days.
+
+4. CCF Corporate v2 (MRM Status: AMBER)
+   Spearman: -18% | Action: Enhanced monitoring + recalibration 90 days.
+
+Model Validation Committee meeting scheduled: 20 June 2024 (CIMRO Chair)
+
+================================================================
+END OF DOCUMENT
+================================================================

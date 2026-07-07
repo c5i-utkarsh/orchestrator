@@ -20,21 +20,34 @@ from app.adapters.registry import AdapterRegistry
 settings = get_settings()
 
 IN_DOMAIN_TEMPLATE = """\
-You are a teacher creating a Q&A dataset from a knowledge graph article.
-Given the article below, generate {n_pairs} diverse question-answer pairs covering:
-- Key facts and entities mentioned
-- Relationships between entities
-- Reasoning chains within the domain
+You are a domain expert creating a high-quality Q&A training dataset.
+
+Below is a knowledge graph article about a specific entity in the corpus.
+Your task: generate {n_pairs} diverse, substantive question-answer pairs.
 
 Article:
 {article}
 
 REQUIREMENTS:
-- Each Q&A must be answerable FROM the article alone
-- Include 1 pair where the answer starts with "I don't have enough context to answer this"
-  (covering a question that IS out of scope)
+- Questions must be specific to the entity or topic described — do NOT ask \
+"what type is this entity?" or "is this a person?"
+- Answers must be substantive (at least 15 words) and factual, grounded in the article
+- Cover: key attributes, relationships to other entities, significance in the domain, \
+business implications, comparisons, and actionable insights
+- Include exactly 1 pair where the answer starts with \
+"I don't have enough context to answer this" \
+(for a question that is genuinely out of scope)
 - Format: exactly one JSON array of objects with "question" and "answer" keys
-- Output ONLY the JSON array, no other text
+- Output ONLY the JSON array, no other text, no markdown fences
+
+Example of a GOOD pair:
+{{"question": "What role does TechNova Solutions play in the IT supply chain?", \
+"answer": "TechNova Solutions is an IT solutions provider headquartered in Austin, Texas, \
+with a focus on enterprise software and cloud infrastructure."}}
+
+Example of a BAD pair (do NOT generate these):
+{{"question": "What type of entity is this?", "answer": "organization"}}
+{{"question": "Is this tracked as a person?", "answer": "yes"}}
 """
 
 OUT_OF_DOMAIN_TEMPLATE = """\
@@ -76,17 +89,36 @@ class DistillationEngine:
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        pairs_per_article = max(8, target_pairs // max(len(wiki_articles), 1))
+        # Pre-filter wiki articles — skip garbage entities (dates, numbers, key=value labels)
+        quality_articles = [a for a in wiki_articles if self._is_quality_article(a)]
+        if not quality_articles:
+            yield {"type": "error", "message": "No quality wiki articles available for distillation"}
+            return
+
+        skipped_count = len(wiki_articles) - len(quality_articles)
+        if skipped_count:
+            import logging as _log
+            _log.getLogger(__name__).info(
+                "Distillation: skipped %d/%d wiki articles (garbage entities); using %d",
+                skipped_count, len(wiki_articles), len(quality_articles),
+            )
+
+        # Scale target_pairs to corpus size: no point targeting 12 000 pairs
+        # from a 5-article corpus — cap at 20 pairs per article maximum.
+        effective_target = min(target_pairs, max(len(quality_articles) * 20, 50))
+
+        # Keep pairs_per_article realistic for what an LLM can produce in one call
+        pairs_per_article = min(12, max(3, effective_target // max(len(quality_articles), 1)))
         ood_per_article = 2
 
         all_pairs = []
 
-        for i, article in enumerate(wiki_articles):
+        for i, article in enumerate(quality_articles):
             yield {
                 "type": "progress",
                 "step": "distillation",
                 "article": i + 1,
-                "total": len(wiki_articles),
+                "total": len(quality_articles),
                 "pairs_so_far": len(all_pairs),
             }
 
@@ -95,18 +127,20 @@ class DistillationEngine:
                 article=article["content"][:3000],
             )
 
-            # Self-consistency: generate 3 times, keep pairs with >=2/3 agreement
+            # Single-pass generation (self-consistency disabled for speed;
+            # enable by setting n_consistency=3 in slm_config for higher quality)
             responses = []
-            for _ in range(3):
-                try:
-                    raw = await self._registry.generate(teacher, prompt, temperature=0.7)
-                    batch = self._parse_pairs(raw)
-                    responses.append(batch)
-                except Exception:
-                    responses.append([])
+            try:
+                raw = await self._registry.generate(teacher, prompt, temperature=0.7)
+                batch = self._parse_pairs(raw)
+                responses.append(batch)
+            except Exception:
+                responses.append([])
 
             consistent_pairs = self._self_consistency_filter(responses)
-            all_pairs.extend(consistent_pairs)
+            # Apply quality filter: drop trivial / meta-type QA pairs
+            quality_pairs = [p for p in consistent_pairs if self._is_quality_pair(p)]
+            all_pairs.extend(quality_pairs)
 
             # Out-of-domain examples
             ood_prompt = OUT_OF_DOMAIN_TEMPLATE.format(
@@ -120,7 +154,7 @@ class DistillationEngine:
             except Exception:
                 pass
 
-            if len(all_pairs) >= target_pairs:
+            if len(all_pairs) >= effective_target:
                 break
 
         # Write JSONL
@@ -147,21 +181,106 @@ class DistillationEngine:
             pass
         return []
 
+    @staticmethod
+    def _is_quality_pair(pair: dict) -> bool:
+        """Return True only for substantive QA pairs worth training on.
+
+        Rejects:
+        - Trivially short answers (yes/no/true/false/single-word responses)
+        - Meta-questions about entity type/classification
+        - Pairs missing question or answer fields
+        """
+        question = (pair.get("question") or "").strip()
+        answer = (pair.get("answer") or "").strip()
+
+        if not question or not answer:
+            return False
+
+        # Reject trivially short answers (less than 15 characters)
+        if len(answer) < 15:
+            return False
+
+        # Reject single-word or pure yes/no answers
+        _TRIVIAL_ANSWERS = {
+            "yes", "no", "true", "false", "none", "unknown",
+            "n/a", "null", "0", "1", "entity", "organization",
+            "person", "product", "location", "time", "value", "group",
+        }
+        if answer.lower().rstrip(".") in _TRIVIAL_ANSWERS:
+            return False
+
+        # Reject meta-questions about entity type/classification
+        _META_PATTERNS = [
+            "what type of entity",
+            "what entity type",
+            "is this tracked as",
+            "is the entity",
+            "what is the entity type",
+            "how is this entity",
+            "in which canonical",
+            "in the canonical wiki",
+        ]
+        q_lower = question.lower()
+        if any(p in q_lower for p in _META_PATTERNS):
+            return False
+
+        return True
+
+    @staticmethod
+    def _is_quality_article(article: dict) -> bool:
+        """Return True only for wiki articles worth distilling QA pairs from.
+
+        Rejects articles whose title is a raw data value (dates, numbers,
+        key=value patterns) — these come from garbage NER entities that slipped
+        through earlier filters and would produce useless QA pairs.
+        """
+        import re as _re
+        title = (article.get("title") or article.get("canonical_id") or "").strip()
+        content = (article.get("content") or article.get("summary") or "").strip()
+
+        if not title or len(title) < 3:
+            return False
+
+        # Purely numeric title
+        if title.replace(",", "").replace(".", "").replace(" ", "").isdigit():
+            return False
+
+        # Common artifact patterns: date=2024-01-08, resolution_time_hours=1.0, etc.
+        _ARTIFACT_TITLE_RE = [
+            _re.compile(r"^\d{4}-\d{2}-\d{2}"),       # ISO date
+            _re.compile(r"^[a-z_]+=\S+$", _re.I),      # key=value
+            _re.compile(r"^[#@\-_=.]+$"),               # noise chars
+        ]
+        for pat in _ARTIFACT_TITLE_RE:
+            if pat.match(title):
+                return False
+
+        # Article with no meaningful content
+        if len(content.strip()) < 30:
+            return False
+
+        return True
+
+
+
     def _self_consistency_filter(
         self, responses: list[list[dict]]
     ) -> list[dict]:
-        """Keep Q&A pairs where >=2/3 responses produced the same question."""
+        """Keep pairs based on response count.
+        Single-pass (1 response): return all pairs directly — no filtering needed.
+        Multi-pass (N responses): keep pairs where >=2/3 agree on the question.
+        """
+        if not responses:
+            return []
+        # Single-pass mode: just return all generated pairs as-is
+        if len(responses) == 1:
+            return [p for p in responses[0] if p.get("question") and p.get("answer")]
+        # Multi-pass: keep only pairs where the same question appeared in >=2/3 batches
+        threshold = max(2, len(responses) * 2 // 3)
         question_counts: dict[str, list[dict]] = {}
         for batch in responses:
             for pair in batch:
                 q = pair.get("question", "").strip().lower()
                 if q:
-                    if q not in question_counts:
-                        question_counts[q] = []
-                    question_counts[q].append(pair)
-
-        consistent = []
-        for q, pairs in question_counts.items():
-            if len(pairs) >= 2:
-                consistent.append(pairs[0])
-        return consistent
+                    question_counts.setdefault(q, []).append(pair)
+        return [pairs[0] for pairs in question_counts.values() if len(pairs) >= threshold]

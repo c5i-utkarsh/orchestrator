@@ -1,0 +1,43 @@
+feedback_id,session_id,query_id_ref,model_id,rating,thumbs_up,comment,feedback_type,created_at
+FB-001,sess-sc-001,1,dhs-slm-supply-chain-v3,5,true,"Excellent — gave us the exact supplier names and timelines we needed for the board deck. Saved 3 hours of research.",outcome_quality,2024-05-20 14:23:00
+FB-002,sess-sc-001,2,dhs-slm-supply-chain-v3,5,true,"The re-routing plan was immediately actionable. We shared it with logistics ops and they confirmed the Hamburg corridor was correct.",outcome_quality,2024-05-28 09:11:00
+FB-003,sess-sc-001,3,dhs-slm-supply-chain-v3,4,true,"Good risk register summary. Would have liked the dual-sourcing cost estimates broken out by supplier.",improvement,2024-06-05 16:44:00
+FB-004,sess-sc-001,4,dhs-slm-supply-chain-v3,5,true,"Forecast numbers matched our existing spreadsheet model closely — 92% accuracy. Team trusts this output now.",outcome_quality,2024-06-12 11:02:00
+FB-005,sess-sc-001,5,dhs-slm-supply-chain-v3,4,true,"Contract reference to MLA clause 18.4 was correct. Slightly too formal in tone for a quick exec summary.",style,2024-06-18 15:30:00
+FB-006,sess-sc-001,6,dhs-slm-supply-chain-v3,5,true,"The working capital number (21.4%) was better than our own model (19%). Now using DHS as primary tool.",outcome_quality,2024-06-25 10:18:00
+FB-007,sess-fr-002,7,dhs-slm-financial-risk-v2,5,true,"Output floor calculation was exactly right. Sent directly to Treasury team. Zero corrections needed.",outcome_quality,2024-05-30 14:22:00
+FB-008,sess-fr-002,8,dhs-slm-financial-risk-v2,5,true,"TBML alert list matched our analyst team's assessment. Model caught Entity 3 (Horizon Tech HK) which our analyst had deprioritised — turned out to be the highest risk.",outcome_quality,2024-06-08 10:44:00
+FB-009,sess-fr-002,9,dhs-slm-financial-risk-v2,5,true,"Stress test numbers consistent with our internal model to within 3%. Significant time saving on the SBP narrative.",outcome_quality,2024-06-15 09:32:00
+FB-010,sess-fr-002,10,dhs-slm-financial-risk-v2,4,true,"CVA hedge recommendation was directionally correct. Needed our traders to verify the CDS notional sizing.",improvement,2024-06-20 16:01:00
+FB-011,sess-fr-002,11,dhs-slm-financial-risk-v2,5,true,"ICAAP HHI narrative was publication-ready. Edited for house style only. Saved half a day of analyst time.",outcome_quality,2024-06-25 11:47:00
+FB-012,sess-fr-002,12,dhs-slm-financial-risk-v2,5,true,"Model risk summary accurately flagged all 4 models. Rating changes were consistent with our MVM committee decisions.",outcome_quality,2024-06-28 14:12:00
+FB-013,sess-cx-003,13,dhs-slm-cx-analytics-v2,5,true,"Segment list and churn probabilities were consistent with our Salesforce data. Confidence high.",outcome_quality,2024-05-22 10:15:00
+FB-014,sess-cx-003,14,dhs-slm-cx-analytics-v2,4,true,"SME vs retail NPS driver distinction was insightful. NPS numbers matched our survey vendor data.",outcome_quality,2024-06-01 15:44:00
+FB-015,sess-cx-003,15,dhs-slm-cx-analytics-v2,5,true,"Product recommendation with Consumer Duty suitability was immediately useful. Compliance team approved the output.",outcome_quality,2024-06-08 11:23:00
+FB-016,sess-cx-003,16,dhs-slm-cx-analytics-v2,4,true,"Journey funnel percentages were close to our GA4 data (within 2pp). Root cause hypotheses were actionable.",outcome_quality,2024-06-14 16:30:00
+FB-017,sess-cx-003,17,dhs-slm-cx-analytics-v2,5,true,"CLV comparison digital vs branch was eye-opening. Changed our marketing budget allocation decision.",outcome_quality,2024-06-22 09:55:00
+FB-018,sess-cx-003,18,dhs-slm-cx-analytics-v2,5,true,"Monthly dashboard summary was accurate. Used as the basis for the exec pack — minimal edits.",outcome_quality,2024-06-28 15:00:00
+FB-019,sess-hr-004,19,dhs-slm-hr-workforce-v1,4,true,"Critical role analysis was helpful. We were aware of Data Science gap but the quantification (0.8 successors/role) was new insight.",outcome_quality,2024-06-02 10:23:00
+FB-020,sess-hr-004,20,dhs-slm-hr-workforce-v1,5,true,"Attrition cost breakdown (£8.4M) was very close to our own finance team's estimate (£8.1M). Confidence very high.",outcome_quality,2024-06-12 14:44:00
+FB-021,sess-hr-004,21,dhs-slm-hr-workforce-v1,4,true,"DEI audit numbers matched our HR data. Promotion equity ratio gap for ethnic minority (0.76) is being escalated to board.",outcome_quality,2024-06-20 11:02:00
+FB-022,sess-hr-004,22,dhs-slm-hr-workforce-v1,5,true,"3-year workforce plan was used directly in the board paper. Very detailed and realistic phasing.",outcome_quality,2024-06-27 16:34:00
+FB-023,sess-it-005,23,dhs-slm-cybersecurity-v2,5,true,"IR playbook was immediately deployed. SOC team said it was more comprehensive than our previous manual playbook.",outcome_quality,2024-06-08 09:45:00
+FB-024,sess-it-005,24,dhs-slm-cybersecurity-v2,4,true,"Cloud migration risk ranking was correct. CorePayments high-risk flag was already on our radar.",outcome_quality,2024-06-14 15:22:00
+FB-025,sess-it-005,25,dhs-slm-cybersecurity-v2,5,true,"Zero-trust contractor policy was NCSC CE+ compliant — confirmed by our external auditor.",outcome_quality,2024-06-20 10:11:00
+FB-026,sess-it-005,26,dhs-slm-cybersecurity-v2,4,true,"Problem management summary was accurate. The overdue RCA P1-2024-0041 flag was correct.",outcome_quality,2024-06-28 14:55:00
+FB-027,sess-esg-007,27,dhs-slm-esg-v2,5,true,"Scope 3 Cat 1 calculation was within 5% of our third-party carbon accountant's figure. Accepted for disclosure.",outcome_quality,2024-06-15 11:30:00
+FB-028,sess-esg-007,28,dhs-slm-esg-v2,4,true,"Net-zero pathway capex numbers (£87M) aligned with our finance team's estimate. Milestone framework adopted.",outcome_quality,2024-06-20 15:44:00
+FB-029,sess-esg-007,29,dhs-slm-esg-v2,5,true,"Supplier ESG scoring identified ChemBase REACH violation we had not caught internally. Very high value alert.",outcome_quality,2024-06-24 09:22:00
+FB-030,sess-esg-007,30,dhs-slm-esg-v2,5,true,"TCFD section was assurance-ready. KPMG made only minor clarifications. Huge time saving vs previous year.",outcome_quality,2024-06-28 16:01:00
+FB-031,sess-mfg-008,31,dhs-slm-manufacturing-v3,5,true,"RCA for Line 7 coating failure was accurate — thermocouple calibration drift confirmed by our maintenance team. Model identified it 2h before our manual investigation.",outcome_quality,2024-06-12 08:34:00
+FB-032,sess-mfg-008,32,dhs-slm-manufacturing-v3,5,true,"OEE dashboard summary matched our SCADA system data. Improvement priorities were exactly right.",outcome_quality,2024-06-18 14:12:00
+FB-033,sess-mfg-008,33,dhs-slm-manufacturing-v3,5,true,"FS-03 bearing prediction: failure occurred 6.2 days after the alert (model said 8.4 day P50). Planned replacement completed successfully.",outcome_quality,2024-06-24 11:55:00
+FB-034,sess-mfg-008,34,dhs-slm-manufacturing-v3,5,true,"21 CFR Part 11 compliance summary was accurate for all 5 exceptions. QA director accepted output for regulatory file.",outcome_quality,2024-06-28 16:44:00
+FB-035,sess-ma-009,35,dhs-slm-ma-strategy-v1,4,true,"Target screen ranked PathogenIQ #1 — consistent with our investment bank's independent assessment. Useful validation.",outcome_quality,2024-06-20 10:22:00
+FB-036,sess-ma-009,36,dhs-slm-ma-strategy-v1,5,true,"Synergy model NPV and IRR matched our internal M&A team's model (NPV within £12M, IRR within 0.4%). Credible output.",outcome_quality,2024-06-23 15:33:00
+FB-037,sess-ma-009,37,dhs-slm-ma-strategy-v1,4,true,"Integration risk register was comprehensive. MHRA constraint was a risk we had not fully documented — now added to formal register.",outcome_quality,2024-06-26 11:04:00
+FB-038,sess-ma-009,38,dhs-slm-ma-strategy-v1,4,true,"Nexus Analytics PMI status was accurate. Revenue synergy shortfall analysis gave us the evidence to restructure the sales integration plan.",outcome_quality,2024-06-29 14:22:00
+FB-039,sess-dt-010,39,dhs-slm-digital-transform-v2,5,true,"Microservices decomposition plan with strangler fig sequencing was adopted by our architecture team unchanged.",outcome_quality,2024-06-23 10:33:00
+FB-040,sess-dt-010,40,dhs-slm-digital-transform-v2,5,true,"Data mesh design with 8 domain owners and 34 data products matched our architecture target. BCBS 239 constraint mapping was particularly useful.",outcome_quality,2024-06-25 15:01:00
+FB-041,sess-dt-010,41,dhs-slm-digital-transform-v2,5,true,"AI governance framework with 3-tier risk classification was adopted as our official policy. SS1/23 alignment confirmed by second-line risk.",outcome_quality,2024-06-27 11:44:00
+FB-042,sess-dt-010,42,dhs-slm-digital-transform-v2,4,true,"Technical debt quantification (£41M) was directionally correct. Our CAST assessment confirmed £38M — within 8%.",outcome_quality,2024-06-29 16:22:00

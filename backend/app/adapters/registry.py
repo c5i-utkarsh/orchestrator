@@ -29,12 +29,28 @@ class AdapterRegistry:
         return result
 
     async def get_best_local_model(self) -> ModelInfo | None:
-        """Returns the largest local Ollama model by parameter size (for teacher synthesis)."""
+        """Returns the best local Ollama model for teacher synthesis.
+        Prefers capable mid-size models (7-8B) over the largest available,
+        to keep distillation fast without sacrificing quality.
+        """
         ollama = self._adapters[0]
         models = await ollama.list_models()
         if not models:
             return None
-        # Sort by VRAM estimate descending (proxy for parameter count)
+        # Preference order: capable 7-8B models first, then larger, then smaller
+        TEACHER_PREFERENCE = [
+            "llama3:8b", "qwen2.5:7b", "mistral:latest", "mistral:7b",
+            "gemma3:latest", "gemma4:latest", "qwen2.5-coder:7b",
+            "gpt-oss:20b", "qwen2.5:32b", "app_builder_v6:latest",
+        ]
+        model_ids = {m.model_id: m for m in models}
+        for preferred in TEACHER_PREFERENCE:
+            if preferred in model_ids:
+                return model_ids[preferred]
+        # Fallback: pick by mid-range VRAM (prefer 3-8 GB, then others)
+        mid = [m for m in models if 3.0 <= m.vram_gb <= 9.0]
+        if mid:
+            return sorted(mid, key=lambda m: m.vram_gb, reverse=True)[0]
         return sorted(models, key=lambda m: m.vram_gb, reverse=True)[0]
 
     def get_ollama(self) -> OllamaAdapter:

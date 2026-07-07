@@ -1,7 +1,72 @@
 import json
 import os
+import re
 import time
 from typing import Dict, List, Optional, Set
+
+
+# Entity types that produce meaningless wiki pages (dates, numbers, raw cell values).
+# These NER categories carry no explanatory value and generate garbage QA pairs
+# during SLM distillation.
+_EXCLUDED_ENTITY_TYPES: Set[str] = {
+    "cardinal", "ordinal", "quantity", "date", "money", "percent",
+    "value", "time", "duration",
+    # spaCy label names (upper-case) are normalised to lower-case above,
+    # but include them here as a belt-and-suspenders guard.
+    "CARDINAL", "ORDINAL", "QUANTITY", "DATE", "MONEY", "PERCENT",
+    "VALUE", "TIME",
+}
+
+# Regex patterns that indicate a label is a raw value, not a meaningful entity.
+_ARTIFACT_PATTERNS = [
+    re.compile(r"^\d{4}-\d{2}-\d{2}"),                   # ISO date: 2024-01-15
+    re.compile(r"^date=", re.I),                           # date=2024-01-08
+    re.compile(r"^[A-Za-z][A-Za-z0-9_%]+=[-\d.]", re.I), # COLUMN_NAME=value (any case, digits in name, optional %)
+    re.compile(r"^[-\d.,]+[%]?$"),                         # pure numeric / percentage: 42, -3.14, 15.2%
+    re.compile(r"^[\d,.\s%$€£]+$"),                        # currency/percent value
+    re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$"),            # date: 01/15/2024
+    re.compile(r"^Q[1-4]\s+\d{4}$", re.I),               # Q1 2024
+    re.compile(r"^[#@\-_=.]+$"),                           # noise characters only
+    re.compile(r"^[A-Z]{2,10}_[A-Z_0-9]+="),             # ALL_CAPS_COLUMN=value (CSV headers)
+]
+
+
+def _is_skippable_entity(node: Dict) -> bool:
+    """Return True if this canonical node should NOT get a wiki page.
+
+    Skips:
+    - Excluded NER types (dates, numbers, percentages, cardinals, etc.)
+    - Labels that are raw data values (dates, numbers, key=value pairs)
+    - Labels shorter than 3 meaningful characters
+    - Labels that are purely numeric or whitespace
+    - Labels containing COLUMN=value patterns anywhere in the string
+    """
+    entity_type = (node.get("entity_type") or node.get("type") or "").lower()
+    if entity_type in _EXCLUDED_ENTITY_TYPES:
+        return True
+
+    label = (node.get("label") or node.get("canonical_id") or "").strip()
+
+    # Too short to be a meaningful entity
+    if len(label) < 3:
+        return True
+
+    # Purely numeric (with optional commas, dots, spaces)
+    stripped = label.replace(",", "").replace(".", "").replace(" ", "")
+    if stripped.isdigit():
+        return True
+
+    # Matches a known artifact pattern (start-anchored)
+    for pattern in _ARTIFACT_PATTERNS:
+        if pattern.match(label):
+            return True
+
+    # Contains a COLUMN=value pattern anywhere in the string
+    # Catches cases like "; ACTV_SELL_QTY_WK=12225" that don't start with a letter
+    if re.search(r"[A-Za-z][A-Za-z0-9_]+=[-\d.]", label):
+        return True
+
+    return False
 
 
 class WikiBuilder:
@@ -89,11 +154,38 @@ class WikiBuilder:
 
     @staticmethod
     def _summary(label: str, entity_type: str, edges: List[Dict]) -> str:
-        rel_types = sorted({e.get("relation", "related_to") for e in edges})
+        """Build a human-readable summary sentence for this entity.
+
+        Uses actual relationship data when available so distillation prompts
+        receive substantive content rather than generic type-tracker sentences.
+        """
+        if not edges:
+            return f"{label} ({entity_type}) — no relationships recorded in the knowledge graph."
+
+        # Collect distinct relation verbs and their targets for a richer sentence
+        rel_phrases: List[str] = []
+        for edge in edges[:8]:
+            relation = edge.get("relation", "")
+            src_label = edge.get("source_label", "")
+            tgt_label = edge.get("target_label", "")
+            if not relation:
+                continue
+            if src_label and src_label.lower() != label.lower() and tgt_label:
+                rel_phrases.append(f"{src_label} {relation.replace('_', ' ')} {tgt_label}")
+            elif tgt_label and tgt_label.lower() != label.lower() and src_label:
+                rel_phrases.append(f"{src_label} {relation.replace('_', ' ')} {tgt_label}")
+
+        if rel_phrases:
+            facts_str = "; ".join(rel_phrases[:4])
+            return f"{label} is a {entity_type} in this corpus. Key relationships: {facts_str}."
+
+        rel_types = sorted({e.get("relation", "related_to") for e in edges if e.get("relation")})
         if rel_types:
-            rel_text = ", ".join(rel_types[:6])
-            return f"{label} is tracked as a {entity_type} in the canonical wiki graph with observed relations: {rel_text}."
-        return f"{label} is tracked as a {entity_type} in the canonical wiki graph."
+            return (
+                f"{label} is a {entity_type} in this corpus with "
+                f"{len(edges)} relationship(s): {', '.join(rel_types[:5])}."
+            )
+        return f"{label} is a {entity_type} referenced in the knowledge graph."
 
     def _facts(self, canonical_id: str, edges: List[Dict], node_lookup: Dict[str, Dict]) -> List[Dict]:
         facts: List[Dict] = []
@@ -137,7 +229,10 @@ class WikiBuilder:
         }
         edges = canonical_graph.get("edges", [])
 
-        target_ids: Set[str] = {cid for cid in canonical_node_ids if cid in node_lookup}
+        target_ids: Set[str] = {
+            cid for cid in canonical_node_ids
+            if cid in node_lookup and not _is_skippable_entity(node_lookup[cid])
+        }
         if not target_ids:
             return {
                 "pages_created": 0,
