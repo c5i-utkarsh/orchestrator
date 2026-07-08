@@ -9,6 +9,304 @@ import SLMStudio, { type SLMConfig } from "../components/SLMStudio";
 
 interface EpochEntry { epoch: number; loss: number; }
 
+// ── Stable hash helper (for deterministic node placement) ─────────────────
+function _fgHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h;
+}
+
+// ── Node colour by entity type ─────────────────────────────────────────────
+function _fgColor(type: string): string {
+  const t = (type || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (t.includes("org") || t.includes("organ")) return "#7c3aed";
+  if (t.includes("person")) return "#d97706";
+  if (t.includes("gpe") || t.includes("loc") || t.includes("location")) return "#0d9488";
+  if (t.includes("event")) return "#ef4444";
+  if (t.includes("product")) return "#0ea5e9";
+  if (t.includes("artifact") || t.includes("facility") || t.includes("fac")) return "#8b5cf6";
+  if (t.includes("group")) return "#ec4899";
+  return "#6366f1";
+}
+
+interface FGNode { id: string; label: string; type: string; count?: number; files?: string[]; }
+interface FGEdge { source: string; target: string; relation?: string; weight?: number; }
+interface FGPos  { x: number; y: number; vx: number; vy: number; r: number; short: string; }
+
+// ── ForceGraphView — interactive force-directed graph ─────────────────────
+function ForceGraphView({ nodes, edges }: { nodes: FGNode[]; edges: FGEdge[] }) {
+  const W = 900, H = 520;
+  const [pos, setPos]       = useState<Record<string, FGPos>>({});
+  const [tfm, setTfm]       = useState({ x: 0, y: 0, s: 1 });
+  const [sel, setSel]       = useState<FGNode | null>(null);
+  const [hovEdge, setHovEdge] = useState<number | null>(null);
+  const dragging  = useRef<{ id: string; ox: number; oy: number } | null>(null);
+  const panning   = useRef<{ px: number; py: number; tx: number; ty: number } | null>(null);
+  const svgRef    = useRef<SVGSVGElement>(null);
+
+  // Run force simulation once when nodes/edges change
+  useEffect(() => {
+    if (!nodes.length) return;
+    const cx = W / 2, cy = H / 2;
+    const p: Record<string, FGPos> = {};
+    nodes.forEach(n => {
+      const h = _fgHash(n.id);
+      const a = (h % 360) * (Math.PI / 180);
+      const dist = 60 + (h % 180);
+      p[n.id] = { x: cx + dist * Math.cos(a), y: cy + dist * Math.sin(a), vx: 0, vy: 0, r: 0, short: "" };
+    });
+    // Build adjacency
+    const adj: Record<string, Set<string>> = {};
+    nodes.forEach(n => { adj[n.id] = new Set(); });
+    edges.forEach(e => { adj[e.source]?.add(e.target); adj[e.target]?.add(e.source); });
+    // Degree
+    const deg: Record<string, number> = {};
+    nodes.forEach(n => { deg[n.id] = adj[n.id]?.size ?? 0; });
+    const maxDeg = Math.max(1, ...Object.values(deg));
+    // Visible edges (limit for perf)
+    const visEdges = edges.slice(0, 400);
+    // Force simulation
+    const REP = 2800, SPR = 0.06, RL = 90, GRAV = 0.01, DAMP = 0.82, ITER = 160;
+    for (let it = 0; it < ITER; it++) {
+      // Repulsion (O(N²) — fine for ≤250 nodes)
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = p[nodes[i].id], b = p[nodes[j].id];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+          const f = REP / (d * d);
+          const fx = (dx / d) * f, fy = (dy / d) * f;
+          a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+        }
+      }
+      // Spring attraction on edges
+      visEdges.forEach(e => {
+        const a = p[e.source], b = p[e.target];
+        if (!a || !b) return;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+        const f = SPR * (d - RL);
+        const fx = (dx / d) * f, fy = (dy / d) * f;
+        a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+      });
+      // Integrate
+      nodes.forEach(n => {
+        const q = p[n.id];
+        q.vx = (q.vx + GRAV * (cx - q.x)) * DAMP;
+        q.vy = (q.vy + GRAV * (cy - q.y)) * DAMP;
+        q.x = Math.max(20, Math.min(W - 20, q.x + q.vx));
+        q.y = Math.max(20, Math.min(H - 20, q.y + q.vy));
+      });
+    }
+    // Assign radius and short label
+    nodes.forEach(n => {
+      const q = p[n.id];
+      q.r = 5 + Math.sqrt((deg[n.id] || 1) / maxDeg) * 14;
+      q.short = n.label.length > 14 ? n.label.slice(0, 13) + "…" : n.label;
+    });
+    setPos({ ...p });
+  }, [nodes, edges]);
+
+  // Zoom on wheel
+  const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    setTfm(t => ({ ...t, s: Math.max(0.2, Math.min(6, t.s * factor)) }));
+  };
+
+  // Pan start (background)
+  const onSvgMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as SVGElement).closest(".fg-node")) return;
+    panning.current = { px: e.clientX, py: e.clientY, tx: tfm.x, ty: tfm.y };
+  };
+
+  // Node drag start
+  const onNodeMouseDown = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const svgRect = svgRef.current!.getBoundingClientRect();
+    const svgX = (e.clientX - svgRect.left - tfm.x) / tfm.s;
+    const svgY = (e.clientY - svgRect.top  - tfm.y) / tfm.s;
+    dragging.current = { id, ox: svgX - (pos[id]?.x ?? 0), oy: svgY - (pos[id]?.y ?? 0) };
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (dragging.current) {
+      const svgRect = svgRef.current!.getBoundingClientRect();
+      const svgX = (e.clientX - svgRect.left - tfm.x) / tfm.s;
+      const svgY = (e.clientY - svgRect.top  - tfm.y) / tfm.s;
+      const nx = svgX - dragging.current.ox;
+      const ny = svgY - dragging.current.oy;
+      setPos(p => ({ ...p, [dragging.current!.id]: { ...p[dragging.current!.id], x: nx, y: ny, vx: 0, vy: 0 } }));
+    } else if (panning.current) {
+      const dx = e.clientX - panning.current.px;
+      const dy = e.clientY - panning.current.py;
+      setTfm(t => ({ ...t, x: panning.current!.tx + dx, y: panning.current!.ty + dy }));
+    }
+  };
+
+  const onMouseUp = () => { dragging.current = null; panning.current = null; };
+
+  if (!nodes.length) {
+    return (
+      <div className="flex items-center justify-center bg-bg3 border border-dborder rounded-xl" style={{ height: 300 }}>
+        <div className="text-center">
+          <div className="text-[28px] mb-2 opacity-30">⬡</div>
+          <p className="text-[12px] text-t3">No graph data yet — complete an ingest pipeline to generate the knowledge graph.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const visEdgesForRender = edges.slice(0, 400);
+  const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const selEdges = sel ? edges.filter(e => e.source === sel.id || e.target === sel.id) : [];
+
+  return (
+    <div className="relative border border-dborder rounded-xl overflow-hidden" style={{ height: 480, background: "var(--color-bg3,#f4f6fc)", userSelect: "none" }}>
+      {/* Controls */}
+      <div className="absolute top-2.5 left-3 flex gap-1.5 z-10">
+        <button onClick={() => setTfm(t => ({ ...t, s: Math.min(6, t.s * 1.25) }))}
+          className="w-7 h-7 bg-bg1 border border-dborder rounded text-[14px] text-t2 hover:text-accent flex items-center justify-center shadow-sm">+</button>
+        <button onClick={() => setTfm(t => ({ ...t, s: Math.max(0.2, t.s * 0.8) }))}
+          className="w-7 h-7 bg-bg1 border border-dborder rounded text-[14px] text-t2 hover:text-accent flex items-center justify-center shadow-sm">−</button>
+        <button onClick={() => setTfm({ x: 0, y: 0, s: 1 })} title="Reset view"
+          className="w-7 h-7 bg-bg1 border border-dborder rounded text-[11px] text-t3 hover:text-accent flex items-center justify-center shadow-sm">⌖</button>
+        <button onClick={() => setSel(null)} title="Deselect" disabled={!sel}
+          className="w-7 h-7 bg-bg1 border border-dborder rounded text-[11px] text-t3 hover:text-accent flex items-center justify-center shadow-sm disabled:opacity-30">✕</button>
+      </div>
+      <div className="absolute top-2.5 right-3 text-[9px] text-t3 z-10">
+        {nodes.length} nodes · {edges.length} edges · scroll to zoom · drag to pan/move
+      </div>
+
+      <svg ref={svgRef} width="100%" height="100%" viewBox={`0 0 ${W} ${H}`}
+        style={{ cursor: panning.current ? "grabbing" : "default" }}
+        onWheel={onWheel}
+        onMouseDown={onSvgMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}>
+        <g transform={`translate(${tfm.x},${tfm.y}) scale(${tfm.s})`}>
+          {/* Edges */}
+          <g>
+            {visEdgesForRender.map((e, i) => {
+              const sp = pos[e.source], tp = pos[e.target];
+              if (!sp || !tp) return null;
+              const highlighted = sel && (e.source === sel.id || e.target === sel.id);
+              const isHov = hovEdge === i;
+              const mx = (sp.x + tp.x) / 2, my = (sp.y + tp.y) / 2;
+              return (
+                <g key={i}>
+                  <line x1={sp.x} y1={sp.y} x2={tp.x} y2={tp.y}
+                    stroke={highlighted ? "#6366f1" : "#94a3b8"}
+                    strokeOpacity={highlighted ? 0.85 : 0.25}
+                    strokeWidth={highlighted ? 1.8 : 0.9}
+                    style={{ cursor: "pointer" }}
+                    onMouseEnter={() => setHovEdge(i)}
+                    onMouseLeave={() => setHovEdge(null)}>
+                    <title>{`${nodeMap[e.source]?.label ?? e.source} →[${e.relation ?? "related"}]→ ${nodeMap[e.target]?.label ?? e.target}`}</title>
+                  </line>
+                  {(isHov || highlighted) && e.relation && (
+                    <text x={mx} y={my - 3} textAnchor="middle" fontSize="7"
+                      fill="#334155" style={{ pointerEvents: "none" }}
+                      className="select-none">
+                      {e.relation}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+
+          {/* Nodes */}
+          <g>
+            {nodes.map(n => {
+              const q = pos[n.id];
+              if (!q) return null;
+              const col = _fgColor(n.type);
+              const isSelected = sel?.id === n.id;
+              return (
+                <g key={n.id} className="fg-node"
+                  style={{ cursor: "pointer" }}
+                  onMouseDown={ev => onNodeMouseDown(ev, n.id)}
+                  onClick={() => setSel(isSelected ? null : n)}>
+                  <circle cx={q.x} cy={q.y} r={q.r + 5} fill={col} opacity={0.1} />
+                  <circle cx={q.x} cy={q.y} r={q.r}
+                    fill={col} fillOpacity={isSelected ? 1 : 0.82}
+                    stroke={isSelected ? "#1e1b4b" : "#f8fafc"} strokeWidth={isSelected ? 2 : 1.2}>
+                    <title>{`${n.label} · ${n.type}${n.count ? ` · ×${n.count}` : ""}`}</title>
+                  </circle>
+                  {/* Label appears when zoomed or selected */}
+                  {(q.r > 8 || isSelected) && (
+                    <text x={q.x + q.r + 4} y={q.y + 3} fontSize="8"
+                      fill="#1e293b" style={{ pointerEvents: "none" }}
+                      className="select-none">
+                      {q.short}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        </g>
+      </svg>
+
+      {/* Legend */}
+      <div className="absolute bottom-2.5 left-3 bg-bg1/90 border border-dborder rounded-lg px-3 py-1.5 flex items-center gap-3 text-[9px] z-10">
+        {[["ORG","#7c3aed"],["PERSON","#d97706"],["LOC","#0d9488"],["PRODUCT","#0ea5e9"],["EVENT","#ef4444"],["OTHER","#6366f1"]]
+          .map(([t,c]) => (
+            <span key={t} className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full inline-block" style={{ background: c }} />
+              <span className="text-t3">{t}</span>
+            </span>
+          ))}
+      </div>
+
+      {/* Selected node detail panel */}
+      {sel && (
+        <div className="absolute top-10 right-3 bg-bg1 border border-dborder rounded-xl shadow-lg p-3 z-20 text-[11px]" style={{ width: 220 }}>
+          <div className="font-semibold text-t1 mb-1.5 leading-tight pr-4">{sel.label}</div>
+          <div className="flex items-center gap-1 mb-2">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-white" style={{ background: _fgColor(sel.type) }}>{sel.type}</span>
+            {sel.count != null && sel.count > 0 && (
+              <span className="text-t3 text-[9px]">×{sel.count} mentions</span>
+            )}
+          </div>
+          {selEdges.length > 0 && (
+            <div>
+              <div className="text-[9px] font-bold text-t3 uppercase tracking-widest mb-1.5">Connections ({selEdges.length})</div>
+              <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                {selEdges.slice(0, 12).map((e, i) => {
+                  const other = e.source === sel.id ? e.target : e.source;
+                  const otherNode = nodeMap[other];
+                  const dir = e.source === sel.id ? "→" : "←";
+                  return (
+                    <div key={i} className="flex items-center gap-1 text-[10px]">
+                      <span className="text-accent font-mono">{dir}</span>
+                      <span className="text-t3 italic truncate">{e.relation ?? "related"}</span>
+                      <span className="text-t2 truncate font-medium">{otherNode?.label ?? other}</span>
+                    </div>
+                  );
+                })}
+                {selEdges.length > 12 && (
+                  <div className="text-[9px] text-t3 italic">+{selEdges.length - 12} more…</div>
+                )}
+              </div>
+            </div>
+          )}
+          {selEdges.length === 0 && (
+            <div className="text-[10px] text-t3 italic">No direct connections in view</div>
+          )}
+          {(sel as any).files?.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-dborder">
+              <div className="text-[9px] text-t3">Source files: {(sel as any).files.join(", ")}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatEta(seconds: number | null): string {
   if (seconds === null || seconds === undefined) return "";
   if (seconds < 60) return `~${seconds}s remaining`;
@@ -66,6 +364,27 @@ function ProcessingPage() {
   const [topEntities, setTopEntities] = useState<string[]>([]);
   const [availableModels, setAvailableModels] = useState<{name:string;provider:string;is_available_locally:boolean}[]>([]);
 
+  // ── Cancel harnessing state ────────────────────────────────────────────────
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const handleCancelRequest = () => {
+    if (overallPct > 0 && overallPct < 100) {
+      // Pipeline is active — ask for confirmation
+      setShowCancelConfirm(true);
+    } else {
+      // Not started yet (or complete) — return immediately
+      esRef.current?.close();
+      router.push("/");
+    }
+  };
+
+  const handleCancelConfirmed = () => {
+    // Close the SSE connection to stop receiving events
+    esRef.current?.close();
+    setShowCancelConfirm(false);
+    router.push("/");
+  };
+
   // Gate state
   // Track which gates have already been shown (prevents re-triggering on reconnect)
   const gatesShownRef = useRef<Set<string>>(new Set());
@@ -94,7 +413,7 @@ function ProcessingPage() {
 
   // Demo-mode Knowledge Review (shows real pipeline output before AI Builder)
   const [showDemoReview, setShowDemoReview] = useState(false);
-  const [demoReviewData, setDemoReviewData] = useState<{ wiki: any; graph: any } | null>(null);
+  const [demoReviewData, setDemoReviewData] = useState<{ wiki: any; graph: any; mergedGraph: any } | null>(null);
   const [demoReviewQuality, setDemoReviewQuality] = useState<{ quality: any; report: any; eda: any; ontology: any } | null>(null);
   const demoReviewResolveRef = useRef<((a: "approve" | "reject" | "regenerate") => void) | null>(null);
   const [reviewTab, setReviewTab] = useState<"overview"|"graph"|"wiki"|"ontology"|"entities"|"relationships"|"communities"|"statistics"|"eda"|"quality"|"approval">("overview");
@@ -249,15 +568,16 @@ function ProcessingPage() {
         es.close();
 
         // Knowledge Review — fetch pipeline output and show the rich 10-tab review screen.
-        const [wikiData, graphData, qualityData, reportData, edaData, ontologyData] = await Promise.all([
+        const [wikiData, graphData, qualityData, reportData, edaData, ontologyData, mergedGraphData] = await Promise.all([
           fetch(`${API}/api/v1/data/wiki/${jobId}`).then(r => r.json()).catch(() => null),
           fetch(`${API}/api/v1/data/graph/${jobId}`).then(r => r.json()).catch(() => null),
           fetch(`${API}/api/v1/quality/${jobId}/metrics`).then(r => r.json()).catch(() => null),
           fetch(`${API}/api/v1/data/ingestion-report/${jobId}`).then(r => r.json()).catch(() => null),
           fetch(`${API}/api/v1/quality/${jobId}/eda`).then(r => r.json()).catch(() => null),
           fetch(`${API}/api/v1/quality/${jobId}/ontology`).then(r => r.json()).catch(() => null),
+          fetch(`${API}/api/v1/data/graph/${jobId}/merged`).then(r => r.ok ? r.json() : null).catch(() => null),
         ]);
-        setDemoReviewData({ wiki: wikiData, graph: graphData });
+        setDemoReviewData({ wiki: wikiData, graph: graphData, mergedGraph: mergedGraphData });
         setDemoReviewQuality({ quality: qualityData, report: reportData, eda: edaData, ontology: ontologyData });
         setReviewTab("overview");
         setShowDemoReview(true);
@@ -272,9 +592,141 @@ function ProcessingPage() {
           return;
         }
         if (action === "regenerate") {
-          addLog("Regenerating knowledge — re-running the pipeline…");
-          try { await fetch(`${API}/api/v1/data/retry/${jobId}`, { method: "POST" }); } catch { /* */ }
-          window.location.reload();
+          addLog("↻ Regenerating knowledge — re-running all 14 pipeline layers…");
+
+          // Reset canvas to pending state so the user sees progress
+          setNodes(prev => prev.map(n =>
+            INGEST_LAYERS.some(l => l.id === n.id)
+              ? { ...n, status: "pending" as NodeStatus, metric: undefined }
+              : n
+          ));
+          setNodeStatus("upload", "running");
+          setOverallPct(0);
+          setLog([]);
+          prevStepStatusRef.current = {};
+
+          // Use /repair which ALWAYS runs the full 14-layer pipeline
+          // (not /retry which only re-indexes FAISS when graph already exists)
+          try {
+            const repairRes = await fetch(`${API}/api/v1/data/repair/${jobId}`, { method: "POST" });
+            if (!repairRes.ok) {
+              addLog(`⚠ Repair returned HTTP ${repairRes.status} — pipeline may already be queued`);
+            } else {
+              addLog("↻ Full pipeline queued — Celery worker will begin shortly…");
+            }
+          } catch (e) {
+            addLog(`❌ Failed to start regeneration: ${e}`);
+            // Restore modal with existing data so nothing is lost
+            setShowDemoReview(true);
+            return;
+          }
+
+          // Re-open SSE connection — the old one was closed after graph_done
+          const regenEs = new EventSource(`${API}/api/v1/data/progress/${jobId}`);
+          esRef.current = regenEs;
+
+          regenEs.onmessage = async (regenEvent) => {
+            const rev = JSON.parse(regenEvent.data);
+            setOverallPct(rev.overall_pct ?? 0);
+            setEtaSeconds(rev.eta_seconds ?? null);
+            if (rev.file_count)      setStats(p => ({ ...p, files: rev.file_count }));
+            if (rev.entity_count)    setStats(p => ({ ...p, entities: rev.entity_count }));
+            if (rev.community_count) setStats(p => ({ ...p, communities: rev.community_count }));
+
+            const rstatus = rev.status;
+            const rsteps: { id: string; status: string; detail?: string }[] = rev.steps ?? [];
+            const rprev = prevStepStatusRef.current;
+            for (const s of rsteps) {
+              if (rprev[s.id] !== s.status) {
+                if (s.status === "running")                             addLog(STEP_START_LOGS[s.id] ?? `[${s.id}] Starting…`);
+                else if (s.status === "done" && rprev[s.id] === "running") addLog(`${STEP_DONE_ICONS[s.id] ?? "✓"} ${s.detail || s.id + " complete"}`);
+                else if (s.status === "error")                         addLog(`❌ ${s.id} failed: ${s.detail ?? "error"}`);
+                rprev[s.id] = s.status;
+              }
+            }
+            prevStepStatusRef.current = { ...rprev };
+
+            if (rstatus === "ingesting" && rsteps.length) {
+              setNodes(prev => prev.map(n => {
+                const s = rsteps.find(x => x.id === n.id);
+                if (!s) return n;
+                const mapped: NodeStatus = s.status === "done" ? "done" : s.status === "running" ? "running" : s.status === "error" ? "error" : "pending";
+                return { ...n, status: mapped, metric: s.detail || n.metric };
+              }));
+              const graphStep = rsteps.find(x => x.id === "graph");
+              if (graphStep?.status === "done" && !gatesShownRef.current.has("graph-regen")) {
+                gatesShownRef.current.add("graph-regen");
+                fireAchievement("🕸️", "Knowledge graph rebuilt!", "Entities and relationships refreshed");
+              }
+            }
+
+            if (rstatus === "graph_done") {
+              setStats(p => ({ ...p, entities: rev.entity_count ?? p.entities, communities: rev.community_count ?? p.communities }));
+              setNodes(prev => prev.map(n =>
+                INGEST_LAYERS.some(l => l.id === n.id)
+                  ? { ...n, status: (n.id === "graph_validation" ? "waiting-approval" : "done") as NodeStatus }
+                  : n
+              ));
+              fireAchievement("✅", "Knowledge regenerated!", `${rev.entity_count ?? 0} entities refreshed`);
+              regenEs.close();
+
+              // Re-fetch ALL review data — everything is now fresh
+              const [wikiR, graphR, qualityR, reportR, edaR, ontologyR, mergedR] = await Promise.all([
+                fetch(`${API}/api/v1/data/wiki/${jobId}`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/data/graph/${jobId}`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/quality/${jobId}/metrics`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/data/ingestion-report/${jobId}`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/quality/${jobId}/eda`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/quality/${jobId}/ontology`).then(r => r.json()).catch(() => null),
+                fetch(`${API}/api/v1/data/graph/${jobId}/merged`).then(r => r.ok ? r.json() : null).catch(() => null),
+              ]);
+              setDemoReviewData({ wiki: wikiR, graph: graphR, mergedGraph: mergedR });
+              setDemoReviewQuality({ quality: qualityR, report: reportR, eda: edaR, ontology: ontologyR });
+              setReviewTab("overview");
+              setShowDemoReview(true);
+
+              const nextAction = await new Promise<"approve" | "reject" | "regenerate">(resolve => {
+                demoReviewResolveRef.current = resolve;
+              });
+              setShowDemoReview(false);
+              setDemoReviewData(null);
+
+              if (nextAction === "reject") {
+                addLog("Knowledge rejected — returning to session setup.");
+                router.push("/");
+                return;
+              }
+              if (nextAction === "regenerate") {
+                // Second consecutive regeneration — reload to restart full flow
+                window.location.reload();
+                return;
+              }
+              // Approved — proceed to AI build
+              setNodeStatus("graph_validation", "done", `${rev.entity_count ?? 0} entities`);
+              addLog("Knowledge approved — checking for existing custom AI…");
+              setNodeStatus("build-ai", "running", "checking…");
+              try {
+                const forCorpusRes = await fetch(`${API}/api/v1/slm/for-corpus?job_id=${jobId}`);
+                const forCorpus = await forCorpusRes.json();
+                setSlmExistsRecord(forCorpus.exists ? forCorpus : null);
+                setNodeStatus("build-ai", "waiting-approval");
+                setShowModelSelector(true);
+                addLog(forCorpus.exists ? `ℹ️ Custom AI found: ${forCorpus.model_id}` : "No Custom AI yet — configure your AI in the builder…");
+              } catch {
+                setSlmExistsRecord(null);
+                setNodeStatus("build-ai", "waiting-approval");
+                setShowModelSelector(true);
+              }
+
+            } else if (rstatus === "failed") {
+              addLog(`❌ Pipeline failed: ${rev.error ?? "unknown error"}`);
+              regenEs.close();
+              // Restore modal with pre-regen data so nothing is lost
+              setShowDemoReview(true);
+            }
+          };
+
+          regenEs.onerror = () => { addLog("⚠ SSE connection lost — retrying…"); };
           return;
         }
         setNodeStatus("graph_validation", "done", `${ev.entity_count ?? 0} entities`);
@@ -736,6 +1188,7 @@ function ProcessingPage() {
       {showDemoReview && demoReviewData && (() => {
         const wiki    = demoReviewData.wiki;
         const graph   = demoReviewData.graph;
+        const mergedGraph = demoReviewData.mergedGraph;  // per-file merged: rich edges
         const quality = demoReviewQuality?.quality;
         const report  = demoReviewQuality?.report;
         const edaPayload = demoReviewQuality?.eda;          // NEW: /quality/{id}/eda
@@ -1072,9 +1525,10 @@ function ProcessingPage() {
                 {/* ── KNOWLEDGE GRAPH TAB ───────────────────────────── */}
                 {reviewTab === "graph" && (
                   <div className="space-y-4">
+                    {/* KPI stats row — keep as before */}
                     <div className="grid grid-cols-4 gap-3">
                       <Kpi label="Nodes" value={(gMetrics?.node_count ?? gNodes.length) || null} color="#6c5cf7"/>
-                      <Kpi label="Active Edges" value={(gMetrics?.active_edge_count ?? gEdges.length) || null} color="#0d9e74"/>
+                      <Kpi label="Active Edges" value={(mergedGraph?.edge_count ?? gMetrics?.active_edge_count ?? gEdges.length) || null} color="#0d9e74"/>
                       <Kpi label="Density" value={gMetrics?.stats?.density != null ? gMetrics.stats.density.toFixed(5) : null}/>
                       <Kpi label="Avg Degree" value={gMetrics?.stats?.avg_degree != null ? gMetrics.stats.avg_degree.toFixed(2) : null}/>
                       <Kpi label="Suppressed" value={gMetrics?.suppressed_edge_count ?? null} color="#d97706"/>
@@ -1082,24 +1536,17 @@ function ProcessingPage() {
                       <Kpi label="Contradictions" value={gMetrics?.contradiction_ratio != null ? `${(gMetrics.contradiction_ratio*100).toFixed(1)}%` : null} color={gMetrics?.contradiction_ratio > 0.05 ? "#e63755" : "#16a34a"}/>
                       <Kpi label="Communities" value={Object.keys(commMap).length || null}/>
                     </div>
-                    {/* Top entities by mention */}
-                    <div className="bg-bg2 border border-dborder rounded-xl p-4">
-                      <div className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-3">Top Entities</div>
-                      <div className="space-y-1.5">
-                        {gNodes.slice(0,20).map((n,i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                              n.type==="ORG"?"bg-accent/10 text-accent":n.type==="PERSON"?"bg-teal/10 text-teal":
-                              n.type==="REGULATION"?"bg-amber/10 text-amber":n.type==="RISK"||n.type==="EVENT"?"bg-coral/10 text-coral":"bg-bg3 text-t3"}`}>{n.type}</span>
-                            <span className="text-[12px] text-t1 flex-1 truncate">{n.label}</span>
-                            {n.count && <><div className="w-16 h-1.5 bg-bg3 rounded-full overflow-hidden"><div className="h-full bg-accent/60 rounded-full" style={{width:`${Math.min(100,(n.count/10)*100)}%`}}/></div><span className="text-[9px] text-t3 w-6">{n.count}</span></>}
-                            {n.community !== undefined && <span className="text-[8px] text-t3 bg-bg3 px-1.5 py-0.5 rounded">c{n.community}</span>}
-                          </div>
-                        ))}
-                        {gNodes.length > 20 && <div className="text-[10px] text-t3 pt-1">+{gNodes.length-20} more entities</div>}
-                        {gNodes.length === 0 && <Empty msg="Graph data not available — pipeline may not have written graph_path to the database yet."/>}
+                    {/* Interactive force-directed graph */}
+                    {mergedGraph?.edge_count > 0 && (
+                      <div className="text-[10px] text-t3 px-1">
+                        Visualising merged per-file graph · {mergedGraph.node_count} entities · {mergedGraph.edge_count} relationships
+                        · Scroll to zoom · drag to pan · drag nodes to reposition · click node for details
                       </div>
-                    </div>
+                    )}
+                    <ForceGraphView
+                      nodes={mergedGraph?.nodes ?? gNodes}
+                      edges={mergedGraph?.edges ?? gEdges}
+                    />
                   </div>
                 )}
 
@@ -1697,21 +2144,58 @@ function ProcessingPage() {
 
       <AchievementToast />
 
+      {/* ── Cancel confirmation dialog ─────────────────────────── */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/65 z-50 flex items-center justify-center p-6" style={{backdropFilter:"blur(4px)"}}>
+          <div className="bg-card border border-dborder rounded-2xl overflow-hidden max-w-md w-full shadow-2xl">
+            <div className="px-6 pt-5 pb-4 border-b border-dborder">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-t3 mb-1">Cancel Knowledge Harnessing?</div>
+              <div className="text-[15px] font-semibold text-t1 font-sora">Stop the current pipeline run</div>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <div className="space-y-2 text-[12px] text-t2 leading-relaxed">
+                <div className="flex items-start gap-2"><span className="text-amber mt-0.5">⚠</span> The current harnessing run will be cancelled.</div>
+                <div className="flex items-start gap-2"><span className="text-gg mt-0.5">✓</span> Your uploaded files remain available — you can restart later.</div>
+                <div className="flex items-start gap-2"><span className="text-coral mt-0.5">✕</span> Any partially generated knowledge will be discarded.</div>
+                <div className="flex items-start gap-2"><span className="text-t3 mt-0.5">↩</span> You will be returned to the previous page.</div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setShowCancelConfirm(false)}
+                  className="btn flex-1 border border-dborder2 text-t2 hover:text-t1">Keep Running</button>
+                <button onClick={handleCancelConfirmed}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-t1 text-white text-[13px] font-semibold hover:bg-t1/90 transition-colors">
+                  Cancel & Return
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <div className="bg-card border-b border-dborder px-0 py-7 mb-7">
-        <div className="w-full px-8">
-          <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
-            <span className="inline-block w-4 h-px bg-accent" />
-            Step 2 · Knowledge Harnessing
+        <div className="w-full px-8 flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
+              <span className="inline-block w-4 h-px bg-accent" />
+              Step 2 · Knowledge Harnessing
+            </div>
+            <div className="font-sora text-2xl font-semibold text-t1">
+              {typeof window !== "undefined" && sessionStorage.getItem("project_name")
+                ? sessionStorage.getItem("project_name")
+                : "Knowledge harnessing"}
+            </div>
+            <div className="text-[12px] text-t2 mt-1">
+              {etaSeconds !== null && phase === "ingest" ? formatEta(etaSeconds) : "14-layer semantic-trust pipeline running — watch each layer complete in real time"}
+            </div>
           </div>
-          <div className="font-sora text-2xl font-semibold text-t1">
-            {typeof window !== "undefined" && sessionStorage.getItem("project_name")
-              ? sessionStorage.getItem("project_name")
-              : "Knowledge harnessing"}
-          </div>
-          <div className="text-[12px] text-t2 mt-1">
-            {etaSeconds !== null && phase === "ingest" ? formatEta(etaSeconds) : "14-layer semantic-trust pipeline running — watch each layer complete in real time"}
-          </div>
+          {/* Cancel button — visible at all times during Knowledge Harnessing */}
+          <button
+            onClick={handleCancelRequest}
+            className="flex-shrink-0 flex items-center gap-1.5 text-[11px] px-3 py-1.5 border border-dborder2 text-t3 hover:border-coral/40 hover:text-coral rounded-lg transition-colors mt-1"
+          >
+            ← Cancel
+          </button>
         </div>
       </div>
 
