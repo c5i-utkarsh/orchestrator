@@ -310,3 +310,59 @@ async def summary(db: AsyncSession = Depends(get_db)):
         "slm_utilization": slm_util_data,
         "knowledge_coverage_pct": knowledge_coverage_pct,
     }
+
+
+@router.get("/strategies")
+async def strategy_analytics(db: AsyncSession = Depends(get_db)):
+    """
+    Phase 3 Prompt Strategy Analytics.
+    Returns real recorded data from prompt_strategies and prompt_strategy_history.
+    No placeholders — returns empty lists when no data exists.
+    """
+    try:
+        strats = (await db.execute(text("""
+            SELECT id, name, category, usage_count, average_score, last_used
+            FROM prompt_strategies
+            ORDER BY average_score DESC, usage_count DESC
+        """))).mappings().all()
+        strategy_list = [dict(r) for r in strats]
+
+        # Top 5 by average score (min 1 use)
+        top_strategies = [s for s in strategy_list if s["usage_count"] >= 1][:5]
+
+        # 30-day history trend
+        hist = (await db.execute(text("""
+            SELECT
+                to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+                strategy_name,
+                COUNT(*) AS uses,
+                AVG(verifier_score)    AS avg_score,
+                AVG(hallucination_rate) AS avg_halluc,
+                AVG(latency_ms)        AS avg_latency,
+                SUM(CASE WHEN improvement_applied THEN 1 ELSE 0 END) AS improvements
+            FROM prompt_strategy_history
+            WHERE created_at >= now() - interval '30 days'
+            GROUP BY 1, 2
+            ORDER BY 1 DESC, 3 DESC
+        """))).all()
+        history = [{
+            "day": r[0], "strategy": r[1], "uses": int(r[2]),
+            "avg_score": _r(r[3]), "avg_halluc": _r(r[4]),
+            "avg_latency_ms": int(r[5]) if r[5] else None,
+            "improvements": int(r[6]),
+        } for r in hist]
+
+        total_uses = sum(s["usage_count"] for s in strategy_list)
+
+        return {
+            "strategies": strategy_list,
+            "top_strategies": top_strategies,
+            "history_30d": history,
+            "total_strategy_executions": total_uses,
+            "strategy_count": len(strategy_list),
+        }
+    except Exception as exc:
+        # Table may not exist on older deployments
+        return {"strategies": [], "top_strategies": [], "history_30d": [],
+                "total_strategy_executions": 0, "strategy_count": 0,
+                "error": str(exc)}

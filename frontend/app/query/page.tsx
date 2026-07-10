@@ -71,6 +71,9 @@ export default function QueryPage() {
   const [loopScore, setLoopScore] = useState<number | null>(null);
   const [loopPlanReused, setLoopPlanReused] = useState<boolean | null>(null);
   const [loopPlanSimilarity, setLoopPlanSimilarity] = useState<number | null>(null);
+  const [loopStrategyName, setLoopStrategyName] = useState<string | null>(null);
+  const [loopStrategyAvg, setLoopStrategyAvg] = useState<number | null>(null);
+  const [loopStrategyDetail, setLoopStrategyDetail] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [weightsOpen, setWeightsOpen] = useState(false);
   const [loopEnabled, setLoopEnabled] = useState(false);  // Loop Engineering toggle (default OFF)
@@ -158,7 +161,7 @@ export default function QueryPage() {
     const q = (overrideQuery ?? query).trim();
     const sp = (overrideSysPrompt ?? systemPrompt).trim();
     if (!q) { setError("Please enter a question or goal"); return; }
-    setError(""); setRunning(true); setTimeline([]); setAnswer(""); setAnsweredByLabel(null); setConfidence(null); setLoopImproved(null); setLoopScore(null); setLoopPlanReused(null); setLoopPlanSimilarity(null);
+    setError(""); setRunning(true); setTimeline([]); setAnswer(""); setAnsweredByLabel(null); setConfidence(null); setLoopImproved(null); setLoopScore(null); setLoopPlanReused(null); setLoopPlanSimilarity(null); setLoopStrategyName(null); setLoopStrategyAvg(null); setLoopStrategyDetail(false);
     const API = process.env.NEXT_PUBLIC_API_URL ?? "";
     const domain = selectedCorpus?.domain_label ?? "general";
     if (selectedCorpus) {
@@ -192,6 +195,8 @@ export default function QueryPage() {
       if ((out as any)?.loop_verifier_score != null) setLoopScore((out as any).loop_verifier_score);
       if ((out as any)?.loop_plan_reused != null) setLoopPlanReused(!!(out as any).loop_plan_reused);
       if ((out as any)?.loop_plan_similarity != null) setLoopPlanSimilarity((out as any).loop_plan_similarity);
+      if ((out as any)?.loop_strategy_name) setLoopStrategyName((out as any).loop_strategy_name);
+      if ((out as any)?.loop_strategy_avg != null) setLoopStrategyAvg((out as any).loop_strategy_avg);
       if (out) sessionStorage.setItem("orchestrator_output", JSON.stringify(out));  // Outcome page reads this
     } catch (e: any) {
       setError(e.message ?? "Query failed");
@@ -455,6 +460,15 @@ export default function QueryPage() {
                     <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="text-[10px] font-semibold uppercase tracking-wider text-t3">Answer</div>
+                        {/* Phase 3: Strategy badge */}
+                        {loopStrategyName && (
+                          <button
+                            onClick={() => setLoopStrategyDetail(d => !d)}
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple/10 text-purple border border-purple/25 uppercase tracking-wider hover:bg-purple/20 transition-colors"
+                          >
+                            🧠 {loopStrategyName}{loopStrategyAvg != null ? ` · ${(loopStrategyAvg * 100).toFixed(0)}%` : ""}
+                          </button>
+                        )}
                         {/* Strategy provenance badge */}
                         {loopPlanReused === true && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal/10 text-teal border border-teal/25 uppercase tracking-wider">
@@ -486,6 +500,17 @@ export default function QueryPage() {
                       )}
                     </div>
                     <div className="text-[13px] text-t1 whitespace-pre-wrap leading-relaxed">{answer}</div>
+                    {/* Strategy Details expandable panel */}
+                    {loopStrategyName && loopStrategyDetail && (
+                      <div className="mt-3 px-3 py-2.5 bg-bg2 border border-dborder rounded-lg text-[11px] text-t2 space-y-1">
+                        <div className="font-semibold text-t1 mb-1">Strategy Details</div>
+                        <div><span className="text-t3">Strategy:</span> {loopStrategyName}</div>
+                        {loopStrategyAvg != null && <div><span className="text-t3">⭐ Avg Score:</span> {(loopStrategyAvg * 100).toFixed(0)}%</div>}
+                        {loopScore != null && <div><span className="text-t3">This run:</span> {(loopScore * 100).toFixed(0)}% quality</div>}
+                        {loopPlanReused && <div><span className="text-t3">📈 Plan:</span> Reused from library{loopPlanSimilarity ? ` (${(loopPlanSimilarity * 100).toFixed(0)}% similar)` : ""}</div>}
+                        {loopImproved && <div><span className="text-t3">Improvement:</span> Applied</div>}
+                      </div>
+                    )}
                     <button onClick={goToOutcome} className="btn btn-sm mt-3 text-accent">Open Outcome Workspace</button>
                   </div>
                 )}

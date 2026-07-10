@@ -480,13 +480,17 @@ async def ask(request: AskRequest, db: AsyncSession = Depends(get_db)):
                     if _ev.get("type") == "output":
                         # Patch final_answer with the (possibly improved) answer
                         _ev_data = dict(_ev.get("data") or {})
-                        _ev_data["final_answer"]       = _loop_result.final_answer
-                        _ev_data["loop_improved"]      = _loop_result.was_improved
-                        _ev_data["loop_verifier_score"] = _loop_result.verifier_score
-                        _ev_data["loop_plan_goal"]     = _loop_result.plan_goal
-                        _ev_data["loop_plan_reused"]   = _loop_result.plan_reused
+                        _ev_data["final_answer"]         = _loop_result.final_answer
+                        _ev_data["loop_improved"]        = _loop_result.was_improved
+                        _ev_data["loop_verifier_score"]  = _loop_result.verifier_score
+                        _ev_data["loop_plan_goal"]       = _loop_result.plan_goal
+                        _ev_data["loop_plan_reused"]     = _loop_result.plan_reused
                         _ev_data["loop_plan_similarity"] = _loop_result.plan_similarity
-                        _ev_data["loop_plan_stored"]   = _loop_result.plan_stored
+                        _ev_data["loop_plan_stored"]     = _loop_result.plan_stored
+                        _ev_data["loop_strategy_name"]   = _loop_result.strategy_name
+                        _ev_data["loop_strategy_id"]     = _loop_result.strategy_id
+                        _ev_data["loop_strategy_avg"]    = _loop_result.strategy_avg_score
+                        _ev_data["loop_strategy_ucb"]    = _loop_result.strategy_ucb_score
                         _output_data = _ev_data
                         _ev = dict(_ev)
                         _ev["data"] = _ev_data

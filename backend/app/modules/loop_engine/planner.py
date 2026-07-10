@@ -1,15 +1,8 @@
 """
-Loop Engine Planner — Phase 1 + Execution Library integration (Phase 2).
+Loop Engine Planner — Phase 1 + Execution Library (Phase 2) + Strategy Injection (Phase 3).
 
-Receives: query, task classification, coverage result, project context.
-Returns: structured JSON execution plan (no generation — plan only).
-
-Phase 2 addition:
-  - Before generating a fresh plan, search the Execution Library for a similar
-    stored strategy (if library is enabled and embed_fn is provided).
-  - If a match is found above similarity_threshold, adapt it to the current query
-    by regenerating only the goal/wording — keeping the structural strategy.
-  - PlanResult now carries `reused_from_library` and `library_similarity` fields.
+Phase 3 addition: accepts an optional StrategyResult and injects its template
+into the planner prompt to guide the structural approach.
 """
 from __future__ import annotations
 
@@ -94,6 +87,20 @@ class PlanResult:
     reused_from_library: bool = False
     library_similarity: float | None = None
     library_entry_id: int | None = None
+    # Phase 3 fields
+    strategy_name: str = "Research"
+    strategy_id: int | None = None
+
+
+# ── Strategy injection suffix ─────────────────────────────────────────────────
+_STRATEGY_SUFFIX = """
+PLANNING STRATEGY: {strategy_name}
+Structural approach: {planning_style}
+Required output sections: {expected_output_structure}
+Quality criteria: {verifier_expectations}
+
+Apply this planning strategy to structure your execution plan above.
+"""
 
 
 class LoopPlanner:
@@ -116,6 +123,7 @@ class LoopPlanner:
         domain: str = "general",
         context_summary: str = "",
         complexity: str = "Medium",
+        strategy=None,   # StrategyResult | None — injected by LoopEngine Phase 3
     ) -> PlanResult:
         t0 = time.monotonic()
         log.info("[Planner] Starting plan for query (%.60s…)", query)
@@ -128,9 +136,7 @@ class LoopPlanner:
                     log.info("[Planner] Library hit (similarity=%.3f, entry=%s) — adapting plan",
                              search_result.similarity, search_result.entry_id)
                     adapted = await self._adapt_plan(
-                        query=query,
-                        stored_result=search_result,
-                        t0=t0,
+                        query=query, stored_result=search_result, t0=t0, strategy=strategy,
                     )
                     return adapted
                 else:
@@ -142,11 +148,14 @@ class LoopPlanner:
         # ── Fresh plan generation ─────────────────────────────────────────────
         return await self._generate_fresh(
             query=query, task_type=task_type, domain=domain,
-            context_summary=context_summary, complexity=complexity, t0=t0,
+            context_summary=context_summary, complexity=complexity,
+            t0=t0, strategy=strategy,
         )
 
-    async def _adapt_plan(self, query: str, stored_result, t0: float) -> PlanResult:
+    async def _adapt_plan(self, query: str, stored_result, t0: float, strategy=None) -> PlanResult:
         """Adapt a stored plan structure to the current query — keep structure, reword goal."""
+        s_name = strategy.strategy_name if strategy else "Research"
+        s_id   = strategy.strategy_id   if strategy else None
         try:
             judge_info = await self._registry.get_best_local_model()
             model = judge_info.model_id if judge_info else None
@@ -164,6 +173,7 @@ class LoopPlanner:
                     reused_from_library=True,
                     library_similarity=stored_result.similarity,
                     library_entry_id=stored_result.entry_id,
+                    strategy_name=s_name, strategy_id=s_id,
                     elapsed_ms=elapsed,
                 )
 
@@ -190,8 +200,8 @@ class LoopPlanner:
                 m = re.search(r"\{.*\}", raw, re.DOTALL)
                 if m:
                     data = json.loads(m.group())
-                    log.info("[Planner] Adapted plan in %dms (library sim=%.3f)",
-                             elapsed, stored_result.similarity)
+                    log.info("[Planner] Adapted plan in %dms (library sim=%.3f, strategy=%s)",
+                             elapsed, stored_result.similarity, s_name)
                     return PlanResult(
                         goal=str(data.get("goal", stored_result.planner_goal))[:200],
                         subtasks=list(data.get("subtasks", stored_result.planner_subtasks))[:3],
@@ -203,6 +213,7 @@ class LoopPlanner:
                         reused_from_library=True,
                         library_similarity=stored_result.similarity,
                         library_entry_id=stored_result.entry_id,
+                        strategy_name=s_name, strategy_id=s_id,
                         elapsed_ms=elapsed,
                     )
 
@@ -217,6 +228,7 @@ class LoopPlanner:
                 reused_from_library=True,
                 library_similarity=stored_result.similarity,
                 library_entry_id=stored_result.entry_id,
+                strategy_name=s_name, strategy_id=s_id,
                 elapsed_ms=elapsed,
             )
 
@@ -230,8 +242,11 @@ class LoopPlanner:
     async def _generate_fresh(
         self, query: str, task_type: str, domain: str,
         context_summary: str, complexity: str, t0: float,
+        strategy=None,   # StrategyResult | None
     ) -> PlanResult:
-        """Generate a brand-new plan using the LLM."""
+        """Generate a brand-new plan using the LLM, optionally guided by a strategy."""
+        s_name = strategy.strategy_name if strategy else "Research"
+        s_id   = strategy.strategy_id   if strategy else None
         try:
             judge_info = await self._registry.get_best_local_model()
             model = judge_info.model_id if judge_info else None
@@ -245,6 +260,15 @@ class LoopPlanner:
                 context_summary=(context_summary or "None")[:300],
                 complexity=complexity,
             )
+
+            # Inject strategy guidance if available
+            if strategy and strategy.template:
+                prompt += _STRATEGY_SUFFIX.format(
+                    strategy_name=strategy.strategy_name,
+                    planning_style=strategy.planning_style or "structured approach",
+                    expected_output_structure=strategy.expected_output_structure or "clear sections",
+                    verifier_expectations=strategy.verifier_expectations or "completeness and accuracy",
+                )
 
             try:
                 raw = await asyncio.wait_for(
@@ -260,7 +284,8 @@ class LoopPlanner:
 
             data = json.loads(m.group())
             elapsed = int((time.monotonic() - t0) * 1000)
-            log.info("[Planner] Fresh plan ready in %dms: goal=%s", elapsed, data.get("goal", "")[:60])
+            log.info("[Planner] Fresh plan ready in %dms (strategy=%s): goal=%s",
+                     elapsed, s_name, data.get("goal", "")[:60])
             return PlanResult(
                 goal=str(data.get("goal", query[:80])),
                 subtasks=list(data.get("subtasks", [query]))[:3],
@@ -270,6 +295,7 @@ class LoopPlanner:
                 success_criteria=str(data.get("success_criteria", "Answer addresses the query completely")),
                 raw=data,
                 reused_from_library=False,
+                strategy_name=s_name, strategy_id=s_id,
                 elapsed_ms=elapsed,
             )
         except Exception as exc:

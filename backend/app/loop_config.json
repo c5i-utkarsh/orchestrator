@@ -12,5 +12,9 @@
     "enabled": true,
     "similarity_threshold": 0.88,
     "min_store_score": 0.90
+  },
+  "prompt_strategies": {
+    "_comment": "Dynamic Prompt Optimization. enabled=true selects the best planner strategy via UCB1.",
+    "enabled": true
   }
 }
