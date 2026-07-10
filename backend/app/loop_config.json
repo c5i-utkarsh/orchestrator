@@ -1,0 +1,16 @@
+{
+  "_comment": "Loop Engineering configuration. enabled=false preserves existing DHS behaviour exactly.",
+  "enabled": false,
+  "verification_threshold": 0.80,
+  "maximum_iterations": 1,
+  "planner_timeout": 15,
+  "verifier_timeout": 15,
+  "critic_timeout": 15,
+  "improver_timeout": 30,
+  "execution_library": {
+    "_comment": "Plan reuse library. enabled=true searches stored strategies before generating fresh plans.",
+    "enabled": true,
+    "similarity_threshold": 0.88,
+    "min_store_score": 0.90
+  }
+}

@@ -187,6 +187,7 @@ class AskRequest(BaseModel):
     system_prompt: str = ""           # optional user-defined persona / constraints
     model_overrides: dict | None = None  # optional {task_type: model_name} overrides from SLM Studio
     scoring_weights: ModelWeights = Field(default_factory=ModelWeights)  # user-tunable LLM scoring
+    loop_enabled: bool = False         # Loop Engineering ON/OFF (default OFF — preserves existing behaviour)
 
 
 async def _get_embedding(text: str) -> list[float]:
@@ -427,136 +428,241 @@ async def ask(request: AskRequest, db: AsyncSession = Depends(get_db)):
             _query_start_ms = __import__("time").monotonic()
             _output_data: dict = {}
 
-            async for event in orchestrator.run(
-                query=_query,
-                session_id=_session_id,
-                graph_context=graph_context,
-                wiki_articles=wiki_articles,
-                domain_label=domain_label,
-                coverage_topics=coverage_topics,
-                corpus_hash=corpus_hash,
-                available_models=available_names,
-                system_prompt=_system_prompt,
-                scoring_weights=_scoring_weights,
-                job_id=request.job_id,   # project-exact routing
-            ):
-                # ── Persist to query_history on output event ─────────────────
-                # Written HERE (before yielding) because the client disconnects
-                # immediately after receiving the output event, which would cancel
-                # the generator before any post-loop code runs.
-                if event.get("type") == "output":
-                    _output_data = event.get("data") or {}
-                    try:
-                        _latency_ms = int((__import__("time").monotonic() - _query_start_ms) * 1000)
-                        from sqlalchemy import text as _t
-                        _summary       = (_output_data.get("final_answer") or "")[:500]
-                        _slm_used      = _output_data.get("slm_model_id") or ""
-                        _hall_rate     = float(_output_data.get("hallucination_rate") or 0.0)
-                        _completion    = 0.9 if _summary else 0.0
-                        _coverage_act  = _output_data.get("coverage_action") or ""
+            # ── Loop Engineering gate ─────────────────────────────────────────
+            # When loop_enabled=True AND loop_config.enabled=True, the LoopEngine
+            # runs Planner→Executor→Verifier→Critic→Improver before returning.
+            # When either flag is False, the existing pipeline is used unchanged.
+            _use_loop = False
+            if request.loop_enabled:
+                try:
+                    from app.modules.loop_engine.loop_engine import LoopEngine, load_loop_config
+                    _loop_cfg = load_loop_config()
+                    _use_loop = bool(_loop_cfg.get("enabled", False))
+                except Exception as _loop_import_err:
+                    import logging as _ll
+                    _ll.getLogger(__name__).warning("Loop engine unavailable: %s", _loop_import_err)
 
-                        # ── query_history INSERT ──────────────────────────────
-                        await stream_db.execute(_t("""
-                            INSERT INTO query_history
-                                (session_id, query, task_category, task_type,
-                                 slm_used, response_summary, hallucination_rate,
-                                 task_completion_rate, latency_ms, coverage_action,
-                                 created_at)
-                            VALUES
-                                (:session_id, :query, :task_category, :task_type,
-                                 :slm_used, :response_summary, :hallucination_rate,
-                                 :task_completion_rate, :latency_ms, :coverage_action,
-                                 now())
-                        """), {
-                            "session_id":           _session_id,
-                            "query":                _query,
-                            "task_category":        _output_data.get("intent", ""),
-                            "task_type":            _output_data.get("primary_task_type", ""),
-                            "slm_used":             _slm_used,
-                            "response_summary":     _summary,
-                            "hallucination_rate":   _hall_rate,
-                            "task_completion_rate": _completion,
-                            "latency_ms":           _latency_ms,
-                            "coverage_action":      _coverage_act,
-                        })
+            if _use_loop:
+                # ── LOOP ENGINEERING PATH ─────────────────────────────────────
+                import logging as _loop_log
+                _loop_log.getLogger(__name__).info("[LoopEngine] Engaged for query (%.60s…)", _query)
 
-                        # ── slm_registry: update quality signals after each query ──
-                        # Increments query_count, refreshes last_used_at, and
-                        # updates task_completion_rate / hallucination_rate as an
-                        # exponential moving average (α=0.1) so the coverage
-                        # checker composite score improves with real usage data.
-                        # Explicit CAST avoids asyncpg async type-inference (f405).
-                        if _slm_used:
-                            await stream_db.execute(_t("""
-                                UPDATE slm_registry SET
-                                    last_used_at         = now(),
-                                    query_count          = COALESCE(query_count, 0) + 1,
-                                    task_completion_rate = CASE
-                                        WHEN task_completion_rate IS NULL
-                                        THEN CAST(:c AS double precision)
-                                        ELSE task_completion_rate * 0.9 + CAST(:c AS double precision) * 0.1
-                                    END,
-                                    hallucination_rate   = CASE
-                                        WHEN hallucination_rate IS NULL
-                                        THEN CAST(:h AS double precision)
-                                        ELSE hallucination_rate * 0.9 + CAST(:h AS double precision) * 0.1
-                                    END
-                                WHERE ollama_model_name = :slm_ollama
-                                   OR model_id         = :slm_model
-                            """), {
-                                "slm_ollama": _slm_used,
-                                "slm_model":  _slm_used,
-                                "c": _completion,
-                                "h": _hall_rate,
-                            })
+                _orch_gen = orchestrator.run(
+                    query=_query,
+                    session_id=_session_id,
+                    graph_context=graph_context,
+                    wiki_articles=wiki_articles,
+                    domain_label=domain_label,
+                    coverage_topics=coverage_topics,
+                    corpus_hash=corpus_hash,
+                    available_models=available_names,
+                    system_prompt=_system_prompt,
+                    scoring_weights=_scoring_weights,
+                    job_id=request.job_id,
+                )
 
-                        await stream_db.commit()
-                    except Exception as _hist_exc:
-                        import logging as _log
-                        _log.getLogger(__name__).warning("query_history/registry write failed: %s", _hist_exc)
-                    # ── Bandit score persistence (UPSERT to bandit_scores) ────
-                    # Persist the LinUCB estimated reward so benchmark/summary
-                    # can read real routing-quality scores from the DB.
-                    if _slm_used and _output_data.get("primary_task_type"):
+                _loop_engine = LoopEngine(registry, embed_fn=_get_embedding)
+                _loop_result = await _loop_engine.run(
+                    query=_query,
+                    generator=_orch_gen,
+                    task_type=_output_data.get("primary_task_type", "domain_qa"),
+                    domain=domain_label,
+                    context_summary=graph_context[:300] if graph_context else "",
+                    complexity=getattr(
+                        __import__("app.modules.orchestrator.orchestrator",
+                                   fromlist=["classify_complexity"]),
+                        "classify_complexity", lambda q, t: "Medium"
+                    )(_query, "domain_qa"),
+                )
+
+                # Yield all loop events (pipeline events + loop stage events)
+                for _ev in _loop_result.loop_events:
+                    if _ev.get("type") == "output":
+                        # Patch final_answer with the (possibly improved) answer
+                        _ev_data = dict(_ev.get("data") or {})
+                        _ev_data["final_answer"]       = _loop_result.final_answer
+                        _ev_data["loop_improved"]      = _loop_result.was_improved
+                        _ev_data["loop_verifier_score"] = _loop_result.verifier_score
+                        _ev_data["loop_plan_goal"]     = _loop_result.plan_goal
+                        _ev_data["loop_plan_reused"]   = _loop_result.plan_reused
+                        _ev_data["loop_plan_similarity"] = _loop_result.plan_similarity
+                        _ev_data["loop_plan_stored"]   = _loop_result.plan_stored
+                        _output_data = _ev_data
+                        _ev = dict(_ev)
+                        _ev["data"] = _ev_data
+                    if not _ev.get("loop_engine"):
+                        # Write query_history on the output event (same as non-loop path)
+                        if _ev.get("type") == "output":
+                            try:
+                                _latency_ms = int((__import__("time").monotonic() - _query_start_ms) * 1000)
+                                from sqlalchemy import text as _t
+                                _summary       = (_output_data.get("final_answer") or "")[:500]
+                                _slm_used      = _output_data.get("slm_model_id") or ""
+                                _hall_rate     = float(_output_data.get("hallucination_rate") or 0.0)
+                                _completion    = float(_output_data.get("task_completion_rate") or (0.9 if _summary else 0.0))
+                                _coverage_act  = _output_data.get("coverage_action") or ""
+
+                                await stream_db.execute(_t("""
+                                    INSERT INTO query_history
+                                        (session_id, query, task_category, task_type,
+                                         slm_used, response_summary, hallucination_rate,
+                                         task_completion_rate, latency_ms, coverage_action,
+                                         created_at)
+                                    VALUES
+                                        (:session_id, :query, :task_category, :task_type,
+                                         :slm_used, :response_summary, :hallucination_rate,
+                                         :task_completion_rate, :latency_ms, :coverage_action,
+                                         now())
+                                """), {
+                                    "session_id":           _session_id,
+                                    "query":                _query,
+                                    "task_category":        _output_data.get("intent", ""),
+                                    "task_type":            _output_data.get("primary_task_type", ""),
+                                    "slm_used":             _slm_used,
+                                    "response_summary":     _summary,
+                                    "hallucination_rate":   _hall_rate,
+                                    "task_completion_rate": _completion,
+                                    "latency_ms":           _latency_ms,
+                                    "coverage_action":      _coverage_act,
+                                })
+                                await stream_db.commit()
+                            except Exception as _hist_exc:
+                                import logging as _log
+                                _log.getLogger(__name__).warning("query_history write failed (loop): %s", _hist_exc)
+                    yield f"data: {json.dumps(_ev)}\n\n"
+
+            else:
+                # ── EXISTING PIPELINE (unchanged) ─────────────────────────────
+                async for event in orchestrator.run(
+                    query=_query,
+                    session_id=_session_id,
+                    graph_context=graph_context,
+                    wiki_articles=wiki_articles,
+                    domain_label=domain_label,
+                    coverage_topics=coverage_topics,
+                    corpus_hash=corpus_hash,
+                    available_models=available_names,
+                    system_prompt=_system_prompt,
+                    scoring_weights=_scoring_weights,
+                    job_id=request.job_id,   # project-exact routing
+                ):
+                    # ── Persist to query_history on output event ──────────────
+                    # Written HERE (before yielding) because the client disconnects
+                    # immediately after receiving the output event, which would cancel
+                    # the generator before any post-loop code runs.
+                    if event.get("type") == "output":
+                        _output_data = event.get("data") or {}
                         try:
-                            from sqlalchemy import text as _bt
-                            _reward = float(
-                                0.50 * float(_completion or 0.0) +
-                                0.35 * (1.0 - float(_hall_rate or 0.0)) +
-                                0.15 * 0.9  # user_acceptance warm-start prior
-                            )
-                            await stream_db.execute(_bt("""
-                                INSERT INTO bandit_scores (task_type, model_id, score, query_count, updated_at)
-                                VALUES (:tt, :mid, :sc, 1, now())
-                                ON CONFLICT (task_type, model_id) DO UPDATE SET
-                                    score       = bandit_scores.score * 0.9 + EXCLUDED.score * 0.1,
-                                    query_count = COALESCE(bandit_scores.query_count, 0) + 1,
-                                    updated_at  = now()
+                            _latency_ms = int((__import__("time").monotonic() - _query_start_ms) * 1000)
+                            from sqlalchemy import text as _t
+                            _summary       = (_output_data.get("final_answer") or "")[:500]
+                            _slm_used      = _output_data.get("slm_model_id") or ""
+                            _hall_rate     = float(_output_data.get("hallucination_rate") or 0.0)
+                            _completion    = 0.9 if _summary else 0.0
+                            _coverage_act  = _output_data.get("coverage_action") or ""
+    
+                            # ── query_history INSERT ──────────────────────────────
+                            await stream_db.execute(_t("""
+                                INSERT INTO query_history
+                                    (session_id, query, task_category, task_type,
+                                     slm_used, response_summary, hallucination_rate,
+                                     task_completion_rate, latency_ms, coverage_action,
+                                     created_at)
+                                VALUES
+                                    (:session_id, :query, :task_category, :task_type,
+                                     :slm_used, :response_summary, :hallucination_rate,
+                                     :task_completion_rate, :latency_ms, :coverage_action,
+                                     now())
                             """), {
-                                "tt":  _output_data.get("primary_task_type", "domain_qa"),
-                                "mid": _slm_used,
-                                "sc":  _reward,
+                                "session_id":           _session_id,
+                                "query":                _query,
+                                "task_category":        _output_data.get("intent", ""),
+                                "task_type":            _output_data.get("primary_task_type", ""),
+                                "slm_used":             _slm_used,
+                                "response_summary":     _summary,
+                                "hallucination_rate":   _hall_rate,
+                                "task_completion_rate": _completion,
+                                "latency_ms":           _latency_ms,
+                                "coverage_action":      _coverage_act,
                             })
+    
+                            # ── slm_registry: update quality signals after each query ──
+                            # Increments query_count, refreshes last_used_at, and
+                            # updates task_completion_rate / hallucination_rate as an
+                            # exponential moving average (α=0.1) so the coverage
+                            # checker composite score improves with real usage data.
+                            # Explicit CAST avoids asyncpg async type-inference (f405).
+                            if _slm_used:
+                                await stream_db.execute(_t("""
+                                    UPDATE slm_registry SET
+                                        last_used_at         = now(),
+                                        query_count          = COALESCE(query_count, 0) + 1,
+                                        task_completion_rate = CASE
+                                            WHEN task_completion_rate IS NULL
+                                            THEN CAST(:c AS double precision)
+                                            ELSE task_completion_rate * 0.9 + CAST(:c AS double precision) * 0.1
+                                        END,
+                                        hallucination_rate   = CASE
+                                            WHEN hallucination_rate IS NULL
+                                            THEN CAST(:h AS double precision)
+                                            ELSE hallucination_rate * 0.9 + CAST(:h AS double precision) * 0.1
+                                        END
+                                    WHERE ollama_model_name = :slm_ollama
+                                       OR model_id         = :slm_model
+                                """), {
+                                    "slm_ollama": _slm_used,
+                                    "slm_model":  _slm_used,
+                                    "c": _completion,
+                                    "h": _hall_rate,
+                                })
+    
                             await stream_db.commit()
-                        except Exception as _bs_exc:
-                            import logging as _log2
-                            _log2.getLogger(__name__).warning("bandit_scores write failed: %s", _bs_exc)
-                    # ── Background multi-dimensional evaluation judge ─────────
-                    # Launched as a non-blocking task so it doesn't delay the SSE
-                    # response to the client. Updates query_history 10-20s later.
-                    if _summary:
-                        import asyncio as _aio
-                        _kg_entity_count = request.graph_context and len(
-                            [l for l in request.graph_context.splitlines() if l.strip().startswith("- ")]
-                        ) or None
-                        _aio.create_task(_run_eval_judge(
-                            query=_query,
-                            answer=_summary,
-                            session_id=_session_id,
-                            latency_ms=_latency_ms,
-                            graph_context=graph_context[:500],
-                            entity_count=_kg_entity_count,
-                        ))
+                        except Exception as _hist_exc:
+                            import logging as _log
+                            _log.getLogger(__name__).warning("query_history/registry write failed: %s", _hist_exc)
+                        # ── Bandit score persistence (UPSERT to bandit_scores) ────
+                        # Persist the LinUCB estimated reward so benchmark/summary
+                        # can read real routing-quality scores from the DB.
+                        if _slm_used and _output_data.get("primary_task_type"):
+                            try:
+                                from sqlalchemy import text as _bt
+                                _reward = float(
+                                    0.50 * float(_completion or 0.0) +
+                                    0.35 * (1.0 - float(_hall_rate or 0.0)) +
+                                    0.15 * 0.9  # user_acceptance warm-start prior
+                                )
+                                await stream_db.execute(_bt("""
+                                    INSERT INTO bandit_scores (task_type, model_id, score, query_count, updated_at)
+                                    VALUES (:tt, :mid, :sc, 1, now())
+                                    ON CONFLICT (task_type, model_id) DO UPDATE SET
+                                        score       = bandit_scores.score * 0.9 + EXCLUDED.score * 0.1,
+                                        query_count = COALESCE(bandit_scores.query_count, 0) + 1,
+                                        updated_at  = now()
+                                """), {
+                                    "tt":  _output_data.get("primary_task_type", "domain_qa"),
+                                    "mid": _slm_used,
+                                    "sc":  _reward,
+                                })
+                                await stream_db.commit()
+                            except Exception as _bs_exc:
+                                import logging as _log2
+                                _log2.getLogger(__name__).warning("bandit_scores write failed: %s", _bs_exc)
+                        # ── Background multi-dimensional evaluation judge ─────────
+                        # Launched as a non-blocking task so it doesn't delay the SSE
+                        # response to the client. Updates query_history 10-20s later.
+                        if _summary:
+                            import asyncio as _aio
+                            _kg_entity_count = request.graph_context and len(
+                                [l for l in request.graph_context.splitlines() if l.strip().startswith("- ")]
+                            ) or None
+                            _aio.create_task(_run_eval_judge(
+                                query=_query,
+                                answer=_summary,
+                                session_id=_session_id,
+                                latency_ms=_latency_ms,
+                                graph_context=graph_context[:500],
+                                entity_count=_kg_entity_count,
+                            ))
                 yield f"data: {json.dumps(event)}\n\n"
             # stream_db session closes cleanly here via `async with`
 

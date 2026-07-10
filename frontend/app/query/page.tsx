@@ -67,8 +67,13 @@ export default function QueryPage() {
   const [answer, setAnswer] = useState("");
   const [answeredByLabel, setAnsweredByLabel] = useState<string | null>(null);
   const [confidence, setConfidence] = useState<number | null>(null);
+  const [loopImproved, setLoopImproved] = useState<boolean | null>(null);
+  const [loopScore, setLoopScore] = useState<number | null>(null);
+  const [loopPlanReused, setLoopPlanReused] = useState<boolean | null>(null);
+  const [loopPlanSimilarity, setLoopPlanSimilarity] = useState<number | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [weightsOpen, setWeightsOpen] = useState(false);
+  const [loopEnabled, setLoopEnabled] = useState(false);  // Loop Engineering toggle (default OFF)
   const [weights, setWeights] = useState({
     benchmark: 0.30, availability: 0.20, bandit: 0.20,
     speed: 0.15, ctx_fit: 0.10, task_fit: 0.05,
@@ -153,7 +158,7 @@ export default function QueryPage() {
     const q = (overrideQuery ?? query).trim();
     const sp = (overrideSysPrompt ?? systemPrompt).trim();
     if (!q) { setError("Please enter a question or goal"); return; }
-    setError(""); setRunning(true); setTimeline([]); setAnswer(""); setAnsweredByLabel(null); setConfidence(null);
+    setError(""); setRunning(true); setTimeline([]); setAnswer(""); setAnsweredByLabel(null); setConfidence(null); setLoopImproved(null); setLoopScore(null); setLoopPlanReused(null); setLoopPlanSimilarity(null);
     const API = process.env.NEXT_PUBLIC_API_URL ?? "";
     const domain = selectedCorpus?.domain_label ?? "general";
     if (selectedCorpus) {
@@ -165,6 +170,7 @@ export default function QueryPage() {
       const out = await runOrchestrator(API, {
         query: q, domain_label: domain,
         job_id: selectedCorpus?.job_id ?? undefined, system_prompt: sp,
+        loop_enabled: loopEnabled,
       }, (ev) => {
         if (ev.type === "step" || ev.type === "stage") {
           // step_name is at the top level (new) or nested under ev.data (compat)
@@ -181,6 +187,11 @@ export default function QueryPage() {
       const ab = answeredBy(out as OrchestratorOutput | null);
       setAnswer(out?.final_answer ?? "No answer returned.");
       setAnsweredByLabel(ab.label); setConfidence(ab.confidence);
+      if ((out as any)?.loop_improved === true) setLoopImproved(true);
+      if ((out as any)?.loop_improved === false) setLoopImproved(false);
+      if ((out as any)?.loop_verifier_score != null) setLoopScore((out as any).loop_verifier_score);
+      if ((out as any)?.loop_plan_reused != null) setLoopPlanReused(!!(out as any).loop_plan_reused);
+      if ((out as any)?.loop_plan_similarity != null) setLoopPlanSimilarity((out as any).loop_plan_similarity);
       if (out) sessionStorage.setItem("orchestrator_output", JSON.stringify(out));  // Outcome page reads this
     } catch (e: any) {
       setError(e.message ?? "Query failed");
@@ -441,12 +452,36 @@ export default function QueryPage() {
                 )}
                 {answer && (
                   <div className="bg-card border border-dborder rounded-card p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-t3">Answer</div>
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-t3">Answer</div>
+                        {/* Strategy provenance badge */}
+                        {loopPlanReused === true && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal/10 text-teal border border-teal/25 uppercase tracking-wider">
+                            ♻ Reused Strategy{loopPlanSimilarity != null ? ` · ${(loopPlanSimilarity * 100).toFixed(0)}%` : ""}
+                          </span>
+                        )}
+                        {loopPlanReused === false && loopEnabled && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-bg3 text-t3 border border-dborder uppercase tracking-wider">
+                            ✦ Fresh Strategy
+                          </span>
+                        )}
+                        {/* Improvement badge */}
+                        {loopImproved === true && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/25 uppercase tracking-wider">
+                            ↑ Improved{loopScore != null ? ` · ${(loopScore * 100).toFixed(0)}%` : ""}
+                          </span>
+                        )}
+                        {loopImproved === false && loopScore != null && (
+                          <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-gg/10 text-gg border border-gg/25 uppercase tracking-wider">
+                            ✓ Verified · {(loopScore * 100).toFixed(0)}%
+                          </span>
+                        )}
+                      </div>
                       {answeredByLabel && (
                         <div className="text-[10px] text-t3">
                           Answered by <span className="font-semibold text-t2">{answeredByLabel}</span>
-                          {confidence !== null && <span className="text-gg"> \u00b7 {(confidence * 100).toFixed(0)}% conf</span>}
+                          {confidence !== null && <span className="text-gg"> · {(confidence * 100).toFixed(0)}% conf</span>}
                         </div>
                       )}
                     </div>
@@ -508,6 +543,20 @@ export default function QueryPage() {
 
           {advancedOpen && (
             <div className="px-4 pb-4 border-t border-dborder2 pt-4 space-y-5">
+
+              {/* Loop Engineering toggle */}
+              <div className="flex items-center justify-between px-3 py-2.5 bg-bg2 border border-dborder rounded-lg">
+                <div>
+                  <div className="text-[12px] font-semibold text-t1">Loop Engineering</div>
+                  <div className="text-[10px] text-t3 mt-0.5">Planner → Executor → Verifier → Critic → Improver · adds ~30–60s per query</div>
+                </div>
+                <button
+                  onClick={() => setLoopEnabled(e => !e)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ml-3 ${loopEnabled ? "bg-accent" : "bg-dborder2"}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${loopEnabled ? "translate-x-4" : "translate-x-0.5"}`}/>
+                </button>
+              </div>
 
               {/* System prompt */}
               <div>
