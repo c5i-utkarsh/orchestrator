@@ -15,7 +15,156 @@ type Tab = typeof TABS[number];
 const pct = (v: number|null|undefined) => v==null?null:`${(v*100).toFixed(1)}%`;
 const num = (v: number|null|undefined, d=3) => v==null?null:v.toFixed(d);
 
-// ── Tooltip helper ─────────────────────────────────────────────────────────
+// ── Provenance badge types ─────────────────────────────────────────────────
+type BadgeType = "measured" | "ai-evaluated" | "estimated" | "awaiting";
+const BADGE_META: Record<BadgeType, {label:string; color:string; bg:string; border:string}> = {
+  "measured":     { label:"Measured",      color:"#16a34a", bg:"bg-gg/10",      border:"border-gg/25"      },
+  "ai-evaluated": { label:"AI Evaluated",  color:"#2563eb", bg:"bg-accent/10",  border:"border-accent/25"  },
+  "estimated":    { label:"Estimated",     color:"#d97706", bg:"bg-amber/10",   border:"border-amber/25"   },
+  "awaiting":     { label:"Awaiting Data", color:"#9ca3af", bg:"bg-bg3",        border:"border-dborder"    },
+};
+
+function ProvenanceBadge({type}:{type:BadgeType}){
+  const m = BADGE_META[type];
+  return (
+    <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${m.bg} border ${m.border} uppercase tracking-wider`}
+          style={{color:m.color}}>
+      {type==="measured"?"●":type==="ai-evaluated"?"✦":type==="estimated"?"~":"○"} {m.label}
+    </span>
+  );
+}
+
+// ── Reliability indicator (1–5 scale) ────────────────────────────────────
+type Reliability = 1|2|3|4|5;
+const RELIABILITY_LABELS: Record<Reliability, {label:string; color:string}> = {
+  1: { label:"Very Low — heuristic proxy",       color:"#dc2626" },
+  2: { label:"Low — partial data",               color:"#d97706" },
+  3: { label:"Medium — DB measurement",          color:"#ca8a04" },
+  4: { label:"High — real-time measurement",     color:"#16a34a" },
+  5: { label:"Very High — judge-validated",      color:"#2563eb" },
+};
+
+function ReliabilityBar({level, label}:{level:Reliability|null; label?:string}){
+  if(!level) return null;
+  const meta = RELIABILITY_LABELS[level];
+  return (
+    <div className="flex items-center gap-2 mt-2">
+      <div className="flex gap-0.5">
+        {([1,2,3,4,5] as Reliability[]).map(i=>(
+          <div key={i} className="w-3 h-1.5 rounded-sm" style={{
+            background: i<=level ? meta.color : "#e5e7eb"
+          }}/>
+        ))}
+      </div>
+      <span className="text-[9px] text-t3 leading-tight">{label || meta.label}</span>
+    </div>
+  );
+}
+
+// ── Enhanced metric card with provenance, reliability, and evidence drawer ─
+interface MetricDef {
+  label: string;
+  value: string | null;
+  sub?: string;
+  color?: string;
+  tip?: string;
+  badge?: BadgeType;
+  reliability?: Reliability;
+  formula?: string;
+  source?: string;
+  updateFreq?: string;
+  sampleSize?: number | null;
+  evidence?: string[];
+}
+
+function MetricCard(props: MetricDef) {
+  const [open, setOpen] = useState(false);
+  const [evidOpen, setEvidOpen] = useState(false);
+  const na = props.value === null;
+  const hasDetail = props.formula || props.source || props.updateFreq || (props.evidence && props.evidence.length > 0);
+
+  return (
+    <div className={`bg-white border rounded-xl overflow-hidden transition-all duration-200 ${open ? "border-accent/30 shadow-sm" : "border-dborder"}`}>
+      <div className="p-4">
+        {/* Provenance badge */}
+        {props.badge && (
+          <div className="mb-2">
+            <ProvenanceBadge type={props.badge}/>
+          </div>
+        )}
+        {/* Value */}
+        <div className={`text-[22px] font-bold leading-none ${na?"text-t3":"text-t1"}`}
+             style={props.color && !na ? {color:props.color} : undefined}>
+          {na ? "N/A" : props.value}
+        </div>
+        {/* Label row */}
+        <div className="text-[10px] text-t3 mt-1.5 uppercase tracking-wider flex items-center gap-1 flex-wrap">
+          {props.label}
+          {props.tip && (
+            <button onClick={() => setOpen(o=>!o)} className="ml-1 text-[10px] text-t3 hover:text-accent transition-colors cursor-pointer select-none" title="Show metric details">ⓘ</button>
+          )}
+        </div>
+        {na
+          ? <div className="text-[9px] text-amber mt-1">not measured</div>
+          : props.sub ? <div className="text-[10px] text-gg mt-1">{props.sub}</div> : null
+        }
+        {/* Reliability bar */}
+        {props.reliability && <ReliabilityBar level={props.reliability}/>}
+        {/* Sample size */}
+        {props.sampleSize != null && props.sampleSize > 0 && (
+          <div className="text-[9px] text-t3 mt-1">n={props.sampleSize.toLocaleString()} samples</div>
+        )}
+      </div>
+
+      {/* Expandable detail panel */}
+      {open && hasDetail && (
+        <div className="border-t border-dborder px-4 py-3 bg-bg2 space-y-2">
+          {props.tip && (
+            <div className="text-[11px] text-t2 leading-relaxed">{props.tip}</div>
+          )}
+          {props.formula && (
+            <div className="flex gap-2">
+              <span className="text-[9px] font-bold text-t3 uppercase tracking-wider w-16 flex-shrink-0 pt-0.5">Formula</span>
+              <code className="text-[10px] bg-bg3 border border-dborder rounded px-2 py-0.5 text-t1 font-mono flex-1">{props.formula}</code>
+            </div>
+          )}
+          {props.source && (
+            <div className="flex gap-2">
+              <span className="text-[9px] font-bold text-t3 uppercase tracking-wider w-16 flex-shrink-0 pt-0.5">Source</span>
+              <span className="text-[10px] text-t2">{props.source}</span>
+            </div>
+          )}
+          {props.updateFreq && (
+            <div className="flex gap-2">
+              <span className="text-[9px] font-bold text-t3 uppercase tracking-wider w-16 flex-shrink-0 pt-0.5">Updates</span>
+              <span className="text-[10px] text-t2">{props.updateFreq}</span>
+            </div>
+          )}
+          {props.evidence && props.evidence.length > 0 && (
+            <div>
+              <button onClick={() => setEvidOpen(o=>!o)}
+                className="text-[10px] text-accent font-semibold hover:text-accent/70 transition-colors">
+                {evidOpen ? "▾" : "▸"} Show Evidence ({props.evidence.length})
+              </button>
+              {evidOpen && (
+                <ul className="mt-2 space-y-1">
+                  {props.evidence.map((e,i) => (
+                    <li key={i} className="text-[10px] text-t2 flex gap-2">
+                      <span className="text-t3 flex-shrink-0">·</span>
+                      <span>{e}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tooltip helper (preserved for existing KTile usage) ────────────────────
 function InfoTip({text}:{text:string}){
   const [show,setShow]=useState(false);
   return (
@@ -32,7 +181,7 @@ function InfoTip({text}:{text:string}){
   );
 }
 
-// ── KPI tile — tip prop is additive, no change to existing interface ───────
+// ── KPI tile (legacy — unchanged interface) ────────────────────────────────
 function KTile({label,value,sub,color,tip}:{label:string;value:string|null;sub?:string;color?:string;tip?:string}){
   const na=value===null;
   return (
@@ -45,6 +194,187 @@ function KTile({label,value,sub,color,tip}:{label:string;value:string|null;sub?:
       </div>
       {na?<div className="text-[9px] text-amber mt-1">not measured</div>
         :sub?<div className="text-[10px] text-gg mt-1">{sub}</div>:null}
+    </div>
+  );
+}
+
+// ── Evaluation pipeline visual ─────────────────────────────────────────────
+const PIPELINE_STAGES = [
+  { id:"query",    icon:"💬", label:"User Query",       metrics:["Task type", "Domain"] },
+  { id:"orch",     icon:"⚙",  label:"Orchestrator",     metrics:["Complexity", "Routing"] },
+  { id:"slm",      icon:"🧠", label:"SLM / LLM",        metrics:["Latency", "Completion"] },
+  { id:"judge",    icon:"⚖",  label:"LLM Judge",        metrics:["All 7 dimensions", "Task score"] },
+  { id:"bandit",   icon:"📈", label:"Bandit Learning",  metrics:["Process score", "Routing accuracy"] },
+  { id:"kg",       icon:"🕸",  label:"Knowledge Graph",  metrics:["Entity coverage", "Conformance"] },
+  { id:"db",       icon:"🗄",  label:"Benchmark DB",     metrics:["query_history", "bandit_scores"] },
+  { id:"dash",     icon:"📊", label:"Dashboard",        metrics:["All benchmark scores"] },
+];
+
+function EvalPipeline(){
+  const [activeStage, setActiveStage] = useState<string|null>(null);
+  return (
+    <div className="bg-white border border-dborder rounded-xl p-5">
+      <div className="text-[13px] font-semibold text-t1 mb-1">Evaluation Pipeline</div>
+      <div className="text-[11px] text-t3 mb-4">How each query flows through DHS to produce benchmark scores. Click a stage to see which metrics it contributes.</div>
+      <div className="flex items-start gap-0 overflow-x-auto pb-2">
+        {PIPELINE_STAGES.map((stage, i) => (
+          <div key={stage.id} className="flex items-center flex-shrink-0">
+            <button
+              onClick={() => setActiveStage(activeStage === stage.id ? null : stage.id)}
+              className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg border transition-all text-center min-w-[80px] ${
+                activeStage === stage.id
+                  ? "bg-accent/10 border-accent/40 text-accent"
+                  : "bg-bg2 border-dborder text-t2 hover:border-accent/30 hover:bg-accent/5"
+              }`}
+            >
+              <span className="text-lg">{stage.icon}</span>
+              <span className="text-[10px] font-semibold leading-tight">{stage.label}</span>
+            </button>
+            {i < PIPELINE_STAGES.length - 1 && (
+              <div className="flex items-center px-1 flex-shrink-0">
+                <div className="w-4 h-px bg-dborder2"/>
+                <div className="w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-l-4 border-l-dborder2"/>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {activeStage && (() => {
+        const s = PIPELINE_STAGES.find(s => s.id === activeStage);
+        if (!s) return null;
+        return (
+          <div className="mt-3 px-3 py-2.5 bg-accent/5 border border-accent/20 rounded-lg">
+            <div className="text-[11px] font-semibold text-accent mb-1">{s.icon} {s.label}</div>
+            <div className="text-[10px] text-t2">Contributes to: {s.metrics.join(", ")}</div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ── Live benchmark status panel ────────────────────────────────────────────
+function BenchmarkStatus({data, slmData}: {data:any; slmData:any[]}){
+  const hasEval   = data?.has_eval === true;
+  const evalCount = data?.eval_queries ?? 0;
+  const hasProcess = data?.technical?.process != null;
+  const hasKG     = data?.functional?.knowledge_coverage?.entities != null;
+  const hasRouting= data?.technical?.routing_accuracy != null;
+  const hasBandit = hasProcess;
+  const lastTrend = data?.trends?.slice(-1)?.[0];
+  const lastMonth = lastTrend?.month ?? null;
+
+  const statuses = [
+    { label:"LLM Judge",          ok:hasEval,    detail: hasEval ? `${evalCount} evaluations` : "No evaluated queries yet" },
+    { label:"Bandit Learning",    ok:hasBandit,  detail: hasBandit ? `Avg score: ${data.technical.process?.toFixed(3)}` : "No bandit_scores populated" },
+    { label:"Knowledge Graph",    ok:hasKG,      detail: hasKG ? `${data.functional.knowledge_coverage.entities} entities` : "No graph data" },
+    { label:"Routing Evaluation", ok:hasRouting, detail: hasRouting ? `Accuracy: ${pct(data.technical.routing_accuracy)}` : "Insufficient query-model pairs" },
+    { label:"Database Sync",      ok:true,        detail: `${data?.sample_sizes?.queries ?? 0} queries in history` },
+    { label:"Last Evaluation",    ok:!!lastMonth, detail: lastMonth ? `Month: ${lastMonth}` : "No monthly data yet" },
+  ];
+
+  return (
+    <div className="bg-white border border-dborder rounded-xl p-5">
+      <div className="text-[13px] font-semibold text-t1 mb-3">Live Benchmark Status</div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {statuses.map(s => (
+          <div key={s.label} className={`flex items-start gap-2.5 p-2.5 rounded-lg border ${s.ok ? "bg-gg/5 border-gg/20" : "bg-amber/5 border-amber/20"}`}>
+            <span className={`text-[12px] mt-0.5 flex-shrink-0 ${s.ok ? "text-gg" : "text-amber"}`}>{s.ok ? "✓" : "○"}</span>
+            <div className="min-w-0">
+              <div className={`text-[11px] font-semibold ${s.ok ? "text-gg" : "text-amber"}`}>{s.label}</div>
+              <div className="text-[10px] text-t3 mt-0.5 leading-tight truncate">{s.detail}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Methodology table ──────────────────────────────────────────────────────
+const METHODOLOGY: {metric:string; formula:string; source:string; freq:string; badge:BadgeType}[] = [
+  { metric:"Combined Score",       formula:"Completion × Process × Security",                            source:"query_history (3 columns)",      freq:"Per query",    badge:"measured"     },
+  { metric:"Harness Score",        formula:"Σ(weight_i × dim_i) / Σ(weight_i) for measured dims",       source:"query_history + LLM judge",      freq:"Per query",    badge:"ai-evaluated" },
+  { metric:"Hallucination Rate",   formula:"AVG(hallucination_rate) from query_history",                 source:"LLM judge vs knowledge graph",   freq:"Per query",    badge:"ai-evaluated" },
+  { metric:"Task Completion",      formula:"AVG(task_completion_score) from LLM judge",                 source:"LLM judge output (0.0–1.0)",     freq:"Per query",    badge:"ai-evaluated" },
+  { metric:"Avg Latency",          formula:"AVG(latency_ms) from query_history",                         source:"Wall-clock monotonic timer",      freq:"Per query",    badge:"measured"     },
+  { metric:"Process (Routing)",    formula:"EMA of LinUCB reward (0.9×prev + 0.1×new)",                 source:"bandit_scores.score",            freq:"Per query",    badge:"measured"     },
+  { metric:"Security Score",       formula:"1 − AVG(hallucination_rate)",                               source:"query_history.hallucination_rate",freq:"Per query",    badge:"measured"     },
+  { metric:"Routing Accuracy",     formula:"hits(slm_used==best_bandit) / total_queries",               source:"query_history + bandit_scores",   freq:"Per query",    badge:"measured"     },
+  { metric:"Learning Velocity",    formula:"completion[last_month] − completion[first_month]",          source:"Monthly query_history trend",     freq:"Monthly",      badge:"measured"     },
+  { metric:"SLM Utilization",      formula:"COUNT(slm_used IS NOT NULL) / total",                       source:"query_history.slm_used",          freq:"Per query",    badge:"measured"     },
+  { metric:"Knowledge Coverage",   formula:"AVG(referenced_entities / total_entities)",                 source:"LLM judge answer parsing",        freq:"Per query",    badge:"ai-evaluated" },
+  { metric:"Accuracy (Harness)",   formula:"AVG(accuracy_score) from judge, else 1 − avg(val_loss)",   source:"LLM judge or slm_registry",      freq:"Per query",    badge:"ai-evaluated" },
+  { metric:"Val Loss",             formula:"Cross-entropy eval loss from QLoRA training",               source:"nanogpt_trainer / HF Trainer",    freq:"Per build",    badge:"measured"     },
+  { metric:"Ontology Conformance", formula:"1 − nonconformant_edges / total_edges",                     source:"graph_consistency.json",          freq:"Per ingest",   badge:"measured"     },
+];
+
+function MethodologyTable(){
+  return (
+    <div className="bg-white border border-dborder rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-dborder">
+        <div className="text-[13px] font-semibold text-t1">How DHS Computes Scores</div>
+        <div className="text-[11px] text-t3 mt-0.5">Every metric formula, data source, and badge type</div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="bg-bg2 border-b border-dborder">
+              <th className="px-4 py-2.5 text-left font-semibold text-t3 uppercase tracking-wider">Metric</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-t3 uppercase tracking-wider">Formula</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-t3 uppercase tracking-wider">Source</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-t3 uppercase tracking-wider">Frequency</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-t3 uppercase tracking-wider">Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {METHODOLOGY.map((row, i) => (
+              <tr key={row.metric} className={i%2===0?"":"bg-bg2/50"}>
+                <td className="px-4 py-2.5 font-medium text-t1">{row.metric}</td>
+                <td className="px-4 py-2.5 font-mono text-[10px] text-t2 max-w-[220px]">{row.formula}</td>
+                <td className="px-4 py-2.5 text-t3">{row.source}</td>
+                <td className="px-4 py-2.5 text-t3">{row.freq}</td>
+                <td className="px-4 py-2.5"><ProvenanceBadge type={row.badge}/></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Benchmark metadata footer ──────────────────────────────────────────────
+function BenchmarkMeta({data, slmData}: {data:any; slmData:any[]}) {
+  const evalModel = data?.functional?.knowledge_coverage?.job_id
+    ? "See eval_model in query_history"
+    : (data?.has_eval ? "Best available local model" : "Not yet run");
+  const lastTrend = data?.trends?.slice(-1)?.[0];
+  const latestSlm = slmData?.[0];
+  const kc = data?.functional?.knowledge_coverage ?? {};
+
+  const meta = [
+    { label:"Evaluation Version",   value: "v2.0 (judge + bandit)" },
+    { label:"Judge Model",           value: data?.has_eval ? "Best available Ollama model" : "Awaiting first query" },
+    { label:"Knowledge Graph",       value: kc.entities ? `${kc.entities} entities, ${kc.graph_nodes ?? "?"} nodes` : "Not available" },
+    { label:"Last Corpus Refresh",   value: latestSlm?.last_used_at ? new Date(latestSlm.last_used_at).toLocaleDateString() : "Unknown" },
+    { label:"Queries Evaluated",     value: `${data?.eval_queries ?? 0} / ${data?.sample_sizes?.queries ?? 0} total` },
+    { label:"Registered SLMs",       value: String(data?.sample_sizes?.slm_models ?? 0) },
+    { label:"Bandit Scores in DB",   value: data?.technical?.process != null ? `Populated (avg ${data.technical.process?.toFixed(3)})` : "Empty" },
+    { label:"Last Monthly Trend",    value: lastTrend?.month ?? "No monthly data yet" },
+  ];
+
+  return (
+    <div className="bg-bg2 border border-dborder rounded-xl p-5 mt-6">
+      <div className="text-[11px] font-semibold text-t3 uppercase tracking-widest mb-3">Benchmark Metadata</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {meta.map(m => (
+          <div key={m.label}>
+            <div className="text-[9px] text-t3 uppercase tracking-wider">{m.label}</div>
+            <div className="text-[11px] font-medium text-t1 mt-0.5">{m.value}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -166,44 +496,55 @@ export default function BenchmarkingPage(){
   const routingAccuracyDisplay = routingAccuracyReal===0 ? null : (routingAccuracyReal!=null ? pct(routingAccuracyReal) : null);
   const routingAccuracySub = routingAccuracyReal===0 ? "Bandit in learning phase" : "Task → model assignment";
 
+  // SLM utilization from real backend data
+  const slmUtil = data.slm_utilization ?? exec?.slm_utilization ?? {};
+  const slmUtilPct   = slmUtil.slm_utilization     != null ? pct(slmUtil.slm_utilization)     : null;
+  const fallbackPct  = slmUtil.fallback_rate        != null ? pct(slmUtil.fallback_rate)        : null;
+  const costSavings  = slmUtil.estimated_cost_savings_pct != null ? pct(slmUtil.estimated_cost_savings_pct) : null;
+  const hasSlmUtil   = slmUtil.sufficient_data === true;
+
+  // Knowledge coverage from real backend
+  const knowledgeCoveragePct = data.knowledge_coverage_pct != null ? pct(data.knowledge_coverage_pct) : null;
+
+  // Harness dimension scores (real when has_eval=true)
+  const hasEval   = data.has_eval === true;
+  const evalCount = data.eval_queries ?? 0;
+  const harnDims  = harn?.dimensions ?? {};
+
   const D={
     knowledge:{
-      coverage:0.871,                        // synthetic — no direct measurement
       communities:realCommunities,           // REAL from benchmark/summary
       entities:realEntities,                 // REAL from benchmark/summary
-      relationships:realGraphEdges||312,     // real canonical (0 if no cross-links) → synthetic fallback shown
-      ontology:0.997,                        // synthetic
+      relationships:realGraphEdges,          // REAL from graph_consistency
       wikiPages:181,                         // approximation from pipeline output
       documents:realFiles,                   // REAL from benchmark/summary
     },
     slm:{
       teacher:slmData.length>0?(slmData[0]?.teacher_model||"llama3:8b"):"llama3:8b",
-      compressionRatio:"4.7×",
-      inferenceSpeed:"47 tok/s",
-      modelSize:"1.7B",
-      trainingTime:"∵35s (demo)",
-    },
-    routing:{
-      accuracy:0.964,
-      fallbackPct:3.2,
-      slmUtilization:0.78,
-      avgConfidence:0.941,
-      cacheHitRate:0.34,
-    },
-    business:{
-      costSaved:"₹31.4L",
-      hoursSaved:"847 hrs",
-      revenueImpact:"₹8.2L",
-      decisionQuality:0.887,
-      userSatisfaction:4.6,
-      roi:"6.3×",
-      payback:"18 days",
     },
   };
 
+  // Awaiting telemetry component for unmeasured business KPIs
+  function AwaitingCard({label, reason, tip}: {label:string; reason:string; tip?:string}) {
+    return (
+      <div className="bg-bg2 border border-dborder rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-t3/10 text-t3 border border-dborder uppercase tracking-wider">Awaiting Data</span>
+          {tip && <InfoTip text={tip}/>}
+        </div>
+        <div className="text-[13px] font-semibold text-t3">{label}</div>
+        <div className="text-[10px] text-t3 mt-1 leading-relaxed">{reason}</div>
+      </div>
+    );
+  }
+
+  // Real metric badge
+  function RealBadge({since}: {since?: string}) {
+    return <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-gg/10 text-gg border border-gg/25">● Real{since ? ` · ${since}` : ""}</span>;
+  }
+
   // Use real combined score from benchmark endpoint
   const realCombined = ov.combined_score;
-  const baselineSynthetic = 0.14;  // enterprise benchmark baseline
 
   return (
     <div>
@@ -225,22 +566,85 @@ export default function BenchmarkingPage(){
           ))}
         </div>
 
-        <div className="flex items-start gap-2 px-4 py-2.5 bg-amber/10 border border-amber/30 rounded-lg text-[11px] text-t2 mb-6">
-          <span>&#9432;</span>
-          <span>Live DB values: {queries} queries, {slmCount} SLMs, {realEntities} entities, {realGraphNodes} graph nodes. Charts labelled <b className="text-amber">Enterprise benchmark</b> use calibrated synthetic values for dimensions not yet measured in production.</span>
+        <div className="flex items-start gap-2 px-4 py-2.5 bg-bg2 border border-dborder rounded-lg text-[11px] text-t2 mb-6">
+          <span>ℹ</span>
+          <span>
+            <b className="text-t1">Data integrity:</b> {queries} real queries · {slmCount} SLMs · {realEntities} entities · {realGraphNodes} graph nodes.
+            {hasEval
+              ? <> <span className="text-gg font-semibold">✓ {evalCount} LLM-judged evaluations</span> — Harness Score uses real multi-dimensional scores.</>
+              : <> <span className="text-amber font-semibold">Harness Score uses 2/6 dimensions</span> — run queries to trigger the evaluation judge.</>
+            }
+            {" "}Metrics labelled <span className="font-semibold text-amber">Awaiting Data</span> have no production measurement yet.
+          </span>
         </div>
 
         {tab==="Overview"&&(
           <div className="space-y-6">
+            {/* Live status + pipeline */}
+            <BenchmarkStatus data={data} slmData={slmData}/>
+            <EvalPipeline/>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KTile label="Combined Score" value={num(ov.combined_score)} sub="↑ vs baseline" color="#6c5cf7"
-                tip="Product of Completion × Process × Security. End-to-end pipeline quality score. Range 0.0–1.0 — higher is better."/>
-              <KTile label="Harness Score" value={num(ov.harness_score)} sub="Knowledge + reasoning" color="#0d9e74"
-                tip="Weighted average of accuracy and governance dimensions. Measures how much the DHS harness improves over raw model output — higher is better."/>
-              <KTile label="Hallucination Rate" value={pct(ov.hallucination_rate)} sub={ov.hallucination_rate!=null?`${ov.hallucination_rate<0.1?"✓":"⚠"} Industry avg: 8.3%`:"not measured"} color={ov.hallucination_rate!=null&&ov.hallucination_rate<0.1?"#16a34a":undefined}
-                tip="Fraction of response statements unverifiable by the knowledge graph. Computed from query_history.hallucination_rate. Lower is better — industry average is ~8.3%."/>
-              <KTile label="Avg Latency" value={ov.avg_latency_ms?`${Math.round(ov.avg_latency_ms/1000).toFixed(0)}s`:null} sub="End-to-end including LLM inference"
-                tip="Average total response time from query submission to final synthesized answer, including graph retrieval, LLM inference, and synthesis. Measured from query_history.latency_ms. Lower is better."/>
+              <MetricCard
+                label="Combined Score" value={num(ov.combined_score)} sub="↑ vs baseline" color="#6c5cf7"
+                badge={ov.combined_score!=null ? "measured" : "awaiting"}
+                reliability={ov.combined_score!=null ? 4 : undefined}
+                formula="Completion × Process × Security"
+                source="query_history (3 columns, all real)"
+                updateFreq="After every query"
+                sampleSize={queries}
+                tip="Product of Completion × Process × Security. End-to-end pipeline quality score. Range 0.0–1.0 — higher is better."
+                evidence={ov.combined_score!=null ? [`Value: ${num(ov.combined_score)}`, `Completion: ${num(tech?.completion,2)}`, `Process: ${num(tech?.process,2)}`, `Security: ${num(tech?.security,2)}`, `Based on ${queries} queries`] : []}
+              />
+              <MetricCard
+                label="Harness Score" value={num(ov.harness_score)} sub="Knowledge + reasoning" color="#0d9e74"
+                badge={hasEval ? "ai-evaluated" : (ov.harness_score!=null ? "measured" : "awaiting")}
+                reliability={hasEval ? 5 : (ov.harness_score!=null ? 3 : undefined)}
+                formula="Σ(weight_i × dim_i) / Σ(weight_i) for measured dims"
+                source={hasEval ? `LLM judge (${evalCount} evaluations)` : "2/6 dims from DB (accuracy + governance)"}
+                updateFreq="After every query with graph context"
+                sampleSize={hasEval ? evalCount : queries}
+                tip="Weighted average of accuracy and governance (always) + 4 judge dimensions (when evaluated). Measures DHS harness contribution."
+                evidence={ov.harness_score!=null ? [
+                  `Score: ${num(ov.harness_score)}`,
+                  hasEval ? `Judge evaluated: ${evalCount} queries` : "Judge not yet run",
+                  `Accuracy dim: ${num(harn?.dimensions?.accuracy,2) ?? "proxy"}`,
+                  `Governance dim: ${num(harn?.dimensions?.governance,2) ?? "proxy"}`,
+                ] : []}
+              />
+              <MetricCard
+                label="Hallucination Rate" value={pct(ov.hallucination_rate)}
+                sub={ov.hallucination_rate!=null ? `${ov.hallucination_rate<0.1?"✓":"⚠"} Industry avg: 8.3%` : undefined}
+                color={ov.hallucination_rate!=null && ov.hallucination_rate<0.1 ? "#16a34a" : undefined}
+                badge={ov.hallucination_rate!=null ? "ai-evaluated" : "awaiting"}
+                reliability={ov.hallucination_rate!=null ? 4 : undefined}
+                formula="AVG(hallucination_rate) from query_history"
+                source="LLM judge compares answer claims vs knowledge graph"
+                updateFreq="After every query with graph context"
+                sampleSize={queries}
+                tip="Fraction of response statements unverifiable by the knowledge graph. Computed by LLM judge. Lower is better — industry average ~8.3%."
+                evidence={ov.hallucination_rate!=null ? [
+                  `Current rate: ${pct(ov.hallucination_rate)}`,
+                  `Industry avg: 8.3%`,
+                  `Status: ${ov.hallucination_rate<0.1 ? "✓ Below industry avg" : "⚠ Above industry avg"}`,
+                  `Sample: ${queries} queries`,
+                ] : []}
+              />
+              <MetricCard
+                label="Avg Latency" value={ov.avg_latency_ms ? `${Math.round(ov.avg_latency_ms/1000).toFixed(0)}s` : null}
+                sub="End-to-end including LLM inference"
+                badge={ov.avg_latency_ms!=null ? "measured" : "awaiting"}
+                reliability={ov.avg_latency_ms!=null ? 5 : undefined}
+                formula="AVG(latency_ms) from query_history"
+                source="Wall-clock monotonic timer, per inference"
+                updateFreq="After every query"
+                sampleSize={queries}
+                tip="Average total response time from query submission to final synthesized answer. Measured from query_history.latency_ms. Lower is better."
+                evidence={ov.avg_latency_ms!=null ? [
+                  `Avg: ${Math.round(ov.avg_latency_ms)}ms`,
+                  `Sample: ${queries} queries`,
+                  "Includes: graph retrieval, LLM inference, synthesis",
+                ] : []}
+              />
             </div>
             <div className="grid grid-cols-3 gap-4">
               {([
@@ -256,14 +660,15 @@ export default function BenchmarkingPage(){
                 </button>
               ))}
             </div>
-            <div className="bg-gradient-to-r from-accent/10 to-accent/5 border border-accent/20 rounded-xl p-5">
+            <div className="bg-accent/5 border border-accent/20 rounded-xl p-5">
               <div className="text-[12px] font-semibold text-t3 uppercase tracking-wider mb-2">Core Thesis</div>
               <div className="text-[18px] font-bold text-t1 mb-1">Agent = Model + <span className="text-accent">DHS Harness</span></div>
               <div className="text-[12px] text-t2">
-                Same model alone: <b>{baselineSynthetic} combined</b>{" "}
-                · With DHS: <b>{num(realCombined)||"—"} combined</b>{" "}
-                {realCombined!=null&&<>· Gap: <b className="text-gg">+{(realCombined-baselineSynthetic).toFixed(3)}</b></>}
-                <span className="text-[10px] text-t3 ml-2">(baseline is enterprise synthetic benchmark)</span>
+                {realCombined!=null
+                  ? <>Combined pipeline score: <b className="text-accent">{num(realCombined)}</b> (Completion × Process × Security from real query data)</>
+                  : <>No queries yet — combined score will appear after the first inference.</>
+                }
+                {hasEval && <> · Harness dimensions: <b className="text-gg">{evalCount} judge evaluations</b></>}
               </div>
             </div>
             <TrendChart trends={trends}/>
@@ -272,43 +677,40 @@ export default function BenchmarkingPage(){
 
         {tab==="Harness"&&(
           <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {Object.entries(harn.dimensions).map(([k,v])=>{
+            <div className="flex items-center gap-2 px-3 py-2 bg-bg2 border border-dborder rounded-lg text-[11px] text-t2 mb-2">
+              {hasEval
+                ? <><span className="text-gg font-semibold">● {evalCount} evaluated queries</span> — all 6 dimensions are real LLM-judge scores.</>
+                : <><span className="text-amber font-semibold">⚠ No evaluated queries yet</span> — run a query to trigger the judge. Governance and accuracy use DB fallbacks.</>
+              }
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {Object.entries(harn.dimensions as Record<string,number|null>).map(([k,v])=>{
                 const measured=harn.dimension_measured?.[k]??false;
                 const tips:Record<string,string>={
-                  accuracy:"Task completion accuracy derived from val_loss and query completion rates. Proxy for how precisely the harness answers domain queries.",
-                  governance:"Factual integrity score (1 − hallucination_rate). Measures how well the harness prevents fabricated outputs.",
-                  context_awareness:"Measures how well the harness retrieves and utilises relevant knowledge graph context. Not yet measured — requires multi-turn evaluation.",
-                  business_relevance:"Measures alignment of answers with business objectives. Not yet measured — requires annotated golden dataset.",
-                  actionability:"Measures whether outputs produce concrete next steps. Not yet measured — requires human evaluation.",
-                  explainability:"Measures citation depth and reasoning transparency. Not yet measured — requires annotation.",
+                  accuracy: hasEval ? "LLM-judge accuracy score: 0.0–1.0. Measures correctness of the answer based on judge evaluation. Average over all judged queries." : "Proxy: 1 − avg(val_loss) from slm_registry training. Real judge score activates after first query.",
+                  governance: hasEval ? "LLM-judge governance score: factual groundedness. 1.0 = fully grounded, no speculation. Average over judged queries." : "Proxy: 1 − avg(hallucination_rate) from query_history. Real judge score activates after first query.",
+                  context_awareness: hasEval ? "LLM-judge: how well the answer used relevant domain context and knowledge graph facts. 0.0–1.0." : "Not yet measured — awaiting first query evaluation.",
+                  business_relevance: hasEval ? "LLM-judge: how useful the answer is for professional/business decision-making. 0.0–1.0." : "Not yet measured — awaiting first query evaluation.",
+                  actionability: hasEval ? "LLM-judge: whether the answer provides clear next steps. 1.0 = highly actionable, 0.0 = no clear actions." : "Not yet measured — awaiting first query evaluation.",
+                  explainability: hasEval ? "LLM-judge: clarity and structure of the answer. 1.0 = very clear and well-organised." : "Not yet measured — awaiting first query evaluation.",
                 };
                 return (
-                  <KTile key={k} label={k.replace(/_/g," ")} value={pct(v as number|null)}
-                    sub={!measured?"Enterprise benchmark — not yet measured":undefined}
-                    tip={tips[k]||k.replace(/_/g," ")}/>
+                  <div key={k} className={`rounded-xl p-4 border ${measured && v!=null ? "bg-white border-dborder" : "bg-bg2 border-dborder"}`}>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      {measured && v!=null
+                        ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gg/10 text-gg border border-gg/25 uppercase tracking-wider">Real</span>
+                        : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-t3/10 text-t3 border border-dborder uppercase tracking-wider">Awaiting</span>
+                      }
+                      <InfoTip text={tips[k]||k}/>
+                    </div>
+                    <div className={`text-[22px] font-bold leading-none ${measured && v!=null ? "text-t1" : "text-t3"}`}>
+                      {measured && v!=null ? pct(v) : "—"}
+                    </div>
+                    <div className="text-[10px] text-t3 mt-1.5 uppercase tracking-wider">{k.replace(/_/g," ")}</div>
+                    {!measured && <div className="text-[9px] text-amber mt-1">Not yet measured</div>}
+                  </div>
                 );
               })}
-            </div>
-            <div className="bg-card border border-dborder rounded-xl p-5">
-              <SectionTitle title="DHS vs. Frontier Models" sub="Same model, different harness — domain Q&A benchmark" synth/>
-              <div className="text-[10px] text-t3 mb-3">Enterprise synthetic benchmark. Dimensions: T1 Factual (entity lookup), T2 Relational (multi-entity), T3 Multi-hop (chain reasoning), T4 Judgment (recommendation), Governance (policy compliance).</div>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={[
-                  {task:"Factual (T1)",gpt4o:71,claude:74,dhs:94},
-                  {task:"Relational (T2)",gpt4o:44,claude:47,dhs:91},
-                  {task:"Multi-hop (T3)",gpt4o:28,claude:31,dhs:87},
-                  {task:"Judgment (T4)",gpt4o:11,claude:14,dhs:84},
-                  {task:"Governance",gpt4o:59,claude:62,dhs:93},
-                ]}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                  <XAxis dataKey="task" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}}/>
-                  <Tooltip/><Legend wrapperStyle={{fontSize:10}}/>
-                  <Bar dataKey="gpt4o" name="GPT-4o alone" fill="#dc2626" radius={[3,3,0,0]}/>
-                  <Bar dataKey="claude" name="Claude alone" fill="#d97706" radius={[3,3,0,0]}/>
-                  <Bar dataKey="dhs" name="DHS Full Stack" fill="#16a34a" radius={[3,3,0,0]}/>
-                </BarChart>
-              </ResponsiveContainer>
             </div>
             <div className="bg-card border border-dborder rounded-xl p-5">
               <SectionTitle title="Query task distribution" sub={`Real recorded query history · ${queries} queries from query_history`}/>
@@ -384,41 +786,81 @@ export default function BenchmarkingPage(){
         {tab==="Technical"&&(
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KTile label="Completion" value={num(tech.completion)} color="#6c5cf7"
-                tip="Average task completion rate from query_history.task_completion_rate. 1.0 = all queries fully answered. Falls back to SLM registry completion if no query history."/>
-              <KTile label="Process (routing)" value={num(tech.process)}
-                tip="Routing quality proxy derived from avg(bandit_scores.score). Measures how well the routing layer selects appropriate models. Higher is better."/>
-              <KTile label="Security" value={num(tech.security)}
-                tip="1 − avg(hallucination_rate). Measures factual integrity. 1.0 = zero hallucinations. Computed from query_history or slm_registry."/>
-              <KTile label="Combined (C×P×S)" value={num(tech.combined)} color="#16a34a"
-                tip="Product of Completion × Process × Security. The core DHS benchmark score. Penalises any weak dimension multiplicatively. Range 0.0–1.0."/>
+              <MetricCard label="Completion" value={num(tech.completion)} color="#6c5cf7"
+                badge={tech.completion!=null ? (hasEval ? "ai-evaluated" : "measured") : "awaiting"}
+                reliability={tech.completion!=null ? (hasEval ? 5 : 3) : undefined}
+                formula={hasEval ? "AVG(task_completion_score) from LLM judge" : "AVG(task_completion_rate), binary proxy (0.9/0.0)"}
+                source={hasEval ? "LLM judge per query" : "query_history.task_completion_rate"}
+                updateFreq="After every query"
+                sampleSize={hasEval ? evalCount : queries}
+                tip="Average task completion rate. Uses real LLM judge scores when available, falls back to binary proxy (0.9 if answer present)."
+                evidence={tech.completion!=null ? [`Value: ${num(tech.completion)}`, hasEval ? `Judge-evaluated: ${evalCount} queries` : "Binary proxy (0.9=answer present)", `Sample: ${queries} queries`] : []}
+              />
+              <MetricCard label="Process (routing)" value={num(tech.process)}
+                badge={tech.process!=null ? "measured" : "awaiting"}
+                reliability={tech.process!=null ? 4 : undefined}
+                formula="EMA: bandit.score * 0.9 + new_reward * 0.1"
+                source="bandit_scores table (UPSERT after each query)"
+                updateFreq="After every query"
+                sampleSize={queries}
+                tip="Routing quality from bandit_scores.score. Exponential moving average of LinUCB reward. Higher = better routing decisions."
+                evidence={tech.process!=null ? [`Value: ${num(tech.process)}`, `From bandit_scores table`, `Reward formula: 0.50×completion + 0.35×(1−halluc) + 0.15×0.9`] : ["bandit_scores table empty — queries needed"]}
+              />
+              <MetricCard label="Security" value={num(tech.security)}
+                badge={tech.security!=null ? "measured" : "awaiting"}
+                reliability={tech.security!=null ? 4 : undefined}
+                formula="1 − AVG(hallucination_rate)"
+                source="query_history.hallucination_rate (LLM judge)"
+                updateFreq="After every query with graph context"
+                sampleSize={queries}
+                tip="1 − avg(hallucination_rate). Factual integrity measure. 1.0 = zero hallucinations. Computed from LLM judge evaluation."
+                evidence={tech.security!=null ? [`Value: ${num(tech.security)}`, `Hallucination rate: ${pct(ov.hallucination_rate)}`, `Sample: ${queries} queries`] : []}
+              />
+              <MetricCard label="Combined (C×P×S)" value={num(tech.combined)} color="#16a34a"
+                badge={tech.combined!=null ? "measured" : "awaiting"}
+                reliability={tech.combined!=null ? 4 : undefined}
+                formula="Completion × Process × Security"
+                source="All three dimensions from query_history + bandit_scores"
+                updateFreq="After every query"
+                sampleSize={queries}
+                tip="Product of Completion × Process × Security. Core DHS benchmark. Penalises any weak dimension multiplicatively."
+                evidence={tech.combined!=null ? [`Value: ${num(tech.combined)}`, `C: ${num(tech.completion,2)} × P: ${num(tech.process,2)} × S: ${num(tech.security,2)}`] : []}
+              />
             </div>
             <div className="bg-card border border-dborder rounded-xl p-5">
-              <SectionTitle title="Layer Contribution Waterfall" sub="Baseline → Full Stack" synth/>
-              <div className="text-[10px] text-t3 mb-3">Enterprise benchmark · illustrates incremental score improvement from each DHS layer.</div>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={[
-                  {stage:"Baseline",combined:0.36,completion:0.71,process:0.68,security:0.74},
-                  {stage:"+Info Harness",combined:0.48,completion:0.79,process:0.73,security:0.83},
-                  {stage:"+Knowledge",combined:0.63,completion:0.85,process:0.81,security:0.91},
-                  {stage:"+Inference",combined:0.74,completion:0.90,process:0.87,security:0.95},
-                  {stage:"+Outcome",combined:0.82,completion:0.93,process:0.91,security:0.97},
-                ]}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                  <XAxis dataKey="stage" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}} domain={[0,1]}/>
-                  <Tooltip/><Legend wrapperStyle={{fontSize:10}}/>
-                  <Bar dataKey="completion" name="Completion" fill="#2563eb" radius={[3,3,0,0]}/>
-                  <Bar dataKey="process" name="Process" fill="#7c3aed" radius={[3,3,0,0]}/>
-                  <Bar dataKey="security" name="Security" fill="#16a34a" radius={[3,3,0,0]}/>
-                  <Bar dataKey="combined" name="Combined" fill="#d97706" radius={[3,3,0,0]}/>
-                </BarChart>
-              </ResponsiveContainer>
+              <SectionTitle title="Layer Contribution" sub="Real pipeline quality signals"/>
+              <div className="text-[10px] text-t3 mb-3">Computed from live query_history and bandit_scores — no synthetic baselines.</div>
+              <div className="space-y-1.5">
+                <BarRow label="Completion" value={tech?.completion??0} color="#2563eb"/>
+                <BarRow label="Process (Routing)" value={tech?.process??0} color="#7c3aed"/>
+                <BarRow label="Security (1−Hallucination)" value={tech?.security??0} color="#16a34a"/>
+                {realCombined!=null && <BarRow label="Combined Score" value={realCombined} color="#d97706"/>}
+              </div>
+              {(!tech?.completion && !tech?.process && !tech?.security) && (
+                <div className="text-[11px] text-t3 py-4 text-center">No query data yet — run queries to populate.</div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <KTile label="Routing Accuracy" value={routingAccuracyDisplay} sub={routingAccuracySub}
-                tip="Fraction of queries routed to the optimal model based on bandit learning history. Requires the bandit to observe sufficient query-model pairs. Shows 0 when bandit is in the learning phase."/>
-              <KTile label="Learning Velocity" value={num(tech.learning_velocity)} sub="Completion delta per epoch"
-                tip="Improvement in task completion rate from first to last observed month. Requires ≥ 2 months of query history. Null if insufficient data."/>
+              <MetricCard label="Routing Accuracy" value={routingAccuracyDisplay} sub={routingAccuracySub}
+                badge={routingAccuracyReal!=null && routingAccuracyReal>0 ? "measured" : "awaiting"}
+                reliability={routingAccuracyReal!=null && routingAccuracyReal>0 ? 4 : undefined}
+                formula="COUNT(slm_used == best_bandit_model) / total_queries"
+                source="query_history joined with bandit_scores"
+                updateFreq="After every query"
+                sampleSize={queries}
+                tip="Fraction of queries routed to the optimal model per bandit learning. 0 during warm-up (needs ≥5 observations per task type)."
+                evidence={routingAccuracyReal!=null ? [`Value: ${pct(routingAccuracyReal)}`, `Sample: ${queries} queries`, routingAccuracyReal===0 ? "Bandit still in learning phase" : "Routing is converging"] : ["Not enough query-model pairs"]}
+              />
+              <MetricCard label="Learning Velocity" value={num(tech.learning_velocity)} sub="Completion delta (first→last month)"
+                badge={tech.learning_velocity!=null ? "measured" : "awaiting"}
+                reliability={tech.learning_velocity!=null ? 3 : undefined}
+                formula="completion[last_month] − completion[first_month]"
+                source="Monthly trend from query_history"
+                updateFreq="Monthly"
+                sampleSize={trends.length}
+                tip="Improvement in task completion across months. Requires ≥2 months of history. Positive = improving."
+                evidence={tech.learning_velocity!=null ? [`Value: ${num(tech.learning_velocity)}`, `Months of data: ${trends.length}`, `Trend direction: ${tech.learning_velocity>0?"improving":"declining"}`] : [`Only ${trends.length} month(s) of data — need ≥ 2`]}
+              />
             </div>
             <TrendChart trends={trends}/>
           </div>
@@ -437,20 +879,19 @@ export default function BenchmarkingPage(){
                 tip="Fraction of queries assigned to the optimal model. Bandit requires warm-up period. Shows null when bandit is in learning phase."/>
               <KTile label="Knowledge Entities" value={realEntities.toLocaleString()}
                 tip="Canonical entity count from the latest completed corpus — real pipeline output from entity registry."/>
-              <KTile label="Cost Reduction" value="-69%" sub="vs frontier-only stack" color="#16a34a"
-                tip="Enterprise benchmark estimate: cost reduction from routing 78% of queries to domain SLM ($87/1K) vs frontier models ($512/1K). Methodology: (frontier_cost − mixed_cost)/frontier_cost."/>
-              <KTile label="User Satisfaction" value={`${D.business.userSatisfaction}/5`} sub="Post-query rating"
-                tip="Enterprise benchmark · 5-star post-query rating. Not yet collected from production — requires feedback widget."/>
-              <KTile label="ROI" value={D.business.roi} sub={`Payback: ${D.business.payback}`} color="#6c5cf7"
-                tip="Enterprise benchmark · (value_generated − cost) / cost. Not yet directly measured in production — requires outcome tracking integration."/>
+              <AwaitingCard label="Cost Reduction" reason="Requires tracking actual token usage per query. SLM utilization data populates automatically after 5+ queries." tip="Will show estimated cost reduction vs. frontier-only routing based on query_history.slm_used and configurable token costs."/>
+              <AwaitingCard label="User Satisfaction" reason="No feedback widget deployed. Requires a post-query rating table (query_feedback)." tip="Will show average user rating once a feedback mechanism is added."/>
+              <AwaitingCard label="ROI" reason="Requires outcome tracking integration — revenue or time-saved data not yet flowing into DHS." tip="ROI = (value_generated − cost) / cost. Cannot be calculated without external KPI integration."/>
             </div>
             <TrendChart trends={trends}/>
-            <div className="bg-gradient-to-r from-accent/8 to-transparent border border-accent/20 rounded-xl p-5 text-[12px] text-t2 leading-relaxed">
+            <div className="bg-accent/5 border border-accent/20 rounded-xl p-5 text-[12px] text-t2 leading-relaxed">
               <div className="text-[14px] font-semibold text-t1 mb-2">Executive Summary</div>
-              DHS delivered a <b className="text-accent">{num(realCombined)||"—"} combined score</b> (Completion {num(tech.completion,2)} × Process {num(tech.process,2)} × Security {num(tech.security,2)}).
-              Hallucination rate <b className={ov.hallucination_rate!=null&&ov.hallucination_rate<0.1?"text-gg":"text-amber"}>{pct(ov.hallucination_rate)||"not measured"}</b>{ov.hallucination_rate!=null&&ov.hallucination_rate<0.1?<> (✓ below 8.3% industry avg)</>:<> (industry avg: 8.3%)</>}.
-              Knowledge graph with <b>{realEntities} entities</b> across <b>{realGraphNodes} canonical nodes</b> grounds every answer.
-              {" "}<b>{queries} queries</b> processed across <b>{slmCount} SLMs</b>. Cost reduction and ROI are enterprise benchmark estimates.
+              DHS delivered a <b className="text-accent">{num(realCombined)||"—"} combined score</b> (Completion {num(tech.completion,2)||"—"} × Process {num(tech.process,2)||"—"} × Security {num(tech.security,2)||"—"}).
+              Hallucination rate <b className={ov.hallucination_rate!=null&&ov.hallucination_rate<0.1?"text-gg":"text-amber"}>{pct(ov.hallucination_rate)||"not yet measured"}</b>{ov.hallucination_rate!=null&&ov.hallucination_rate<0.1?<> (✓ below 8.3% industry avg)</>:<> (industry avg: 8.3%)</>}.
+              Knowledge graph: <b>{realEntities} entities</b> across <b>{realGraphNodes} canonical nodes</b>.
+              {" "}<b>{queries} queries</b> processed across <b>{slmCount} SLMs</b>.
+              {hasEval && <> Harness Score uses <b>{evalCount} LLM-judged evaluations</b> across 6 quality dimensions.</>}
+              {" "}Cost reduction, ROI, and user satisfaction metrics require additional telemetry not yet deployed.
             </div>
           </div>
         )}
@@ -459,22 +900,18 @@ export default function BenchmarkingPage(){
           <div className="space-y-6">
             <SectionTitle title="Knowledge Analytics" sub="Knowledge graph quality, coverage, and enrichment metrics"/>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KTile label="Coverage" value={pct(D.knowledge.coverage)} sub="Corpus depth score" color="#6c5cf7"
-                tip="Enterprise benchmark estimate: fraction of domain knowledge represented in the knowledge graph. Combines entity density, community coverage, and cross-link validation. Higher is better."/>
+              <KTile label="Coverage" value={knowledgeCoveragePct ?? null} sub={knowledgeCoveragePct ? "entity references / total entities" : undefined} color="#6c5cf7"
+                tip="Real metric: fraction of knowledge graph entities actually referenced in query answers. Computed from referenced_entity_count / total_entity_count in query_history. Requires queries with graph context."/>
               <KTile label="Communities" value={D.knowledge.communities.toString()} sub="Graph clusters"
                 tip="Number of entity communities detected by the community algorithm. From pipeline output. Each cluster represents a domain sub-topic."/>
               <KTile label="Entities" value={D.knowledge.entities.toLocaleString()} sub="Unique named entities"
                 tip="Canonical entity count after extraction, deduplication, and resolution across all source files. From entity registry — real pipeline output."/>
               <KTile label="Relationships" value={D.knowledge.relationships.toLocaleString()} sub={realGraphEdges===0?"Canonical edges=0 (cross-linking needed)":"Typed edges in canonical graph"}
                 tip="Edge count in the canonical knowledge graph. Cross-file edges require validated cross-source linking. Per-file graphs contain all relationships — canonical count may be 0 until cross-source linking is performed."/>
-              <KTile label="Ontology Conformance" value={kc.ontology_conformance!=null?pct(kc.ontology_conformance):pct(D.knowledge.ontology)} sub={kc.ontology_conformance!=null?"From graph_consistency.json":"Enterprise benchmark"} color="#16a34a"
+              <KTile label="Ontology Conformance" value={kc.ontology_conformance!=null?pct(kc.ontology_conformance):null}
                 tip="Fraction of graph edges conforming to declared ontology constraints. 1.0 = full conformance. Computed from graph_consistency.json if available."/>
-              <KTile label="Wiki Pages" value={D.knowledge.wikiPages.toString()} sub="Community articles"
-                tip="Number of wiki articles auto-generated from canonical entities. One article per entity — generated by the Wiki Builder pipeline stage."/>
-              <KTile label="Documents" value={D.knowledge.documents.toString()} sub="Processed corpus"
-                tip="Number of source documents ingested into the corpus. From ingest_jobs.file_count — real pipeline output."/>
-              <KTile label="Knowledge Gain" value="+340%" sub="vs unprocessed docs" color="#16a34a"
-                tip="Enterprise benchmark · estimated improvement in answer quality when using the structured knowledge graph versus querying raw documents directly."/>
+              <AwaitingCard label="Wiki Pages" reason="Count approximated from pipeline output. Exact count requires a dedicated wiki_pages table." tip="Number of wiki articles auto-generated from canonical entities by the Wiki Builder stage."/>
+              <AwaitingCard label="Knowledge Gain" reason="No baseline (unprocessed document QA) has been run to compare against." tip="Will show improvement in answer quality vs querying raw documents — requires A/B comparison with and without knowledge graph."/>
             </div>
             <div className="bg-card border border-dborder rounded-xl p-5">
               <SectionTitle title="Data Domain Coverage Heatmap" sub="Organisational knowledge strength per domain" synth/>
@@ -528,18 +965,11 @@ export default function BenchmarkingPage(){
                 tip="The large frontier model used to generate training QA pairs via knowledge distillation. From SLM registry or pipeline configuration."/>
               <KTile label="Student Model" value={slmData.length>0?(slmData[0]?.model_id?.split("_")[0]||"SmolLM2-1.7B"):"SmolLM2-1.7B"} sub={`${slmCount} models registered`}
                 tip="The small model fine-tuned via QLoRA on distilled domain knowledge. Runs locally on Ollama. Registered count from slm_registry table."/>
-              <KTile label="Compression Ratio" value={D.slm.compressionRatio} sub="vs teacher" color="#16a34a"
-                tip="Enterprise benchmark · size ratio of teacher to student model (parameters). 4.7× means the student is 4.7× smaller — enabling local inference."/>
-              <KTile label="Inference Speed" value={D.slm.inferenceSpeed} sub="Local Ollama" color="#16a34a"
-                tip="Enterprise benchmark · estimated tokens per second for the student model on a local GPU. Actual speed varies by hardware."/>
-              <KTile label="Model Size" value={D.slm.modelSize} sub="Parameters"
-                tip="Student model parameter count. Smaller models enable faster, cheaper local inference at lower accuracy cost."/>
+              <AwaitingCard label="Compression Ratio" reason="Parameter count ratio between teacher and student models. Not computed — requires storing model metadata during training." tip="Teacher params / student params. e.g. 8B / 1.7B = 4.7×. Real value once slm_builder stores param counts."/>
+              <AwaitingCard label="Inference Speed" reason="Tokens/sec not measured during inference. Requires timing Ollama /api/generate responses." tip="Token throughput for local SLM. Add latency_ms per token to query_history to compute this."/>
               <KTile label="Quantization" value="4-bit QLoRA"
-                tip="Training quantization scheme. 4-bit QLoRA reduces VRAM requirements ~4× versus full-precision fine-tuning while maintaining most accuracy."/>
-              <KTile label="Context Window" value="2,048" sub="tokens"
-                tip="Maximum token context accepted by the student model. Longer contexts require proportionally more VRAM."/>
-              <KTile label="Training Time" value={D.slm.trainingTime}
-                tip="End-to-end training time on demonstration corpus. Production time scales with corpus size and QA pair count."/>
+                tip="Training quantization scheme. 4-bit QLoRA reduces VRAM requirements ~4× versus full-precision fine-tuning."/>
+              <AwaitingCard label="Training Time" reason="Celery task duration not stored. Requires persisting task start/end timestamps from the SLM build task." tip="Wall-clock fine-tuning time. Real once build task stores duration to slm_registry."/>
             </div>
             <div className="bg-card border border-dborder rounded-xl p-5">
               <SectionTitle
@@ -596,40 +1026,26 @@ export default function BenchmarkingPage(){
             <SectionTitle title="Routing Analytics" sub="Task classification, model selection, and fallback analysis"/>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <KTile label="Router Accuracy" value={routingAccuracyDisplay||null} sub={routingAccuracySub} color={routingAccuracyDisplay?"#16a34a":undefined}
-                tip="Fraction of queries routed to the optimal model as determined by LinUCB bandit learning. 0.0 during warm-up phase (requires ≥20 observations per task type). Computed from bandit_scores vs query_history.slm_used."/>
-              <KTile label="SLM Utilisation" value={pct(D.routing.slmUtilization)} sub="78% to domain SLM" color="#6c5cf7"
-                tip="Enterprise benchmark · fraction of queries handled by the domain SLM rather than falling back to a frontier model. Higher = more cost-efficient. Requires coverage threshold tuning."/>
-              <KTile label="Fallback Rate" value={`${D.routing.fallbackPct.toFixed(1)}%`} sub="SLM → Ollama fallback"
-                tip="Enterprise benchmark · fraction of queries where the domain SLM score fell below the routing threshold, triggering fallback to a general Ollama model."/>
-              <KTile label="Cache Hit Rate" value={pct(D.routing.cacheHitRate)} sub="Semantic cache savings" color="#16a34a"
-                tip="Enterprise benchmark · fraction of queries served from the semantic cache (embedding similarity match above threshold). Saves latency and cost."/>
-              <KTile label="Avg Confidence" value={num(D.routing.avgConfidence)} sub="Per query"
-                tip="Enterprise benchmark · average composite confidence score across all queries. Combines SLM confidence, hallucination rate, and bandit score."/>
-              <KTile label="Avg Latency (SLM)" value={ov.avg_latency_ms?`${(ov.avg_latency_ms/1000).toFixed(1)}s`:null} sub="Real from query_history.latency_ms"
-                tip="Real average end-to-end latency from query_history. Includes LLM generation time. High latency reflects full Ollama inference chain including synthesis."/>
-              <KTile label="Parallel Execution" value="2.4×" sub="Sub-tasks in parallel"
-                tip="Enterprise benchmark · average parallelism factor from blueprint execution. Subtasks with no dependencies execute concurrently."/>
-              <KTile label="Token Compression" value="-34%" sub="Semantic compressor" color="#16a34a"
-                tip="Enterprise benchmark · token reduction from the context compressor module before LLM generation. Reduces cost and latency for large knowledge graph contexts."/>
+                tip="Fraction of queries routed to the optimal model as determined by LinUCB bandit learning. Persisted to bandit_scores after each query. Requires ≥5 queries per task type to stabilise."/>
+              <KTile label="SLM Utilisation" value={hasSlmUtil ? slmUtilPct : null} sub={hasSlmUtil ? `${slmUtil.slm_query_count}/${slmUtil.total_query_count} queries` : "Need 5+ queries"} color={slmUtilPct?"#6c5cf7":undefined}
+                tip="Real metric: fraction of queries answered by the domain SLM (slm_used IS NOT NULL). Computed from query_history."/>
+              <KTile label="Fallback Rate" value={hasSlmUtil ? fallbackPct : null} sub={hasSlmUtil ? "BUILD_NEW or EXTEND_EXISTING" : "Need 5+ queries"}
+                tip="Real metric: fraction of queries where coverage_action was BUILD_NEW or EXTEND_EXISTING, indicating no suitable SLM was found."/>
+              <KTile label="Avg Latency" value={ov.avg_latency_ms?`${(ov.avg_latency_ms/1000).toFixed(1)}s`:null} sub="Real from query_history.latency_ms" color="#6c5cf7"
+                tip="Average end-to-end latency from query submission to final answer (ms). Measured wall-clock. Includes LLM generation, graph retrieval, and synthesis."/>
             </div>
             <div className="bg-card border border-dborder rounded-xl p-5">
-              <SectionTitle title="Task Distribution by Model" sub="Where each model type wins" synth/>
-              <div className="text-[10px] text-t3 mb-3">Enterprise benchmark · estimated model allocation across task types based on routing policy thresholds.</div>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart layout="vertical" data={[
-                  {task:"Analysis",slm:92,frontier:8},
-                  {task:"Planning",slm:85,frontier:15},
-                  {task:"Reporting",slm:75,frontier:25},
-                  {task:"Root Cause",slm:94,frontier:6},
-                  {task:"Compliance",slm:78,frontier:22},
-                ]}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                  <XAxis type="number" tick={{fontSize:10}}/><YAxis dataKey="task" type="category" tick={{fontSize:10}} width={80}/>
-                  <Tooltip/><Legend wrapperStyle={{fontSize:10}}/>
-                  <Bar dataKey="slm" name="Domain SLM %" fill="#6c5cf7" stackId="a"/>
-                  <Bar dataKey="frontier" name="Frontier %" fill="#94a3b8" stackId="a"/>
-                </BarChart>
-              </ResponsiveContainer>
+              <SectionTitle title="Task Distribution by Model" sub="Routing breakdown from query_history"/>
+              {harn?.task_distribution?.length ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart layout="vertical" data={harn.task_distribution.slice(0,8).map((d:any) => ({task: d.category, count: d.count}))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                    <XAxis type="number" tick={{fontSize:10}}/><YAxis dataKey="task" type="category" tick={{fontSize:10}} width={100}/>
+                    <Tooltip/>
+                    <Bar dataKey="count" name="Queries" fill="#2563eb" radius={[0,3,3,0]}/>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <Empty/>}
             </div>
             <div className="bg-card border border-dborder rounded-xl p-5">
               <SectionTitle title="Confidence Distribution" sub={`${queries} queries from query_history`} synth/>
@@ -650,58 +1066,32 @@ export default function BenchmarkingPage(){
 
         {tab==="Business"&&(
           <div className="space-y-6">
-            <SectionTitle title="Business Analytics" sub="Quantified enterprise value delivered — 90-day rolling window" synth/>
-            <div className="text-[10px] text-t3 mb-2 px-1">All business metrics are enterprise benchmark estimates. Real ROI requires outcome tracking integration.</div>
+            <SectionTitle title="Business Analytics" sub="Real operational metrics — business outcome metrics pending telemetry"/>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KTile label="Cost Saved" value={D.business.costSaved} sub="vs frontier-only stack" color="#16a34a"
-                tip="Enterprise benchmark · estimated cost avoided by routing 78% of queries to local SLM ($87/1K) vs frontier models ($512/1K) over 90 days."/>
-              <KTile label="Hours Saved" value={D.business.hoursSaved} sub="Manual research eliminated" color="#16a34a"
-                tip="Enterprise benchmark · analyst-hours avoided by DHS automated answers. Based on avg query resolution time reduction of ~42 minutes per query."/>
-              <KTile label="Revenue Impact" value={D.business.revenueImpact} sub="Recommendations acted on" color="#6c5cf7"
-                tip="Enterprise benchmark · estimated revenue attributable to acted-upon DHS recommendations. Requires outcome tracking to measure directly."/>
-              <KTile label="ROI" value={D.business.roi} sub={`Payback: ${D.business.payback}`} color="#6c5cf7"
-                tip="Enterprise benchmark · return on investment = (value_generated − cost) / cost. Payback period calculated from cumulative value vs. implementation cost."/>
-              <KTile label="Decision Quality" value={pct(D.business.decisionQuality)} sub="Expert-rated actionability"
-                tip="Enterprise benchmark · fraction of DHS recommendations rated as immediately actionable by domain experts. Requires expert evaluation dataset."/>
-              <KTile label="User Satisfaction" value={`${D.business.userSatisfaction}/5`} sub="Post-query star rating"
-                tip="Enterprise benchmark · average star rating from post-query feedback. Not yet collected from production — requires feedback widget."/>
               <KTile label="Queries Handled" value={queries.toString()} sub="Real from query_history"
                 tip="Total queries recorded in query_history table. Real system measurement."/>
-              <KTile label="Active Domains" value="10" sub="Enterprise units"
-                tip="Enterprise benchmark · number of distinct enterprise domain units benchmarked. Real domain count from slm_registry may differ."/>
+              <KTile label="Active SLMs" value={slmCount.toString()} sub="From slm_registry"
+                tip="Number of trained domain SLMs registered. Real count from slm_registry table."/>
+              <KTile label="Estimated Cost Savings" value={hasSlmUtil && costSavings ? costSavings : null} sub={hasSlmUtil ? "vs all-frontier routing" : "Need 5+ queries"} color="#16a34a"
+                tip="Estimated cost reduction from SLM routing vs. hypothetical all-frontier baseline. Based on configurable token costs: frontier=$0.512/1K, local SLM=$0.087/1K. Populates after 5+ queries."/>
+              <AwaitingCard label="ROI" reason="Requires outcome/KPI tracking integration — value generated by DHS recommendations is not yet measured." tip="(Value generated − DHS cost) / cost. Cannot be calculated without external outcome data."/>
+              <AwaitingCard label="Hours Saved" reason="Requires time-tracking integration or user self-report of research time replaced." tip="Estimated manual research hours eliminated by DHS answers."/>
+              <AwaitingCard label="Revenue Impact" reason="Requires financial outcome tracking linked to DHS recommendations." tip="Revenue attributed to decisions informed by DHS. Requires outcome tracking."/>
+              <AwaitingCard label="User Satisfaction" reason="No feedback widget deployed. Add a post-query rating to query_feedback table." tip="Average star rating from post-query feedback. Not yet collected."/>
+              <AwaitingCard label="Decision Quality" reason="Requires expert evaluation dataset or human-in-the-loop rating." tip="Fraction of DHS recommendations rated as immediately actionable by domain experts."/>
             </div>
-            <div className="bg-card border border-dborder rounded-xl p-5">
-              <SectionTitle title="90-Day Cumulative Value" sub="Recommendations → Actions → KPI outcomes" synth/>
-              <div className="text-[10px] text-t3 mb-3">Enterprise benchmark · cumulative value creation trajectory. Real measurements require outcome tracking.</div>
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={[
-                  {month:"Day 30",recs:320,acted:210,kpi:177},
-                  {month:"Day 60",recs:800,acted:564,kpi:489},
-                  {month:"Day 90",recs:1247,acted:891,kpi:783},
-                ]}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                  <XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}}/>
-                  <Tooltip/><Legend wrapperStyle={{fontSize:10}}/>
-                  <Line type="monotone" dataKey="recs" stroke="#94a3b8" strokeWidth={2} name="Recommendations"/>
-                  <Line type="monotone" dataKey="acted" stroke="#6c5cf7" strokeWidth={2} name="Acted Upon"/>
-                  <Line type="monotone" dataKey="kpi" stroke="#16a34a" strokeWidth={2.5} name="KPI Positive"/>
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="bg-card border border-dborder rounded-xl p-5">
-              <SectionTitle title="Domain ROI Breakdown" synth/>
-              <div className="text-[10px] text-t3 mb-3">Enterprise benchmark · estimated ROI per domain based on use-case complexity and query volume.</div>
-              {[
-                {d:"Supply Chain",roi:8.4,s:"₹12.1L"},{d:"Financial Risk",roi:7.1,s:"₹9.8L"},
-                {d:"Customer Experience",roi:5.2,s:"₹6.4L"},{d:"Manufacturing",roi:9.3,s:"₹4.8L"},
-                {d:"ESG & Sustainability",roi:4.1,s:"₹3.2L"},
-              ].map(r=>(
-                <div key={r.d} className="flex items-center gap-4 py-2 border-b border-bg3 last:border-0">
-                  <div className="flex-1 text-[12px] font-medium text-t1">{r.d}</div>
-                  <div className="text-[12px] font-bold text-accent">{r.roi}× ROI</div>
-                  <div className="text-[11px] text-gg font-semibold w-20 text-right">{r.s} saved</div>
-                </div>
-              ))}
+            <div className="bg-bg2 border border-dborder rounded-xl p-5">
+              <div className="text-[13px] font-semibold text-t1 mb-2">Business Value Tracking</div>
+              <div className="text-[12px] text-t2 leading-relaxed">
+                Business outcome metrics (ROI, hours saved, revenue impact) require external telemetry integration.
+                <br/><br/>
+                <b>To enable these metrics:</b>
+                <ul className="mt-2 space-y-1 text-[11px] text-t2 list-disc list-inside">
+                  <li>Add a <code className="bg-bg3 px-1 rounded">query_feedback</code> table with star ratings</li>
+                  <li>Connect DHS recommendations to business KPI outcomes</li>
+                  <li>Log time-saved estimates via the Outcome Harnessing layer</li>
+                </ul>
+              </div>
             </div>
           </div>
         )}
@@ -724,7 +1114,7 @@ export default function BenchmarkingPage(){
                     {dim:"Avg Latency",rag:"1,200ms",ft:"980ms",dhs:ov.avg_latency_ms?`${Math.round(ov.avg_latency_ms)}ms`:"2,847ms",best:"rag"},
                     {dim:"Domain Accuracy",rag:"68%",ft:"74%",dhs:pct(ov.combined_score)||"94%",best:"dhs"},
                     {dim:"Hallucination Rate",rag:"12.1%",ft:"6.8%",dhs:pct(ov.hallucination_rate)||"4.0%",best:"dhs"},
-                    {dim:"Knowledge Coverage",rag:"61%",ft:"N/A",dhs:`${(D.knowledge.coverage*100).toFixed(0)}%`,best:"dhs"},
+                    {dim:"Knowledge Coverage",rag:"61%",ft:"N/A",dhs:knowledgeCoveragePct || (realEntities > 0 ? `${realEntities} entities` : "N/A"),best:"dhs"},
                     {dim:"Explainability",rag:"Medium",ft:"Low",dhs:"High",best:"dhs"},
                     {dim:"Business Relevance",rag:"Medium",ft:"Medium",dhs:"High",best:"dhs"},
                     {dim:"Continuous Learning",rag:"❌ None",ft:"❌ None",dhs:"✓ Built-in",best:"dhs"},
@@ -772,6 +1162,12 @@ export default function BenchmarkingPage(){
           </div>
         )}
 
+      </div>
+
+      {/* ── Methodology + Metadata footer (always visible below tabs) ── */}
+      <div className="px-8 pb-10 space-y-4 mt-4">
+        <MethodologyTable/>
+        <BenchmarkMeta data={data} slmData={slmData}/>
       </div>
     </div>
   );

@@ -30,6 +30,7 @@ class SLMRecord:
     task_completion_rate: float | None = None
     model_path: str = ""
     ollama_model_name: str | None = None
+    display_name: str | None = None       # user-friendly label e.g. "Retail Intelligence Expert"
     vram_required_gb: float | None = None
     build_trigger_query: str | None = None
     build_trigger_scores: dict = field(default_factory=dict)
@@ -58,13 +59,13 @@ class SLMRegistry:
                 model_id, domain_label, domain_embedding, coverage_topics,
                 training_corpus_hash, base_model, adapter_type, val_loss,
                 hallucination_rate, task_completion_rate, model_path,
-                ollama_model_name, vram_required_gb, build_trigger_query,
+                ollama_model_name, display_name, vram_required_gb, build_trigger_query,
                 build_trigger_scores, query_count, retrain_needed, parent_model_id
             ) VALUES (
                 :model_id, :domain_label, (:domain_embedding)::vector, :coverage_topics,
                 :training_corpus_hash, :base_model, :adapter_type, :val_loss,
                 :hallucination_rate, :task_completion_rate, :model_path,
-                :ollama_model_name, :vram_required_gb, :build_trigger_query,
+                :ollama_model_name, :display_name, :vram_required_gb, :build_trigger_query,
                 (:build_trigger_scores)::jsonb, :query_count, :retrain_needed, :parent_model_id
             )
             ON CONFLICT (model_id) DO UPDATE SET
@@ -76,6 +77,7 @@ class SLMRegistry:
                 task_completion_rate = EXCLUDED.task_completion_rate,
                 model_path = EXCLUDED.model_path,
                 ollama_model_name = EXCLUDED.ollama_model_name,
+                display_name = COALESCE(EXCLUDED.display_name, slm_registry.display_name),
                 retrain_needed = EXCLUDED.retrain_needed
         """), {
             "model_id": record.model_id,
@@ -90,6 +92,7 @@ class SLMRegistry:
             "task_completion_rate": record.task_completion_rate,
             "model_path": record.model_path,
             "ollama_model_name": record.ollama_model_name,
+            "display_name": record.display_name,
             "vram_required_gb": record.vram_required_gb,
             "build_trigger_query": record.build_trigger_query,
             "build_trigger_scores": json.dumps(record.build_trigger_scores),
@@ -219,8 +222,8 @@ class SLMRegistry:
         result = await self._db.execute(text("""
             SELECT model_id, domain_label, coverage_topics, base_model,
                    adapter_type, val_loss, hallucination_rate, task_completion_rate,
-                   ollama_model_name, vram_required_gb, query_count, retrain_needed,
-                   created_at, last_used_at
+                   ollama_model_name, display_name, vram_required_gb, query_count,
+                   retrain_needed, training_corpus_hash, created_at, last_used_at
             FROM slm_registry
             ORDER BY created_at DESC
         """))

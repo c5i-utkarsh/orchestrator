@@ -97,6 +97,9 @@ export default function WorkspacePage() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   // Track whether we've applied the "collapse all on first load" initialisation
   const collapsedInitRef = React.useRef(false);
+  // Search + sort state for project list
+  const [projectSearch, setProjectSearch] = useState("");
+  const [projectSort, setProjectSort] = useState<"newest" | "oldest" | "name_az" | "name_za" | "largest" | "most_ws">("newest");
 
   // ── Delete Project state ──────────────────────────────────────────────────
   const [deleteProjectTarget, setDeleteProjectTarget] = useState<StoredCorpus | null>(null);
@@ -141,8 +144,8 @@ export default function WorkspacePage() {
         // Collapse all groups on initial load (user expands only what they need)
         if (!collapsedInitRef.current && corpora.length > 0) {
           collapsedInitRef.current = true;
-          const allGroups = new Set(corpora.map(c => deriveGroup(c)));
-          setCollapsedGroups(allGroups);
+          const allGroupKeys = new Set(corpora.map(c => deriveGroup(c)));
+          setCollapsedGroups(allGroupKeys);
         }
       })
       .catch(() => {})
@@ -329,15 +332,29 @@ export default function WorkspacePage() {
     map.set(key, arr);
     return map;
   }, new Map<string, StoredCorpus[]>());
-  // Sort groups alphabetically; within each group newest first
-  const groups = [...groupedCorpora.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([name, items]) => [
-      name,
-      [...items].sort((a, b) =>
-        (b.created_at ?? "").localeCompare(a.created_at ?? "")
-      ),
-    ] as [string, StoredCorpus[]]);
+  // Sort groups; within each group newest first
+  const allGroups: [string, StoredCorpus[]][] = [...groupedCorpora.entries()].map(([name, items]) => [
+    name,
+    [...items].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? "")),
+  ]);
+  // Apply search filter
+  const searchLow = projectSearch.trim().toLowerCase();
+  const filteredGroups = searchLow
+    ? allGroups.filter(([name, corpora]) =>
+        name.toLowerCase().includes(searchLow) ||
+        corpora.some(c => (c.project_name ?? "").toLowerCase().includes(searchLow))
+      )
+    : allGroups;
+  // Apply sort
+  const groups: [string, StoredCorpus[]][] = [...filteredGroups].sort(([an, ai], [bn, bi]) => {
+    if (projectSort === "name_az") return an.localeCompare(bn);
+    if (projectSort === "name_za") return bn.localeCompare(an);
+    if (projectSort === "newest") return (bi[0]?.created_at ?? "").localeCompare(ai[0]?.created_at ?? "");
+    if (projectSort === "oldest") return (ai[0]?.created_at ?? "").localeCompare(bi[0]?.created_at ?? "");
+    if (projectSort === "largest") return bi.reduce((s, c) => s + (c.file_count ?? 0), 0) - ai.reduce((s, c) => s + (c.file_count ?? 0), 0);
+    if (projectSort === "most_ws") return bi.length - ai.length;
+    return 0;
+  });
 
   const toggleGroup = (name: string) =>
     setCollapsedGroups(prev => {
@@ -468,14 +485,17 @@ export default function WorkspacePage() {
   return (
     <div>
       {/* Header */}
-      <div className="bg-card border-b border-dborder px-0 py-7 mb-7">
-        <div className="w-full px-8">
-          <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
-            <span className="inline-block w-4 h-px bg-accent" />
-            Step 1 · Information Harnessing
+      <div className="bg-white border-b border-dborder px-8 py-5 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[11px] font-semibold text-t3 uppercase tracking-widest">Step 1</span>
+              <span className="text-t3 text-[11px]">·</span>
+              <span className="text-[11px] font-semibold text-accent uppercase tracking-widest">Information Harnessing</span>
+            </div>
+            <h1 className="text-[20px] font-semibold text-t1 tracking-tight">Projects</h1>
+            <p className="text-[13px] text-t3 mt-0.5">Manage knowledge corpora and start new ingestion sessions</p>
           </div>
-          <div className="font-sora text-2xl font-semibold text-t1">Start a new DHS session</div>
-          <div className="text-[12px] text-t2 mt-1">Describe your domain, then upload your knowledge corpus to ingest</div>
         </div>
       </div>
 
@@ -757,17 +777,23 @@ export default function WorkspacePage() {
                 Projects
               </div>
               <div className="flex items-center gap-2">
-                {groups.length > 1 && (
+                {allGroups.length > 1 && (
                   <>
                     <button className="text-[10px] text-t3 hover:text-t2 transition-colors"
                       onClick={() => setCollapsedGroups(new Set())}>Expand all</button>
                     <span className="text-t3 text-[10px]">·</span>
                     <button className="text-[10px] text-t3 hover:text-t2 transition-colors"
-                      onClick={() => setCollapsedGroups(new Set(groups.map(([g]) => g)))}>Collapse all</button>
+                      onClick={() => setCollapsedGroups(new Set(allGroups.map(([g]) => g)))}>Collapse all</button>
                     <span className="text-dborder text-[10px]">|</span>
                   </>
                 )}
                 {/* Primary CTAs */}
+                <button
+                  onClick={() => { sessionStorage.removeItem("job_id"); router.push("/query"); }}
+                  className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 border border-dborder2 text-t2 hover:border-accent/40 hover:text-accent rounded-lg transition-colors font-medium"
+                >
+                  🔍 Go to Query →
+                </button>
                 <button
                   onClick={() => setShowAddFilesModal(true)}
                   className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 border border-dborder2 text-t2 hover:border-accent/40 hover:text-accent rounded-lg transition-colors font-medium"
@@ -781,6 +807,34 @@ export default function WorkspacePage() {
                   <span>⊕</span> New Project
                 </button>
               </div>
+            </div>
+            {/* Search + Sort bar */}
+            <div className="flex items-center gap-2 mb-3">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-t3 text-[11px]">🔍</span>
+                <input
+                  type="text"
+                  value={projectSearch}
+                  onChange={e => setProjectSearch(e.target.value)}
+                  placeholder="Search projects…"
+                  className="w-full bg-bg3 border border-dborder rounded-lg pl-8 pr-3 py-1.5 text-[12px] text-t1 placeholder:text-t3 outline-none focus:border-accent transition-colors"
+                />
+                {projectSearch && (
+                  <button onClick={() => setProjectSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-t3 hover:text-t1 text-[11px]">✕</button>
+                )}
+              </div>
+              <select
+                value={projectSort}
+                onChange={e => setProjectSort(e.target.value as typeof projectSort)}
+                className="bg-bg3 border border-dborder rounded-lg px-2.5 py-1.5 text-[11px] text-t1 outline-none focus:border-accent transition-colors"
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="name_az">Name A–Z</option>
+                <option value="name_za">Name Z–A</option>
+                <option value="largest">Most Files</option>
+                <option value="most_ws">Most Workspaces</option>
+              </select>
             </div>
 
             {/* UI-only projects (no corpora yet) */}
@@ -820,6 +874,8 @@ export default function WorkspacePage() {
                   const latestDate = corpora[0]?.created_at
                     ? new Date(corpora[0].created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })
                     : null;
+                  const totalFiles = corpora.reduce((s, c) => s + (c.file_count ?? 0), 0);
+                  const totalEntities = corpora.reduce((s, c) => s + (c.entity_count ?? 0), 0);
 
                   return (
                     <div key={groupName} className="border border-dborder rounded-xl overflow-hidden bg-card2">
@@ -837,6 +893,12 @@ export default function WorkspacePage() {
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-bg3 border border-dborder text-t3 flex-shrink-0">
                             {corpora.length} workspace{corpora.length !== 1 ? "s" : ""}
                           </span>
+                          {totalFiles > 0 && (
+                            <span className="text-[10px] text-t3 flex-shrink-0 hidden sm:block">📄 {totalFiles}</span>
+                          )}
+                          {totalEntities > 0 && (
+                            <span className="text-[10px] text-t3 flex-shrink-0 hidden md:block">🕸 {totalEntities.toLocaleString()}</span>
+                          )}
                           {latestDate && (
                             <span className="text-[10px] text-t3 flex-shrink-0 ml-1 hidden sm:block">{latestDate}</span>
                           )}
@@ -867,13 +929,16 @@ export default function WorkspacePage() {
                                     <div className="text-[13px] font-semibold text-t1 leading-tight">
                                       {c.project_name || domainLabel(c.domain_label)}
                                     </div>
-                                    <div className="text-[10px] text-t3 mt-0.5 flex items-center gap-1 flex-wrap">
-                                      {c.file_count > 0 ? `${c.file_count} file${c.file_count !== 1 ? "s" : ""}` : "Corpus ready"}
-                                      {c.entity_count > 0 && ` · ${c.entity_count.toLocaleString()} entities`}
-                                      {(c.version && c.version > 1) && ` · v${c.version}`}
-                                      {c.created_at && ` · ${new Date(c.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`}
+                                    <div className="text-[10px] text-t3 mt-0.5 flex items-center gap-2 flex-wrap">
+                                      {c.file_count > 0
+                                        ? <span>📄 {c.file_count} file{c.file_count !== 1 ? "s" : ""}</span>
+                                        : <span>Corpus ready</span>}
+                                      {c.entity_count > 0 && <span>🕸 {c.entity_count.toLocaleString()} entities</span>}
+                                      {(c.community_count && c.community_count > 0) ? <span>🏘 {c.community_count} communities</span> : null}
+                                      {(c.version && c.version > 1) && <span>v{c.version}</span>}
+                                      {c.created_at && <span>{new Date(c.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>}
                                       {showRegenWarning && (
-                                        <span className="text-amber font-semibold">· ⚠ regeneration needed</span>
+                                        <span className="text-amber font-semibold">⚠ regeneration needed</span>
                                       )}
                                     </div>
                                   </div>

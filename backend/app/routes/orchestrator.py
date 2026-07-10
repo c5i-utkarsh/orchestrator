@@ -21,6 +21,134 @@ from app.config import get_settings
 settings = get_settings()
 router = APIRouter(prefix="/orchestrator", tags=["orchestrator"])
 
+# ── Multi-dimensional query evaluation judge ──────────────────────────────────
+
+_EVAL_PROMPT = """\
+You are an answer quality evaluator. Given a user query and the AI's answer, score each dimension from 0.0 to 1.0.
+
+Query: {query}
+
+Answer: {answer}
+
+Return ONLY a JSON object with these exact keys, no other text:
+{{
+  "task_completion": 0.0,
+  "context_awareness": 0.0,
+  "business_relevance": 0.0,
+  "actionability": 0.0,
+  "explainability": 0.0,
+  "governance": 0.0,
+  "accuracy": 0.0
+}}
+
+Scoring guide:
+- task_completion: Did the answer directly and fully address what the user asked? (1.0 = complete, 0.0 = no answer)
+- context_awareness: Did the answer use relevant domain context, examples, or specifics? (1.0 = highly contextual)
+- business_relevance: Is the answer useful for a professional/business setting? (1.0 = highly relevant)
+- actionability: Does the answer provide clear next steps or actions the user can take? (1.0 = very actionable)
+- explainability: Is the answer clear, well-structured, and easy to understand? (1.0 = very clear)
+- governance: Is the answer factually grounded and free of speculation? (1.0 = fully grounded)
+- accuracy: Does the answer appear correct based on common knowledge? (1.0 = appears accurate)
+"""
+
+
+async def _run_eval_judge(
+    query: str,
+    answer: str,
+    session_id: str,
+    latency_ms: int,
+    graph_context: str,
+    entity_count: int | None,
+) -> dict:
+    """Fire-and-forget: run LLM judge and update the query_history row."""
+    import asyncio
+    import re
+    import logging
+    log = logging.getLogger(__name__)
+
+    if not answer or len(answer.strip()) < 10:
+        return {}
+
+    try:
+        from app.db.database import AsyncSessionLocal
+        from sqlalchemy import text as _t
+
+        adapter_registry = get_adapter_registry()
+        judge_info = await adapter_registry.get_best_local_model()
+        judge = judge_info.model_id if judge_info else None
+        if not judge:
+            return {}
+
+        prompt = _EVAL_PROMPT.format(
+            query=query[:400],
+            answer=answer[:800],
+        )
+        try:
+            raw = await asyncio.wait_for(
+                adapter_registry.generate(judge, prompt, temperature=0.0),
+                timeout=20.0,
+            )
+        except asyncio.TimeoutError:
+            return {}
+
+        # Extract JSON from response
+        m = re.search(r"\{[^{}]+\}", raw, re.DOTALL)
+        if not m:
+            return {}
+        scores = json.loads(m.group())
+
+        def _clamp(v, default=0.5):
+            try:
+                return max(0.0, min(1.0, float(v)))
+            except Exception:
+                return default
+
+        tc  = _clamp(scores.get("task_completion", 0.5))
+        ca  = _clamp(scores.get("context_awareness", 0.5))
+        br  = _clamp(scores.get("business_relevance", 0.5))
+        act = _clamp(scores.get("actionability", 0.5))
+        ex  = _clamp(scores.get("explainability", 0.5))
+        gov = _clamp(scores.get("governance", 0.5))
+        acc = _clamp(scores.get("accuracy", 0.5))
+
+        # Entity coverage (referenced_entity_count / total_entity_count)
+        ref_ent = None
+        if entity_count and entity_count > 0 and answer:
+            # Heuristic: count bracketed entity references [EntityName]
+            ref_ent = len(re.findall(r"\[[^\[\]]{2,60}\]", answer))
+
+        async with AsyncSessionLocal() as db:
+            await db.execute(_t("""
+                UPDATE query_history SET
+                    task_completion_score      = :tc,
+                    task_completion_rate       = :tc,
+                    context_awareness_score    = :ca,
+                    business_relevance_score   = :br,
+                    actionability_score        = :act,
+                    explainability_score       = :ex,
+                    governance_score           = :gov,
+                    accuracy_score             = :acc,
+                    referenced_entity_count    = :ref_ent,
+                    total_entity_count         = :tot_ent,
+                    eval_model                 = :model
+                WHERE session_id = :sid
+                  AND created_at >= now() - interval '5 minutes'
+                ORDER BY id DESC LIMIT 1
+            """), {
+                "tc": tc, "ca": ca, "br": br, "act": act,
+                "ex": ex, "gov": gov, "acc": acc,
+                "ref_ent": ref_ent,
+                "tot_ent": entity_count,
+                "model": judge,
+                "sid": session_id,
+            })
+            await db.commit()
+        return scores
+
+    except Exception as exc:
+        logging.getLogger(__name__).debug("eval judge failed: %s", exc)
+        return {}
+
 
 class ModelWeights(BaseModel):
     """User-configurable composite scoring weights. Must sum to 1.0 (enforced by normalisation)."""
@@ -310,6 +438,7 @@ async def ask(request: AskRequest, db: AsyncSession = Depends(get_db)):
                 available_models=available_names,
                 system_prompt=_system_prompt,
                 scoring_weights=_scoring_weights,
+                job_id=request.job_id,   # project-exact routing
             ):
                 # ── Persist to query_history on output event ─────────────────
                 # Written HERE (before yielding) because the client disconnects
@@ -385,6 +514,49 @@ async def ask(request: AskRequest, db: AsyncSession = Depends(get_db)):
                     except Exception as _hist_exc:
                         import logging as _log
                         _log.getLogger(__name__).warning("query_history/registry write failed: %s", _hist_exc)
+                    # ── Bandit score persistence (UPSERT to bandit_scores) ────
+                    # Persist the LinUCB estimated reward so benchmark/summary
+                    # can read real routing-quality scores from the DB.
+                    if _slm_used and _output_data.get("primary_task_type"):
+                        try:
+                            from sqlalchemy import text as _bt
+                            _reward = float(
+                                0.50 * float(_completion or 0.0) +
+                                0.35 * (1.0 - float(_hall_rate or 0.0)) +
+                                0.15 * 0.9  # user_acceptance warm-start prior
+                            )
+                            await stream_db.execute(_bt("""
+                                INSERT INTO bandit_scores (task_type, model_id, score, query_count, updated_at)
+                                VALUES (:tt, :mid, :sc, 1, now())
+                                ON CONFLICT (task_type, model_id) DO UPDATE SET
+                                    score       = bandit_scores.score * 0.9 + EXCLUDED.score * 0.1,
+                                    query_count = COALESCE(bandit_scores.query_count, 0) + 1,
+                                    updated_at  = now()
+                            """), {
+                                "tt":  _output_data.get("primary_task_type", "domain_qa"),
+                                "mid": _slm_used,
+                                "sc":  _reward,
+                            })
+                            await stream_db.commit()
+                        except Exception as _bs_exc:
+                            import logging as _log2
+                            _log2.getLogger(__name__).warning("bandit_scores write failed: %s", _bs_exc)
+                    # ── Background multi-dimensional evaluation judge ─────────
+                    # Launched as a non-blocking task so it doesn't delay the SSE
+                    # response to the client. Updates query_history 10-20s later.
+                    if _summary:
+                        import asyncio as _aio
+                        _kg_entity_count = request.graph_context and len(
+                            [l for l in request.graph_context.splitlines() if l.strip().startswith("- ")]
+                        ) or None
+                        _aio.create_task(_run_eval_judge(
+                            query=_query,
+                            answer=_summary,
+                            session_id=_session_id,
+                            latency_ms=_latency_ms,
+                            graph_context=graph_context[:500],
+                            entity_count=_kg_entity_count,
+                        ))
                 yield f"data: {json.dumps(event)}\n\n"
             # stream_db session closes cleanly here via `async with`
 

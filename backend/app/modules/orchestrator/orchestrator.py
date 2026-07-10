@@ -6,21 +6,23 @@ The model capability catalog is a validation/fallback layer only.
 
 Query flow:
   1. Task classification → intent (DOMAIN | CAPABILITY | HYBRID)
+  1b. Complexity classification → SIMPLE | MEDIUM | COMPLEX
   2. Coverage check → resolve domain SLM from registry
   3. SLM Planning → domain SLM generates ExecutionBlueprint:
-       • Subtasks with descriptions and task types
-       • Recommended model per subtask (SLM-chosen from available list)
-       • Execution order, overall reasoning, expected output format
-       • Follow-up detection (is_followup flag)
-  4. Catalog Validation → catalog validates SLM model choices against availability;
-       substitutes unavailable models with best catalog alternative for that task type.
-       Catalog NEVER drives planning — validation/fallback only.
-  5. Blueprint Execution → orchestrator invokes each subtask with the resolved model.
-       Follow-up fast path: if is_followup=true, SLM answers directly from context.
-  6. SLM Synthesis → domain SLM generates final answer + reasoning trail
-       (includes wiki context for richer domain grounding)
-  7. Hallucination evaluation (if graph context available)
+       • Skipped entirely for SIMPLE queries (direct execution)
+       • Single-task blueprint for MEDIUM queries
+       • Up to 4 subtasks for COMPLEX queries
+  4. Catalog Validation → validates SLM model choices
+  5. Blueprint Execution with per-complexity token budgets
+  6. SLM Synthesis
+  7. Hallucination evaluation
   8. Bandit update
+
+Planner rules:
+  - Never invent implementation language, deployment, scaling, security, or error handling
+    unless the user explicitly asked for them.
+  - Planner output should be ≤ 20% longer than the original query.
+  - Planner may only clarify, structure, and decompose — never expand intent.
 
 SLM builds NEVER run inline. They are Celery-only tasks triggered via POST /slm/build.
 """
@@ -49,6 +51,60 @@ from app.config import get_settings
 settings = get_settings()
 
 
+# ── Query Complexity ──────────────────────────────────────────────────────────
+
+class QueryComplexity(str):
+    SIMPLE  = "SIMPLE"    # direct answer, no planning
+    MEDIUM  = "MEDIUM"    # single-task planning
+    COMPLEX = "COMPLEX"   # multi-step, max 4 subtasks
+
+
+# Token budgets per complexity level
+TOKEN_BUDGET = {
+    QueryComplexity.SIMPLE:  700,
+    QueryComplexity.MEDIUM:  1200,
+    QueryComplexity.COMPLEX: 800,   # per subtask
+}
+
+_COMPLEX_PATTERNS = [
+    "build", "implement", "create a system", "design a", "architect", "engineer",
+    "develop", "end-to-end", "workflow", "pipeline", "agent", "full stack",
+    "step by step", "plan", "strategy", "multi", "integrate", "deploy",
+    "application", "software", "platform", "infrastructure",
+]
+_MEDIUM_PATTERNS = [
+    "analyze", "analyse", "compare", "recommend", "evaluate", "assess", "review",
+    "report", "synthesis", "synthesize", "multi-document", "pros and cons",
+    "trade-off", "business case", "impact", "risk",
+]
+
+
+def classify_complexity(query: str, task_type: str) -> str:
+    """Classify a query as SIMPLE / MEDIUM / COMPLEX without any LLM calls."""
+    q = query.lower()
+    word_count = len(query.split())
+
+    # Task-type signals
+    if task_type in {"code_generation", "ui_building"}:
+        return QueryComplexity.COMPLEX
+    if task_type in {"data_analysis", "financial", "time_series"}:
+        return QueryComplexity.MEDIUM
+
+    # Keyword signals
+    if any(p in q for p in _COMPLEX_PATTERNS):
+        return QueryComplexity.COMPLEX
+    if any(p in q for p in _MEDIUM_PATTERNS):
+        return QueryComplexity.MEDIUM
+
+    # Short queries are almost always Simple
+    if word_count <= 15:
+        return QueryComplexity.SIMPLE
+    if word_count >= 50:
+        return QueryComplexity.COMPLEX
+
+    return QueryComplexity.SIMPLE
+
+
 def _conf(value: float | None, default: float = 0.5) -> float:
     """Clamp a confidence value to [0.0, 1.0], replacing nan/None with default."""
     import math
@@ -62,6 +118,10 @@ def _conf(value: float | None, default: float = 0.5) -> float:
 BLUEPRINT_PROMPT = """\
 You are the planning engine for the "{domain_label}" domain.
 
+Query complexity: {complexity}
+Max subtasks allowed: {max_subtasks}
+Target token budget per subtask: {token_budget} tokens
+
 Domain knowledge graph summary:
 {graph_summary}
 
@@ -70,10 +130,19 @@ Available execution models (choose ONLY from this list):
 
 User query: {query}
 
+CRITICAL PLANNER RULES — you MUST follow these:
+1. DO NOT invent requirements. Only use what the user explicitly asked for.
+2. DO NOT add: production deployment, scalability, security, error handling, architecture diagrams — unless the user asked.
+3. DO NOT rewrite or expand the user's intent. You may only clarify, structure, and decompose.
+4. Each subtask description must be concise (≤ 40 words). Target the original query intent directly.
+5. Maximum {max_subtasks} subtask(s) for this query complexity.
+6. If complexity is SIMPLE or MEDIUM, produce exactly 1 subtask.
+7. Planner output must stay ≤ 20% longer than the original query.
+
 Generate a complete execution blueprint. Respond ONLY with a JSON object — no markdown fences, no text outside the JSON.
 
 {{
-  "overall_reasoning": "<1-2 sentences: why this decomposition approach for this query>",
+  "overall_reasoning": "<1 sentence: why this decomposition for this specific query>",
   "expected_output_format": "<narrative_report|structured_analysis|code|data_table|conversational>",
   "is_followup": <true|false>,
   "subtasks": [
@@ -92,12 +161,14 @@ Generate a complete execution blueprint. Respond ONLY with a JSON object — no 
 }}
 
 Planning rules:
+- ONLY decompose if the query genuinely requires multiple distinct steps (complexity=COMPLEX).
+- For SIMPLE and MEDIUM: produce exactly 1 subtask that directly addresses the user's query.
 - Domain knowledge questions (entity lookups, corpus Q&A, relationships): assign to "{domain_slm}" when it appears in the available list
 - Code generation or scripting tasks: prefer qwen2.5-coder or deepseek-coder from the available list
 - Complex reasoning, analysis, or synthesis tasks: prefer larger models (32b, 70b) if available
-- Batch consecutive similar tasks to the same model to minimise switching overhead
 - Set is_followup=true ONLY if the query clearly references a prior turn ("it", "that result", "the previous", "as mentioned", "elaborate on that", "what about", "and also")
 - If is_followup=true, produce exactly one subtask with task_type "domain_qa" assigned to "{domain_slm}"
+- Never fabricate requirements not present in the original query.
 """
 
 SYNTHESIS_PROMPT = """\
@@ -251,6 +322,7 @@ class Orchestrator:
         available_models: list[str] | None = None,
         system_prompt: str = "",
         scoring_weights=None,
+        job_id: str | None = None,   # project-exact routing: prefer SLM trained on this job
     ) -> AsyncGenerator[dict, None]:
         """
         SLM-first orchestration pipeline. Yields SSE-compatible events.
@@ -294,12 +366,31 @@ class Orchestrator:
         ))
         yield {"type": "step", "step": 1, "step_name": "Understanding Query", "data": steps[-1].model_dump()}
 
+        # ── Step 1b: Query Complexity Classification ───────────────────────────
+        complexity = classify_complexity(query, classification.primary_task_type)
+        max_subtasks = {"SIMPLE": 1, "MEDIUM": 1, "COMPLEX": 4}.get(complexity, 1)
+        token_budget = TOKEN_BUDGET.get(complexity, 1200)
+        yield {
+            "type": "stage",
+            "step_name": "Query Complexity",
+            "detail": (
+                f"{complexity} — "
+                + {
+                    "SIMPLE":  "Direct execution (planner skipped)",
+                    "MEDIUM":  "Single-task execution",
+                    "COMPLEX": f"Multi-step planning (max {max_subtasks} subtasks)",
+                }.get(complexity, "")
+                + f" | Token budget: {token_budget}"
+            ),
+        }
+
         # ── Step 2: Coverage Check ─────────────────────────────────────────────
         t0 = time.monotonic()
         coverage = await self._coverage.check(
             query,
             query_embedding,
             domain_label=domain_label if domain_label and domain_label != "general" else None,
+            job_id=job_id or corpus_hash or None,
         )
         output.coverage_action = coverage.action.value
 
@@ -312,20 +403,29 @@ class Orchestrator:
                 coverage.reason += f" | model unavailable, using {coverage.model_id}"
         output.slm_model_id = coverage.model_id
 
+        # Build a human-readable status for the timeline
+        _all_projects = not (job_id or corpus_hash) and (not domain_label or domain_label == "general")
+        if _all_projects:
+            _routing_mode = "All Projects (automatic routing)"
+        elif job_id or corpus_hash:
+            _routing_mode = f"Project-exact routing (job_id={str(job_id or corpus_hash)[:8]}…)"
+        else:
+            _routing_mode = f"Domain routing ({domain_label})"
+
         _slm_status = (
-            f"Using {coverage.model_id}" if coverage.model_id
-            else "No domain SLM — will use best available"
+            f"Selected: {coverage.model_id}" if coverage.model_id
+            else "No qualifying SLM found — using general model"
         )
         steps.append(OrchestratorStep(
             step_number=2,
             step_name="Loading Domain SLM",
             duration_ms=int((time.monotonic() - t0) * 1000),
             explanation=StepExplanation(
-                what="Resolved domain SLM from registry via embedding similarity",
+                what=f"Routing mode: {_routing_mode}",
                 why="Domain SLM drives planning and synthesis; general models execute specialist tasks",
                 what_we_found=coverage.reason,
                 decision_made=_slm_status,
-                confidence=_conf(coverage.similarity),
+                confidence=_conf(coverage.composite_score if coverage.composite_score else coverage.similarity),
                 caveats=[],
                 graph_entity_ids=[],
             ),
@@ -361,15 +461,32 @@ class Orchestrator:
             )
 
         # ── Step 3: SLM Planning ───────────────────────────────────────────────
-        # The domain SLM generates a complete ExecutionBlueprint:
-        #   • Task decomposition with descriptions
-        #   • Recommended model per subtask (from available list)
-        #   • Execution order, overall reasoning, expected output format
-        #   • Follow-up detection (is_followup flag)
+        # SIMPLE → skip planner entirely (direct execution, no blueprint overhead)
+        # MEDIUM → planner produces exactly 1 subtask
+        # COMPLEX → planner produces up to 4 subtasks
         t0 = time.monotonic()
         blueprint: ExecutionBlueprint
 
-        if domain_slm:
+        # Build a direct-execution blueprint for SIMPLE queries (no LLM call)
+        if complexity == QueryComplexity.SIMPLE or not domain_slm:
+            blueprint = ExecutionBlueprint(
+                overall_reasoning=f"Direct execution ({complexity.lower()} query — planner skipped)",
+                expected_output_format="conversational" if complexity == QueryComplexity.SIMPLE else "narrative_report",
+                is_followup=False,
+                subtasks=[BlueprintSubtask(
+                    id=1,
+                    task_description=query,   # preserve original query verbatim
+                    task_type=classification.primary_task_type
+                              if classification.primary_task_type in _VALID_TASK_TYPES else "domain_qa",
+                    recommended_model=domain_slm or "",
+                    recommended_model_reason="Direct execution — no planner overhead",
+                    expected_output="Complete answer to the user query",
+                )],
+                execution_order=[1],
+                planning_model=domain_slm or "",
+            )
+
+        elif domain_slm:
             # Build a compact graph summary for the prompt (entity names only)
             graph_lines = [l.strip() for l in graph_context.splitlines() if l.strip().startswith("- ")]
             graph_summary = "\n".join(graph_lines[:20]) or "(no graph context loaded)"
@@ -389,11 +506,20 @@ class Orchestrator:
                 graph_summary=graph_summary,
                 available_models=available_models_str,
                 query=query,
+                complexity=complexity,
+                max_subtasks=max_subtasks,
+                token_budget=token_budget,
             )
+            # Planner timeout scales with complexity
+            planner_timeout = {
+                QueryComplexity.SIMPLE: 20.0,
+                QueryComplexity.MEDIUM: 25.0,
+                QueryComplexity.COMPLEX: 35.0,
+            }.get(complexity, 30.0)
             try:
                 raw_bp = await asyncio.wait_for(
                     self._adapters.generate(domain_slm, bp_prompt, temperature=0.05),
-                    timeout=35.0,
+                    timeout=planner_timeout,
                 )
             except (asyncio.TimeoutError, Exception):
                 raw_bp = ""
@@ -401,6 +527,11 @@ class Orchestrator:
             blueprint = _parse_blueprint(
                 raw_bp, domain_slm, query, classification.primary_task_type
             )
+            # Enforce subtask cap — never allow planner to produce more than max_subtasks
+            if len(blueprint.subtasks) > max_subtasks:
+                blueprint.subtasks = blueprint.subtasks[:max_subtasks]
+                blueprint.execution_order = [s.id for s in blueprint.subtasks]
+
         else:
             # No SLM available — trivial single-task blueprint
             blueprint = ExecutionBlueprint(
@@ -422,9 +553,16 @@ class Orchestrator:
             )
 
         output.execution_blueprint = blueprint
+        _planner_mode = (
+            f"Skipped (SIMPLE — direct execution)"
+            if complexity == QueryComplexity.SIMPLE else
+            f"Single-step execution" if complexity == QueryComplexity.MEDIUM else
+            f"{len(blueprint.subtasks)}-step plan"
+        )
         _bp_detail = (
-            f"{'Follow-up fast path' if blueprint.is_followup else f'{len(blueprint.subtasks)} subtask(s)'} | "
-            f"Format: {blueprint.expected_output_format}"
+            f"{'Follow-up fast path' if blueprint.is_followup else _planner_mode} | "
+            f"Format: {blueprint.expected_output_format} | "
+            f"Token budget: {token_budget}/{'subtask' if complexity == QueryComplexity.COMPLEX else 'response'}"
         )
 
         steps.append(OrchestratorStep(
@@ -432,8 +570,8 @@ class Orchestrator:
             step_name="SLM Planning",
             duration_ms=int((time.monotonic() - t0) * 1000),
             explanation=StepExplanation(
-                what="Domain SLM generated a complete execution blueprint",
-                why="SLM-driven planning uses distilled domain knowledge instead of generic catalog scoring",
+                what=f"Planner mode: {_planner_mode}",
+                why="Planning overhead is proportional to query complexity — simple queries execute directly",
                 what_we_found=blueprint.overall_reasoning or "Blueprint generated",
                 decision_made=_bp_detail,
                 confidence=_conf(
@@ -441,7 +579,9 @@ class Orchestrator:
                 ),
                 caveats=(
                     ["is_followup=true: fast-path synthesis, subtask execution skipped"]
-                    if blueprint.is_followup else []
+                    if blueprint.is_followup else
+                    [f"Subtask cap enforced: limited to {max_subtasks} subtask(s) for {complexity} complexity"]
+                    if len(blueprint.subtasks) == max_subtasks and complexity != QueryComplexity.COMPLEX else []
                 ),
                 graph_entity_ids=[],
             ),
@@ -554,10 +694,10 @@ class Orchestrator:
                 try:
                     followup_response = await asyncio.wait_for(
                         self._adapters.generate(exec_model, followup_prompt, temperature=0.15),
-                        timeout=60.0,
+                        timeout=55.0,
                     )
                 except asyncio.TimeoutError:
-                    followup_response = "[Follow-up response timed out — try again.]"
+                    followup_response = followup_response.rstrip() + "\n\n[Response truncated — time budget exceeded.]" if followup_response.strip() else "[Follow-up response timed out — try again.]"
                 except Exception as exc:
                     followup_response = f"[Error: {exc}]"
 
@@ -608,6 +748,15 @@ class Orchestrator:
                         ctx_parts.append(f"Prior subtask results:\n{dep_text}")
                 context_prefix = sys_prefix + ("\n\n".join(ctx_parts) + "\n\n" if ctx_parts else "")
 
+                # Per-complexity execution timeout
+                exec_timeout = {
+                    QueryComplexity.SIMPLE: 45.0,
+                    QueryComplexity.MEDIUM: 60.0,
+                    QueryComplexity.COMPLEX: 60.0,
+                }.get(complexity, 60.0)
+
+                response = ""
+                _truncated = False
                 try:
                     response = await asyncio.wait_for(
                         self._adapters.generate(
@@ -615,10 +764,15 @@ class Orchestrator:
                             f"{context_prefix}Task: {subtask.task_description}",
                             temperature=0.2,
                         ),
-                        timeout=60.0,
+                        timeout=exec_timeout,
                     )
                 except asyncio.TimeoutError:
-                    response = "[Response timed out — model took too long.]"
+                    # Return any partial output that was accumulated before the timeout
+                    if response and len(response.strip()) > 20:
+                        _truncated = True
+                        response = response.rstrip() + "\n\n[Response truncated — generation exceeded time budget.]"
+                    else:
+                        response = "[Response timed out — the model took too long. Try a simpler query.]"
                 except Exception as exc:
                     _fb = await self._adapters.get_best_local_model()
                     fallback_model = _fb.model_id if _fb else None
@@ -630,7 +784,7 @@ class Orchestrator:
                                     f"{context_prefix}Task: {subtask.task_description}",
                                     temperature=0.2,
                                 ),
-                                timeout=60.0,
+                                timeout=exec_timeout,
                             )
                             exec_model = fallback_model
                         except Exception as exc2:
@@ -655,10 +809,10 @@ class Orchestrator:
             step_name="Generating Response",
             duration_ms=int((time.monotonic() - t0) * 1000),
             explanation=StepExplanation(
-                what="Executed blueprint subtasks with SLM-assigned models",
+                what=f"Executed {len(sub_results)} subtask(s) | Complexity: {complexity} | Budget: {token_budget} tokens",
                 why="SLM-chosen models provide domain-appropriate responses with minimal token waste",
                 what_we_found=f"Completed {len(sub_results)} subtask(s)",
-                decision_made="Follow-up fast path" if blueprint.is_followup else "Blueprint execution complete",
+                decision_made="Follow-up fast path" if blueprint.is_followup else f"{complexity} execution complete",
                 confidence=_conf(
                     sum(r.confidence for r in sub_results) / max(len(sub_results), 1)
                 ),
@@ -705,7 +859,8 @@ class Orchestrator:
                         timeout=60.0,
                     )
                 except asyncio.TimeoutError:
-                    final_answer = sub_results_text
+                    # Use sub-results as the answer — better than blank
+                    final_answer = sub_results_text + "\n\n[Synthesis timed out — raw execution results above.]"
                 except Exception:
                     final_answer = sub_results_text
             elif sub_results_text:

@@ -54,17 +54,84 @@ async def summary(db: AsyncSession = Depends(get_db)):
     slm_completion = await _scalar(db, "SELECT AVG(task_completion_rate) FROM slm_registry WHERE task_completion_rate IS NOT NULL")
     slm_halluc = await _scalar(db, "SELECT AVG(hallucination_rate) FROM slm_registry WHERE hallucination_rate IS NOT NULL")
 
-    # completion falls back to SLM registry if no query history yet
-    completion = avg_completion if avg_completion is not None else slm_completion
-    security = (1.0 - avg_halluc) if avg_halluc is not None else ((1.0 - slm_halluc) if slm_halluc is not None else None)
-    process = avg_bandit  # routing quality proxy
+    # ── Multi-dimensional eval scores (from judge, post-inference) ────────
+    eval_rows_count = await _scalar(db,
+        "SELECT COUNT(*) FROM query_history WHERE task_completion_score IS NOT NULL")
+    has_eval = (eval_rows_count or 0) > 0
 
-    # accuracy proxy from SLM val_loss (lower loss → higher accuracy), else completion
+    avg_tc_score  = await _scalar(db, "SELECT AVG(task_completion_score)   FROM query_history WHERE task_completion_score  IS NOT NULL")
+    avg_ca_score  = await _scalar(db, "SELECT AVG(context_awareness_score) FROM query_history WHERE context_awareness_score IS NOT NULL")
+    avg_br_score  = await _scalar(db, "SELECT AVG(business_relevance_score) FROM query_history WHERE business_relevance_score IS NOT NULL")
+    avg_act_score = await _scalar(db, "SELECT AVG(actionability_score)     FROM query_history WHERE actionability_score     IS NOT NULL")
+    avg_ex_score  = await _scalar(db, "SELECT AVG(explainability_score)    FROM query_history WHERE explainability_score    IS NOT NULL")
+    avg_gov_score = await _scalar(db, "SELECT AVG(governance_score)        FROM query_history WHERE governance_score        IS NOT NULL")
+    avg_acc_score = await _scalar(db, "SELECT AVG(accuracy_score)          FROM query_history WHERE accuracy_score          IS NOT NULL")
+
+    # Use judge-based completion if available, else fall back to binary proxy
+    judge_completion = avg_tc_score if has_eval else None
+    completion = judge_completion if judge_completion is not None else (
+        avg_completion if avg_completion is not None else slm_completion
+    )
+
+    security = (1.0 - avg_halluc) if avg_halluc is not None else (
+        (1.0 - slm_halluc) if slm_halluc is not None else None
+    )
+    process = avg_bandit  # routing quality from real bandit_scores
+
+    # accuracy: judge score > val_loss proxy > completion fallback
     accuracy = None
-    if avg_val_loss is not None:
+    if avg_acc_score is not None:
+        accuracy = avg_acc_score
+    elif avg_val_loss is not None:
         accuracy = max(0.0, min(1.0, 1.0 - min(avg_val_loss, 1.0)))
     elif completion is not None:
         accuracy = completion
+
+    # ── SLM Utilization & Cost Savings ───────────────────────────────────
+    slm_util_row = (await db.execute(text("""
+        SELECT
+            COUNT(*) FILTER (WHERE slm_used IS NOT NULL AND slm_used != '') AS slm_queries,
+            COUNT(*) AS total_queries,
+            COUNT(*) FILTER (WHERE coverage_action IN ('BUILD_NEW','EXTEND_EXISTING')) AS fallback_queries
+        FROM query_history
+    """))).first()
+    slm_util_data: dict = {}
+    if slm_util_row and slm_util_row[1] and slm_util_row[1] > 0:
+        tot = int(slm_util_row[1])
+        slm_q = int(slm_util_row[0] or 0)
+        fb_q  = int(slm_util_row[2] or 0)
+        slm_util_pct  = _r(slm_q / tot) if tot > 0 else None
+        fallback_pct  = _r(fb_q / tot)  if tot > 0 else None
+        # Cost savings: frontier model ~$0.512/1K tokens, SLM ~$0.087/1K (local)
+        frontier_cost_per_k = cfg.get("cost_per_1k_tokens", {}).get("frontier", 0.512)
+        slm_cost_per_k      = cfg.get("cost_per_1k_tokens", {}).get("slm_local", 0.087)
+        if slm_util_pct is not None and tot >= 5:
+            # Estimated: SLM queries saved frontier cost
+            savings_pct = _r((slm_util_pct * (frontier_cost_per_k - slm_cost_per_k)) / frontier_cost_per_k) if frontier_cost_per_k > 0 else None
+        else:
+            savings_pct = None
+        slm_util_data = {
+            "slm_query_count": slm_q,
+            "total_query_count": tot,
+            "slm_utilization": slm_util_pct,
+            "fallback_rate": fallback_pct,
+            "estimated_cost_savings_pct": savings_pct,
+            "sufficient_data": tot >= 5,
+        }
+    else:
+        slm_util_data = {"sufficient_data": False}
+
+    # ── Knowledge coverage: referenced vs total entities ──────────────────
+    kc_row = (await db.execute(text("""
+        SELECT AVG(
+            CASE WHEN total_entity_count > 0
+                 THEN CAST(referenced_entity_count AS FLOAT) / total_entity_count
+                 ELSE NULL END
+        )
+        FROM query_history
+        WHERE referenced_entity_count IS NOT NULL AND total_entity_count IS NOT NULL AND total_entity_count > 0
+    """))).first()
+    knowledge_coverage_pct = _r(kc_row[0]) if kc_row and kc_row[0] is not None else None
 
     # ── Technical: Combined = Completion × Process × Security ─────────────
     tri = [completion, process, security]
@@ -156,8 +223,30 @@ async def summary(db: AsyncSession = Depends(get_db)):
                 den += spec["weight"]
         return _r(num / den) if den > 0 else None
 
-    harness_values = {"accuracy": accuracy, "governance": security}
-    harness_score = weighted("harness_dimensions", harness_values)
+    # Harness score: use judge eval scores when available, else fallback
+    harness_values = {
+        "accuracy":           avg_acc_score  if has_eval else accuracy,
+        "governance":         avg_gov_score  if has_eval else security,
+        "context_awareness":  avg_ca_score,   # real when judge has run
+        "business_relevance": avg_br_score,
+        "actionability":      avg_act_score,
+        "explainability":     avg_ex_score,
+    }
+    # Mark dimensions as measured when we have real judge scores
+    if has_eval:
+        cfg_harness = {k: dict(v, measured=True) for k, v in cfg["harness_dimensions"].items()}
+    else:
+        cfg_harness = cfg["harness_dimensions"]
+
+    def weighted_harness(values):
+        num = den = 0.0
+        for k, spec in cfg_harness.items():
+            if spec.get("measured") and values.get(k) is not None:
+                num += spec["weight"] * values[k]
+                den += spec["weight"]
+        return _r(num / den) if den > 0 else None
+
+    harness_score = weighted_harness(harness_values)
 
     problem_understanding = _r(min(1.0, len(task_distribution) / 8.0)) if task_distribution else None
     functional_values = {"problem_understanding": problem_understanding}
@@ -168,6 +257,8 @@ async def summary(db: AsyncSession = Depends(get_db)):
     return {
         "generated_from": "real system data (query_history, bandit_scores, slm_registry, ingest_jobs, on-disk graph artifacts)",
         "sample_sizes": {"queries": int(q_count), "slm_models": int(slm_count)},
+        "eval_queries": int(eval_rows_count or 0),
+        "has_eval": has_eval,
         "overview": {
             "combined_score": _r(combined),
             "harness_score": harness_score,
@@ -181,16 +272,18 @@ async def summary(db: AsyncSession = Depends(get_db)):
             "business_value_generated": None,
         },
         "harness": {
-            "dimensions": {k: (harness_values.get(k) if v.get("measured") else None) for k, v in cfg["harness_dimensions"].items()},
-            "dimension_measured": {k: v.get("measured") for k, v in cfg["harness_dimensions"].items()},
+            "dimensions": {k: harness_values.get(k) for k in cfg["harness_dimensions"]},
+            "dimension_measured": {k: (v.get("measured") or (has_eval)) for k, v in cfg["harness_dimensions"].items()},
             "score": harness_score,
             "task_distribution": task_distribution,
+            "eval_queries": int(eval_rows_count or 0),
         },
         "functional": {
             "components": {k: (functional_values.get(k) if v.get("measured") else None) for k, v in cfg["functional_components"].items()},
             "component_measured": {k: v.get("measured") for k, v in cfg["functional_components"].items()},
             "score": functional_score,
             "knowledge_coverage": knowledge,
+            "knowledge_coverage_pct": knowledge_coverage_pct,
         },
         "technical": {
             "completion": _r(completion), "process": _r(process), "security": _r(security),
@@ -208,9 +301,12 @@ async def summary(db: AsyncSession = Depends(get_db)):
             "routing_accuracy": routing_accuracy,
             "learning_velocity": learning_velocity,
             "knowledge_entities": knowledge["entities"],
+            "slm_utilization": slm_util_data,
             "roi": None, "cost_reduction": None, "business_value_generated": None,
         },
         "trends": trends,
         "unavailable": unavailable,
         "unavailable_reason": cfg["unavailable_kpis"]["_reason"],
+        "slm_utilization": slm_util_data,
+        "knowledge_coverage_pct": knowledge_coverage_pct,
     }

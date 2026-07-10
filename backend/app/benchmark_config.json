@@ -28,5 +28,10 @@
   "unavailable_kpis": {
     "_reason": "No producing measurement exists in the system; reported as null, never fabricated.",
     "keys": ["baseline_ab_score", "combined_score_waterfall_constants", "roi_currency", "business_value_generated", "cost_avoided", "hours_saved", "revenue_impact"]
+  },
+  "cost_per_1k_tokens": {
+    "_comment": "Configurable cost estimates for SLM utilization savings calculation.",
+    "frontier": 0.512,
+    "slm_local": 0.087
   }
 }

@@ -398,6 +398,7 @@ function ProcessingPage() {
   const [approving, setApproving] = useState(false);
   const [buildModelId, setBuildModelId] = useState<string | null>(null);
   const [slmRecord, setSlmRecord] = useState<{ val_loss?: number; hallucination_rate?: number } | null>(null);
+  const [slmDisplayName, setSlmDisplayName] = useState("");   // Part 4: optional friendly label
 
   // Build AI phase state
   const [slmBuildStatus, setSlmBuildStatus] = useState<"idle"|"exists"|"queued"|"building"|"done"|"failed">("idle");
@@ -1041,9 +1042,9 @@ function ProcessingPage() {
       await fetch(`${API}/api/v1/slm/approve-install`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model_id: buildModelId }),
+        body: JSON.stringify({ model_id: buildModelId, display_name: slmDisplayName.trim() || undefined }),
       });
-      fireAchievement("🚀", "AI deployed!", `${buildModelId} is now live in your system`);
+      fireAchievement("🚀", "AI deployed!", `${slmDisplayName.trim() || buildModelId} is now live in your system`);
       setShowApproveModal(false);
     } finally {
       setApproving(false);
@@ -2363,6 +2364,16 @@ function ProcessingPage() {
                   <span className="font-semibold text-gg">{((1 - slmRecord.hallucination_rate) * 100).toFixed(1)}%</span>
                 </div>
               )}
+            </div>
+            <div className="mb-4">
+              <label className="block text-[11px] font-semibold text-t3 mb-1.5">Display Name <span className="font-normal text-t3/60">(optional)</span></label>
+              <input
+                type="text"
+                value={slmDisplayName}
+                onChange={e => setSlmDisplayName(e.target.value)}
+                placeholder="e.g. Retail Intelligence Expert"
+                className="w-full bg-bg3 border border-dborder rounded-lg px-3 py-2 text-[12px] text-t1 placeholder:text-t3/50 focus:outline-none focus:border-accent"
+              />
             </div>
             <div className="flex gap-3">
               <button onClick={approveInstall} disabled={approving}

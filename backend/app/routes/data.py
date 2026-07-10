@@ -1023,10 +1023,11 @@ async def delete_project(job_id: str, db: AsyncSession = Depends(get_db)):
     """
     Permanently delete a project and ALL its artifacts:
     documents, knowledge graph, entities, relationships, wiki articles,
-    vector embeddings, and slm_registry entries for this corpus.
+    vector embeddings, slm_registry entries, GGUF files in slm_store,
+    Ollama models, query_history, and bandit_scores.
     Irreversible.
     """
-    import shutil
+    import shutil, httpx
 
     row = (await db.execute(
         text("SELECT job_id FROM ingest_jobs WHERE job_id = :id"),
@@ -1035,7 +1036,16 @@ async def delete_project(job_id: str, db: AsyncSession = Depends(get_db)):
     if not row:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Delete corpus directory (documents, graph, wiki, embeddings, faiss, etc.)
+    cleanup_errors: list[str] = []
+
+    # 1. Find all SLMs for this corpus BEFORE deleting registry rows
+    slm_rows = (await db.execute(
+        text("SELECT model_id, ollama_model_name, model_path FROM slm_registry WHERE training_corpus_hash LIKE :p OR training_corpus_hash = :id"),
+        {"p": f"{job_id}%", "id": job_id},
+    )).mappings().all()
+    slm_model_ids = [r["model_id"] for r in slm_rows]
+
+    # 2. Delete corpus directory (documents, graph, wiki, embeddings, faiss, etc.)
     try:
         corpus_dir_str = await _resolve_corpus_dir(job_id, db)
         corpus_dir = Path(corpus_dir_str)
@@ -1044,15 +1054,70 @@ async def delete_project(job_id: str, db: AsyncSession = Depends(get_db)):
     except Exception:
         pass  # non-fatal if dir not found
 
-    # Remove slm_registry rows referencing this corpus
+    # 3. Delete GGUF/slm_store directories for each SLM
+    settings = get_settings()
+    slm_store_base = Path(settings.slm_store_path)
+    for slm in slm_rows:
+        model_id = slm["model_id"]
+        model_dir = slm_store_base / model_id
+        if model_dir.exists():
+            try:
+                shutil.rmtree(str(model_dir), ignore_errors=True)
+            except Exception as exc:
+                cleanup_errors.append(f"slm_store/{model_id}: {exc}")
+        # Also try model_path if it differs
+        if slm.get("model_path"):
+            mp = Path(slm["model_path"])
+            if mp.exists() and mp != model_dir:
+                try:
+                    shutil.rmtree(str(mp), ignore_errors=True)
+                except Exception:
+                    pass
+
+    # 4. Remove models from Ollama
+    for slm in slm_rows:
+        name = slm.get("ollama_model_name")
+        if not name:
+            continue
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.request("DELETE", "http://localhost:11434/api/delete", json={"name": name})
+        except Exception as exc:
+            cleanup_errors.append(f"ollama_rm/{name}: {exc}")
+
+    # 5. Remove query_history rows for this project
+    if slm_model_ids:
+        # Delete by slm_used matching any of the deleted SLM model_ids
+        placeholders = ",".join(f":mid{i}" for i in range(len(slm_model_ids)))
+        params = {f"mid{i}": v for i, v in enumerate(slm_model_ids)}
+        try:
+            await db.execute(text(f"DELETE FROM query_history WHERE slm_used IN ({placeholders})"), params)
+        except Exception:
+            pass
+    # Also delete any query_history where job_id column matches (if column exists)
+    try:
+        await db.execute(text("DELETE FROM query_history WHERE job_id = :id"), {"id": job_id})
+    except Exception:
+        pass
+
+    # 6. Remove bandit_scores for deleted SLMs
+    if slm_model_ids:
+        try:
+            placeholders = ",".join(f":mid{i}" for i in range(len(slm_model_ids)))
+            params = {f"mid{i}": v for i, v in enumerate(slm_model_ids)}
+            await db.execute(text(f"DELETE FROM bandit_scores WHERE model_id IN ({placeholders})"), params)
+        except Exception:
+            pass
+
+    # 7. Remove slm_registry rows
     await db.execute(
         text("DELETE FROM slm_registry WHERE training_corpus_hash LIKE :p OR training_corpus_hash = :id"),
         {"p": f"{job_id}%", "id": job_id},
     )
-    # Remove ingest_jobs row (FK cascade removes query_history if set up)
+    # 8. Remove ingest_jobs row
     await db.execute(text("DELETE FROM ingest_jobs WHERE job_id = :id"), {"id": job_id})
     await db.commit()
-    return {"job_id": job_id, "deleted": True}
+    return {"job_id": job_id, "deleted": True, "slms_removed": slm_model_ids, "cleanup_errors": cleanup_errors}
 
 
 @router.delete("/project/{job_id}/file/{file_name:path}")
@@ -1382,4 +1447,117 @@ async def ingestion_report(
         "file_count": row[3],
         "file_scorecards": scorecard_files,
         "registry_metrics": reg_metrics,
+    }
+
+
+# ── Storage Manager ───────────────────────────────────────────────────────────
+
+@router.get("/storage")
+async def storage_overview(db: AsyncSession = Depends(get_db)):
+    """Return per-project disk usage: corpus size, GGUF size, Ollama model info."""
+    import os as _os
+
+    def _dir_size_bytes(path: str) -> int:
+        """Recursive directory size in bytes (safe — returns 0 if missing)."""
+        total = 0
+        try:
+            for dirpath, _, filenames in _os.walk(path):
+                for fname in filenames:
+                    try:
+                        total += _os.path.getsize(_os.path.join(dirpath, fname))
+                    except OSError:
+                        pass
+        except Exception:
+            pass
+        return total
+
+    # Load all projects
+    jobs_result = await db.execute(text("""
+        SELECT job_id, project_name, domain_label, file_list, created_at, corpus_path
+        FROM ingest_jobs
+        ORDER BY created_at DESC
+    """))
+    jobs = jobs_result.mappings().all()
+
+    # Load all SLMs
+    slms_result = await db.execute(text("""
+        SELECT model_id, domain_label, training_corpus_hash, ollama_model_name,
+               display_name, model_path, created_at, last_used_at
+        FROM slm_registry
+        ORDER BY created_at DESC
+    """))
+    slms = slms_result.mappings().all()
+
+    # Build a map: job_id → list of SLMs
+    slm_map: dict[str, list[dict]] = {}
+    for s in slms:
+        key = str(s.get("training_corpus_hash") or "")
+        if key not in slm_map:
+            slm_map[key] = []
+        slm_map[key].append(dict(s))
+
+    slm_store_base = Path(settings.slm_store_path)
+    projects = []
+    total_corpus_bytes = 0
+    total_slm_bytes = 0
+
+    for job in jobs:
+        job_id = str(job["job_id"])
+
+        # Corpus size
+        corpus_path = str(job.get("corpus_path") or "")
+        if not corpus_path:
+            try:
+                corpus_path = await _resolve_corpus_dir(job_id, db)
+            except Exception:
+                corpus_path = ""
+        corpus_bytes = _dir_size_bytes(corpus_path) if corpus_path else 0
+        total_corpus_bytes += corpus_bytes
+
+        # SLMs for this job
+        project_slms = slm_map.get(job_id, [])
+        slm_details = []
+        slm_bytes = 0
+        for slm in project_slms:
+            mid = str(slm.get("model_id") or "")
+            model_dir = slm_store_base / mid
+            size = _dir_size_bytes(str(model_dir))
+            slm_bytes += size
+            slm_details.append({
+                "model_id": mid,
+                "display_name": slm.get("display_name"),
+                "ollama_model_name": slm.get("ollama_model_name"),
+                "size_bytes": size,
+                "created_at": str(slm.get("created_at") or ""),
+                "last_used_at": str(slm.get("last_used_at") or ""),
+            })
+        total_slm_bytes += slm_bytes
+
+        file_list = job.get("file_list") or []
+        if isinstance(file_list, str):
+            try:
+                import json as _json
+                file_list = _json.loads(file_list)
+            except Exception:
+                file_list = []
+
+        projects.append({
+            "job_id": job_id,
+            "project_name": job.get("project_name") or job.get("domain_label") or job_id,
+            "domain_label": job.get("domain_label") or "",
+            "file_count": len(file_list) if isinstance(file_list, list) else 0,
+            "corpus_size_bytes": corpus_bytes,
+            "slm_size_bytes": slm_bytes,
+            "total_size_bytes": corpus_bytes + slm_bytes,
+            "slms": slm_details,
+            "created_at": str(job.get("created_at") or ""),
+        })
+
+    return {
+        "projects": projects,
+        "totals": {
+            "corpus_bytes": total_corpus_bytes,
+            "slm_bytes": total_slm_bytes,
+            "total_bytes": total_corpus_bytes + total_slm_bytes,
+        },
     }

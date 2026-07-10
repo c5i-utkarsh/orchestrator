@@ -37,6 +37,29 @@ class BuildRequest(BaseModel):
 
 class ApproveInstallRequest(BaseModel):
     model_id: str
+    display_name: str | None = None       # optional friendly label
+
+
+class SetDisplayNameRequest(BaseModel):
+    display_name: str = Field(..., min_length=1, max_length=200)
+
+
+@router.patch("/registry/{model_id}/display-name")
+async def set_display_name(
+    model_id: str,
+    request: SetDisplayNameRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Set or update the user-friendly display name for an SLM."""
+    from sqlalchemy import text
+    result = await db.execute(
+        text("UPDATE slm_registry SET display_name = :dn WHERE model_id = :mid RETURNING model_id"),
+        {"dn": request.display_name, "mid": model_id},
+    )
+    if not result.fetchone():
+        raise HTTPException(status_code=404, detail=f"SLM {model_id} not found")
+    await db.commit()
+    return {"model_id": model_id, "display_name": request.display_name}
 
 
 @router.get("/registry")
@@ -171,6 +194,14 @@ async def approve_install(request: ApproveInstallRequest, db: AsyncSession = Dep
 
     try:
         await adapter.create_model(request.model_id, str(modelfile_path))
+        # Persist display_name if provided at approval time
+        if request.display_name:
+            from sqlalchemy import text as _t
+            await db.execute(
+                _t("UPDATE slm_registry SET display_name = :dn WHERE model_id = :mid"),
+                {"dn": request.display_name, "mid": request.model_id},
+            )
+            await db.commit()
         return {"status": "deployed", "model_id": request.model_id, "ollama_name": request.model_id}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

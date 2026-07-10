@@ -97,16 +97,33 @@ class CoverageChecker:
         query: str,
         query_embedding: list[float] | None = None,
         domain_label: str | None = None,
+        job_id: str | None = None,
     ) -> CoverageResult:
         """Gate 1: Multi-signal composite matching.
 
-        domain_label: when provided, the registry will prefer SLMs registered
-        under that exact domain before falling back to global vector search.
-        This prevents cross-domain routing (e.g. a 'technova-e2e' query routing
-        to 'it_industry_v10' because their embeddings are geometrically closer).
+        Priority order (project-first routing):
+        1. If job_id provided, search for an SLM whose training_corpus_hash == job_id.
+           This gives every project its own SLM when one has been trained.
+        2. If domain_label provided, search within that domain (same-domain preference).
+        3. Fall back to global vector search across all registered SLMs.
         """
         if query_embedding is None:
             query_embedding = await self._embed(query)
+
+        # ── Priority 1: Project-exact match (job_id == training_corpus_hash) ──
+        # Every project that has been trained gets its own SLM served first.
+        if job_id:
+            project_match = await self._registry.find_by_corpus_hash(job_id)
+            if project_match and project_match.get("ollama_model_name"):
+                pm_id = project_match.get("ollama_model_name") or project_match.get("model_id")
+                return CoverageResult(
+                    action=CoverageAction.ROUTE_MIXED,
+                    model_id=pm_id,
+                    similarity=1.0,
+                    composite_score=1.0,
+                    coverage_topics=project_match.get("coverage_topics") or [],
+                    reason=f"Project-exact match: training_corpus_hash={job_id[:8]} → {pm_id}",
+                )
 
         best_match = await self._registry.find_best_match(
             query_embedding,
@@ -119,6 +136,13 @@ class CoverageChecker:
                 similarity=0.0,
                 reason="No SLMs in registry yet",
             )
+
+        # ── All Projects mode: multi-candidate evaluation ─────────────────────
+        # When job_id is None and no domain_label is pinned, don't blindly use the
+        # nearest embedding match. Instead, score the top-N candidates individually
+        # and reject any below the minimum routing threshold before selecting the best.
+        if not job_id and not domain_label:
+            return await self._all_projects_routing(query, query_embedding, best_match)
 
         cosine = float(best_match.get("similarity", 0.0))
         # Guard against NaN: pgvector cosine distance returns NaN when the stored
@@ -195,6 +219,131 @@ class CoverageChecker:
             composite_score=composite,
             coverage_topics=topics,
             reason=f"Matched {best_match['model_id']} → {ollama_name} | {reason}",
+        )
+
+    async def _all_projects_routing(
+        self,
+        query: str,
+        query_embedding: list[float],
+        best_match: dict,
+    ) -> CoverageResult:
+        """All Projects mode: evaluate the top-N candidates and pick the best confident one.
+
+        Steps:
+        1. Collect up to 5 candidate SLMs from the registry (best_match already has top-3).
+        2. Score each with the composite formula.
+        3. Reject those below _MIN_ROUTING_THRESHOLD.
+        4. Select the highest-composite valid candidate.
+        5. If none qualify, fall back gracefully (BUILD_NEW) so the orchestrator uses
+           the general model rather than routing to an unrelated domain SLM.
+        """
+        _MIN_ROUTING_THRESHOLD = 0.30
+        import math as _math
+
+        # Collect candidates — best_match includes top_matches list
+        candidates_raw: list[dict] = best_match.get("top_matches") or [best_match]
+        # Fetch a few more via registry list if we have fewer than 3 candidates
+        if len(candidates_raw) < 3:
+            try:
+                all_records = await self._registry.list_all()
+                seen = {c.get("model_id") for c in candidates_raw}
+                extra = [r for r in all_records[:10] if r.get("model_id") not in seen]
+                candidates_raw = candidates_raw + extra[:5 - len(candidates_raw)]
+            except Exception:
+                pass
+
+        scored: list[tuple[float, dict, str]] = []  # (composite, row, reason)
+        for cand in candidates_raw[:5]:
+            # cosine similarity
+            cosine_raw = cand.get("similarity")
+            if cosine_raw is None:
+                # Re-embed cosine from stored embedding if available
+                cosine_raw = 0.0
+            cosine = float(cosine_raw) if not _math.isnan(float(cosine_raw or 0)) else 0.0
+
+            # Parse topics
+            topics = cand.get("coverage_topics") or []
+            if isinstance(topics, str):
+                try:
+                    topics = json.loads(topics)
+                except Exception:
+                    topics = []
+
+            hall_rate  = float(cand.get("hallucination_rate")   or 0.15)
+            completion = float(cand.get("task_completion_rate") or 0.70)
+            recency    = _recency_score(cand.get("last_used_at"))
+            overlap    = _token_overlap(query, topics)
+
+            composite = min(
+                0.40 * cosine
+                + 0.20 * overlap
+                + 0.15 * (1.0 - hall_rate)
+                + 0.15 * completion
+                + 0.10 * recency,
+                1.0,
+            )
+            reason = (
+                f"model={cand.get('model_id','')} "
+                f"composite={composite:.3f} "
+                f"[cos={cosine:.3f}×0.40 overlap={overlap:.3f}×0.20 "
+                f"quality={1-hall_rate:.3f}×0.15 completion={completion:.3f}×0.15 "
+                f"recency={recency:.3f}×0.10]"
+            )
+            scored.append((composite, cand, reason))
+
+        # Sort descending by composite
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        # Build human-readable candidate report for timeline
+        candidate_summary = "; ".join(
+            f"{c.get('model_id','?')}={s:.2f}" for s, c, _ in scored
+        )
+        rejected = [
+            c.get("model_id", "?") for s, c, _ in scored if s < _MIN_ROUTING_THRESHOLD
+        ]
+        qualified = [(s, c, r) for s, c, r in scored if s >= _MIN_ROUTING_THRESHOLD]
+
+        if not qualified:
+            return CoverageResult(
+                action=CoverageAction.BUILD_NEW,
+                model_id=None,
+                similarity=scored[0][0] if scored else 0.0,
+                composite_score=scored[0][0] if scored else 0.0,
+                reason=(
+                    f"All Projects mode: no SLM met threshold {_MIN_ROUTING_THRESHOLD}. "
+                    f"Candidates evaluated: [{candidate_summary}]. "
+                    f"Rejected: [{', '.join(rejected)}]. Falling back to general model."
+                ),
+            )
+
+        # Pick best qualified candidate
+        best_score, best_cand, best_reason = qualified[0]
+        ollama_name = best_cand.get("ollama_model_name") or best_cand.get("model_id")
+        topics = best_cand.get("coverage_topics") or []
+        if isinstance(topics, str):
+            try:
+                topics = json.loads(topics)
+            except Exception:
+                topics = []
+
+        action = (
+            CoverageAction.ROUTE_MIXED
+            if best_score >= settings.slm_partial_threshold
+            else CoverageAction.EXTEND_EXISTING
+        )
+
+        return CoverageResult(
+            action=action,
+            model_id=ollama_name,
+            similarity=float(best_cand.get("similarity") or best_score),
+            composite_score=best_score,
+            coverage_topics=topics,
+            reason=(
+                f"All Projects mode: selected {ollama_name} (score={best_score:.3f}). "
+                f"Evaluated {len(scored)} candidates: [{candidate_summary}]. "
+                f"Rejected (below {_MIN_ROUTING_THRESHOLD}): [{', '.join(rejected) or 'none'}]. "
+                f"Detail: {best_reason}"
+            ),
         )
 
     async def evaluate_routing_plan(

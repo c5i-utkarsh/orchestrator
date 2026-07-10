@@ -5039,3 +5039,114 @@ export const DEMO_PROCESS_STEPS = [
   { step: 6, label: "Deployment & Observability",  icon: "🚀", output: "Kubernetes on AWS EKS, GitOps via ArgoCD, Datadog APM, PagerDuty alerting, RTO <15min SLA." },
   { step: 7, label: "Testing & QA",                icon: "✅", output: "95% unit test coverage, E2E with Playwright, load testing with k6 at 2,000 RPS sustained, chaos engineering via Gremlin." },
 ] as const;
+
+// ── Storage Manager demo data ─────────────────────────────────────────────────
+export const DEMO_STORAGE = {
+  projects: [
+    {
+      job_id: "demo-scl-001",
+      project_name: "Supply Chain & Logistics",
+      domain_label: "supply_chain_logistics",
+      file_count: 14,
+      corpus_size_bytes: 187_543_210,
+      slm_size_bytes: 1_820_000_000,
+      total_size_bytes: 2_007_543_210,
+      created_at: "2026-06-10T09:00:00.000Z",
+      slms: [
+        {
+          model_id: "dhs-slm-supply-chain-v5",
+          display_name: "Supply Chain & Logistics Expert",
+          ollama_model_name: "dhs-slm-supply-chain-v5",
+          size_bytes: 1_820_000_000,
+          created_at: "2026-06-11T14:00:00.000Z",
+          last_used_at: "2026-07-08T10:22:00.000Z",
+        },
+      ],
+    },
+    {
+      job_id: "demo-fin-001",
+      project_name: "Financial Risk & Compliance",
+      domain_label: "financial_risk",
+      file_count: 22,
+      corpus_size_bytes: 312_800_000,
+      slm_size_bytes: 1_790_000_000,
+      total_size_bytes: 2_102_800_000,
+      created_at: "2026-06-12T11:00:00.000Z",
+      slms: [
+        {
+          model_id: "dhs-slm-financial-risk-v4",
+          display_name: "Financial Risk & Compliance Expert",
+          ollama_model_name: "dhs-slm-financial-risk-v4",
+          size_bytes: 1_790_000_000,
+          created_at: "2026-06-13T09:30:00.000Z",
+          last_used_at: "2026-07-07T16:45:00.000Z",
+        },
+      ],
+    },
+    {
+      job_id: "demo-cx-001",
+      project_name: "Customer Experience & Analytics",
+      domain_label: "customer_experience",
+      file_count: 9,
+      corpus_size_bytes: 98_120_000,
+      slm_size_bytes: 1_810_000_000,
+      total_size_bytes: 1_908_120_000,
+      created_at: "2026-06-14T08:30:00.000Z",
+      slms: [
+        {
+          model_id: "dhs-slm-cx-analytics-v2",
+          display_name: "Customer Experience Analyst",
+          ollama_model_name: "dhs-slm-cx-analytics-v2",
+          size_bytes: 1_810_000_000,
+          created_at: "2026-06-15T10:00:00.000Z",
+          last_used_at: "2026-07-06T11:20:00.000Z",
+        },
+      ],
+    },
+    {
+      job_id: "demo-mfg-001",
+      project_name: "Manufacturing & Quality Engineering",
+      domain_label: "manufacturing_quality",
+      file_count: 18,
+      corpus_size_bytes: 243_600_000,
+      slm_size_bytes: 1_800_000_000,
+      total_size_bytes: 2_043_600_000,
+      created_at: "2026-06-15T10:00:00.000Z",
+      slms: [
+        {
+          model_id: "dhs-slm-manufacturing-v3",
+          display_name: "Manufacturing Quality Engineer",
+          ollama_model_name: "dhs-slm-manufacturing-v3",
+          size_bytes: 1_800_000_000,
+          created_at: "2026-06-16T14:30:00.000Z",
+          last_used_at: "2026-07-08T08:15:00.000Z",
+        },
+      ],
+    },
+    {
+      job_id: "demo-esg-001",
+      project_name: "ESG & Sustainability",
+      domain_label: "esg_sustainability",
+      file_count: 11,
+      corpus_size_bytes: 145_200_000,
+      slm_size_bytes: 1_815_000_000,
+      total_size_bytes: 1_960_200_000,
+      created_at: "2026-06-17T09:15:00.000Z",
+      slms: [
+        {
+          model_id: "dhs-slm-esg-v2",
+          display_name: "ESG & Sustainability Analyst",
+          ollama_model_name: "dhs-slm-esg-v2",
+          size_bytes: 1_815_000_000,
+          created_at: "2026-06-18T11:45:00.000Z",
+          last_used_at: "2026-07-05T14:30:00.000Z",
+        },
+      ],
+    },
+  ],
+  totals: {
+    corpus_bytes: 987_263_210,
+    slm_bytes: 9_035_000_000,
+    total_bytes: 10_022_263_210,
+  },
+};

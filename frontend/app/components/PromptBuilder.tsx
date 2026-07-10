@@ -169,78 +169,181 @@ function buildSpecificCards(intent: PathType, t0: string, t1: string, domain: st
   return [];
 }
 
-function generateSuggestions(articles: WikiArticle[], domain: string, hasSLM: boolean, selectedUseCase = ""): SuggestionCard[] {
+function generateSuggestions(articles: WikiArticle[], domain: string, hasSLM: boolean, selectedUseCase = "", seed = 0): SuggestionCard[] {
   const allText = articles.slice(0,8).map(a => a.title+" "+(a.passages?.[0]??a.content??"").slice(0,200)).join(" ").toLowerCase();
   const t0=articles[0]?.title??domain, t1=articles[1]?.title??"", t2=articles[2]?.title??"", t3=articles[3]?.title??"";
+  const t4=articles[4]?.title??"", t5=articles[5]?.title??"";
+
   const isML   = /model|neural|transformer|embedding|train|gradient|gpt|llm|bert|attention|tokeniz|backprop/.test(allText);
   const isCode = /function|class|import|def |api|endpoint|schema|database|rest|graphql|interface/.test(allText);
   const isDoc  = /policy|compliance|regulation|procedure|guideline|hipaa|gdpr|iso|soc/.test(allText);
-  const cards: SuggestionCard[] = [];
+  const isData = /data|metric|kpi|report|dashboard|trend|analytic|measure|statistic/.test(allText);
+  const isProc = /process|workflow|automat|pipeline|schedule|trigger|batch|task/.test(allText);
+
+  // ── Category 1: Research & Q&A (RESEARCHER) ─────────────────────────────
+  const researchCards: SuggestionCard[] = [
+    { id:"r1", icon:"🔬", intent:"RESEARCHER", topicHint:t0,
+      label:`Deep dive: how ${t0} works`,
+      desc:`Detailed explanation of ${t0}${t1?` and ${t1}`:""}  — internals, trade-offs, and design decisions` },
+    { id:"r2", icon:"📚", intent:"RESEARCHER", topicHint:t1||t0,
+      label:`Compare ${t0}${t1?` vs ${t1}`:" approaches"} in detail`,
+      desc:`Side-by-side analysis of ${t0}${t1?` and ${t1}`:" techniques"} from your knowledge base` },
+    { id:"r3", icon:"❓", intent:"RESEARCHER", topicHint:t2||t0,
+      label:`Answer: what are the key principles behind ${t2||t0}?`,
+      desc:`Sourced Q&A from your corpus about ${t2||t0} and its core concepts` },
+    { id:"r4", icon:"🧠", intent:"RESEARCHER", topicHint:t0,
+      label:`Explain ${t0} as if teaching a team`,
+      desc:`Structured explanation of ${t0} concepts with examples suitable for team onboarding` },
+    { id:"r5", icon:"🔗", intent:"RESEARCHER", topicHint:t1||t0,
+      label:`How do ${t0}${t3?` and ${t3}`:""} relate to each other?`,
+      desc:`Map the connections and dependencies between ${[t0,t1,t3].filter(Boolean).join(", ")}` },
+    { id:"r6", icon:"📖", intent:"RESEARCHER", topicHint:t4||t0,
+      label:`What does your corpus say about ${t4||t0}?`,
+      desc:`Extract key insights and facts about ${t4||t0} from your uploaded documents` },
+  ];
+
+  // ── Category 2: Application Development (BUILDER) ────────────────────────
+  const builderCards: SuggestionCard[] = [
+    { id:"b1", icon:"🏗️", intent:"BUILDER", topicHint:t0,
+      label:`Design a production system based on ${t0}`,
+      desc:`Full architecture, components, data flow, and interfaces — production-ready` },
+    { id:"b2", icon:"💻", intent:"BUILDER", topicHint:t1||t0,
+      label:`Generate implementation code for ${t1||t0}`,
+      desc:`Working, commented code covering the core implementation of ${t1||t0}` },
+    { id:"b3", icon:"🧪", intent:"BUILDER", topicHint:t2||t0,
+      label:`Build a prototype API for ${t2||t0}`,
+      desc:`API design, endpoint structure, and example payloads based on your ${domain} corpus` },
+    { id:"b4", icon:"📋", intent:"BUILDER", topicHint:t0,
+      label:`Step-by-step build guide: ${t0}`,
+      desc:`Numbered implementation plan I can follow to build ${t0} from scratch` },
+    { id:"b5", icon:"🔧", intent:"BUILDER", topicHint:t3||t0,
+      label:`Extend the ${t3||t0} system with new capabilities`,
+      desc:`Design additions and integrations to an existing ${domain} system` },
+    { id:"b6", icon:"🚀", intent:"BUILDER", topicHint:t0,
+      label:`Production deployment plan for ${t0}`,
+      desc:`Infrastructure, error handling, monitoring, and scaling for ${t0} in production` },
+  ];
+
+  // ── Category 3: Automation & Workflow (ANALYST → process-flavoured) ───────
+  const automationCards: SuggestionCard[] = [
+    { id:"a1", icon:"⚙️", intent:"ANALYST", topicHint:t0,
+      label:`Identify automation opportunities in ${t0}`,
+      desc:`Find manual steps, repetitive processes, and bottlenecks in ${domain} workflows that can be automated` },
+    { id:"a2", icon:"🔄", intent:"ANALYST", topicHint:t1||t0,
+      label:`Design a pipeline for ${t1||t0}`,
+      desc:`End-to-end workflow with triggers, steps, error handling, and output specification` },
+    { id:"a3", icon:"📊", intent:"ANALYST", topicHint:t0,
+      label:`Analyze efficiency gaps in ${domain} processes`,
+      desc:`Map current ${domain} processes and identify where automation or optimisation would have the most impact` },
+    { id:"a4", icon:"🧩", intent:"ANALYST", topicHint:t2||t0,
+      label:`Break down the ${t2||t0} workflow into automatable steps`,
+      desc:`Decompose ${t2||t0} into discrete tasks suitable for automation or scripting` },
+    { id:"a5", icon:"📈", intent:"ANALYST", topicHint:t0,
+      label:`Identify recurring patterns and trends in ${domain}`,
+      desc:`Surface repeating patterns, cycles, and predictable behaviours in your ${domain} data` },
+    { id:"a6", icon:"⚡", intent:"ANALYST", topicHint:t3||t0,
+      label:`Optimise the ${t3||t0} process for speed`,
+      desc:`Analyse the current process and propose concrete performance improvements` },
+  ];
+
+  // ── Category 4: Business Intelligence & Analytics (ANALYST → BI-flavoured) ─
+  const biCards: SuggestionCard[] = [
+    { id:"bi1", icon:"📊", intent:"ANALYST", topicHint:t0,
+      label:`Key metrics dashboard for ${domain}`,
+      desc:`Define KPIs, metrics, and what a ${domain} dashboard should track based on your corpus` },
+    { id:"bi2", icon:"🔍", intent:"ANALYST", topicHint:t1||t0,
+      label:`Discover hidden insights in ${t1||t0}`,
+      desc:`Surface non-obvious patterns, anomalies, and insights across your ${domain} knowledge base` },
+    { id:"bi3", icon:"📉", intent:"ANALYST", topicHint:t0,
+      label:`Risk analysis of ${domain}`,
+      desc:`Identify risks, failure modes, and vulnerabilities based on ${t0}${t1?` and ${t1}`:""}` },
+    { id:"bi4", icon:"🏆", intent:"ANALYST", topicHint:t2||t0,
+      label:`Benchmark ${t2||t0} against best practices`,
+      desc:`Compare your ${domain} practices against the standards described in your corpus` },
+    { id:"bi5", icon:"💡", intent:"ANALYST", topicHint:t0,
+      label:`What are the strategic implications of ${t0}?`,
+      desc:`Translate technical findings about ${t0} into business impact and strategic recommendations` },
+    { id:"bi6", icon:"🗺️", intent:"ANALYST", topicHint:t4||t0,
+      label:`Map dependencies and relationships in ${t4||t0}`,
+      desc:`Produce a dependency map and relationship analysis for ${t4||t0} from your knowledge graph` },
+  ];
+
+  // ── Category 5: Compliance & Audit (AUDITOR) + Summary (SUMMARIZER) ───────
+  const complianceCards: SuggestionCard[] = [
+    { id:"c1", icon:"✅", intent:"AUDITOR", topicHint:t0,
+      label:`Compliance audit: ${t0}`,
+      desc:`Check ${t0} against relevant regulations, policies, and best practices from your corpus` },
+    { id:"c2", icon:"🔍", intent:"AUDITOR", topicHint:t1||t0,
+      label:`Find coverage gaps in ${t1||t0}`,
+      desc:`Identify what is missing, under-specified, or not covered in ${domain}` },
+    { id:"c3", icon:"⚠️", intent:"AUDITOR", topicHint:t0,
+      label:`Risk register for ${domain}`,
+      desc:`Generate a risk register with identified risks, likelihood, and mitigations from ${domain} documents` },
+    { id:"c4", icon:"📝", intent:"SUMMARIZER", topicHint:t0,
+      label:`Executive summary of ${domain}`,
+      desc:`Structured one-page summary of key findings from ${[t0,t1,t2].filter(Boolean).join(", ")} for leadership` },
+    { id:"c5", icon:"📄", intent:"SUMMARIZER", topicHint:t5||t0,
+      label:`Summarize ${t5||t0} for a non-technical audience`,
+      desc:`Plain-language summary of ${t5||t0} that anyone in the organisation can understand` },
+    { id:"c6", icon:"👔", intent:"SUMMARIZER", topicHint:t2||t0,
+      label:`What is the current state of ${t2||t0}?`,
+      desc:`Status summary of ${t2||t0} — what is working, what needs attention, and next steps` },
+  ];
+
+  // ── Domain-specific boosting: replace generic cards with domain-relevant ones ──
+  if (isDoc) {
+    // Policy/compliance corpora — front-load compliance
+    complianceCards.unshift({ id:"doc_c0", icon:"⚖️", intent:"AUDITOR", topicHint:t0,
+      label:`Full compliance assessment of ${t0}`,
+      desc:`Complete pass/fail compliance check against all relevant standards in your corpus` });
+  }
+  if (isCode) {
+    // Code corpora — front-load builder
+    builderCards.unshift({ id:"code_b0", icon:"🧪", intent:"BUILDER", topicHint:t0,
+      label:`Write a test suite for ${t0}`,
+      desc:`Unit tests, integration tests, and test strategy for the ${t0} codebase` });
+  }
   if (isML) {
-    cards.push({ id:"ml_build",     icon:"🧠", intent:"BUILDER",    topicHint:t0,
-      label:`Build a system using ${t0}`,
-      desc:`Design and implement a production-ready pipeline based on the ${t0} concepts${t1?`, integrating ${t1}`:""}` });
-    cards.push({ id:"ml_explain",   icon:"🔬", intent:"RESEARCHER", topicHint:t0,
-      label:`Deep-dive into how ${t0} works`,
-      desc:`Thorough explanation of ${t0}${t1?` and ${t1}`:""} — from core concepts to implementation details and trade-offs` });
-    if (t1) cards.push({ id:"ml_compare", icon:"📊", intent:"ANALYST", topicHint:t0,
-      label:`Compare ${t0} vs ${t1}`,
-      desc:`Analyze trade-offs, performance, and use cases of both approaches in your corpus` });
-    if (hasSLM) cards.push({ id:"ml_slm", icon:"✦", intent:"RESEARCHER", badge:"Custom AI", topicHint:t0,
-      label:`Use your trained model to answer ${t0} questions`,
-      desc:`Your domain-specific AI answers with higher accuracy than a general model` });
-    cards.push({ id:"ml_summarize", icon:"📝", intent:"SUMMARIZER", topicHint:t0,
-      label:`Summarize all key concepts across your corpus`,
-      desc:`Synthesized overview of ${[t0,t1,t2].filter(Boolean).join(", ")} — structured for any audience` });
-  } else if (isCode) {
-    cards.push({ id:"code_build",     icon:"🏗️", intent:"BUILDER",    topicHint:t0,
-      label:`Build a system based on ${t0}`,
-      desc:`Full architecture + implementation code${t1?` covering ${t1}`:""}` });
-    cards.push({ id:"code_qa",        icon:"🔬", intent:"RESEARCHER", topicHint:t0,
-      label:`Explain ${t0} in technical depth`,
-      desc:`Precise technical answers about ${t0}${t1?` and ${t1}`:""} from your knowledge base` });
-    cards.push({ id:"code_audit",     icon:"🔒", intent:"AUDITOR",    topicHint:t0,
-      label:`Audit ${domain} for best practices`,
-      desc:`Check implementation against security, performance, and maintainability standards` });
-    cards.push({ id:"code_summarize", icon:"📝", intent:"SUMMARIZER", topicHint:t0,
-      label:`Summarize the ${domain} codebase for stakeholders`,
-      desc:`Documentation or overview of ${t0}${t1?` and ${t1}`:""}` });
-  } else if (isDoc) {
-    cards.push({ id:"doc_audit",     icon:"✅", intent:"AUDITOR",    topicHint:t0,
-      label:`Audit against ${t0}`,
-      desc:`Flag gaps and risks based on ${t1||"your policies and guidelines"}` });
-    cards.push({ id:"doc_qa",        icon:"🔬", intent:"RESEARCHER", topicHint:t0,
-      label:`Answer questions from ${t0}`,
-      desc:`Precise answers extracted from your policy and compliance documents` });
-    cards.push({ id:"doc_summarize", icon:"📝", intent:"SUMMARIZER", topicHint:t0,
-      label:`Summarize ${t0} for stakeholders`,
-      desc:`Condense policies into a clear, audience-appropriate summary` });
-    cards.push({ id:"doc_analyze",   icon:"📊", intent:"ANALYST",    topicHint:t0,
-      label:`Analyze themes and gaps in ${t0}`,
-      desc:`Identify recurring themes, coverage gaps, and risk areas across your document set` });
-  } else {
-    cards.push({ id:"gen_build",    icon:"🏗️", intent:"BUILDER",    topicHint:t0,
-      label:`Build a system around ${t0}`,
-      desc:`Design a complete solution incorporating ${t0}${t1?` and ${t1}`:""}` });
-    cards.push({ id:"gen_research", icon:"🔬", intent:"RESEARCHER", topicHint:t0,
-      label:`Research ${t0} in depth`,
-      desc:`Sourced answers about ${t0}${t1?` and ${t1}`:""} from your knowledge base` });
-    if (t1) cards.push({ id:"gen_analyze", icon:"📊", intent:"ANALYST", topicHint:t0,
-      label:`Analyze ${t0} for patterns and insights`,
-      desc:`Discover insights across ${[t0,t1,t2].filter(Boolean).join(", ")}` });
-    cards.push({ id:"gen_summarize", icon:"📝", intent:"SUMMARIZER", topicHint:t0,
-      label:`Summarize your corpus`,
-      desc:`Structured overview of: ${[t0,t1,t2,t3].filter(Boolean).join(", ")}` });
+    // ML corpora — enrich research
+    researchCards.unshift({ id:"ml_r0", icon:"🧠", intent:"RESEARCHER", topicHint:t0,
+      label:`How does ${t0} achieve its performance?`,
+      desc:`Technical deep-dive into the ${t0} architecture, training approach, and benchmark results` });
   }
 
-  // ── Dynamic deduplication: remove cards whose intent was already chosen in the wizard ──
+  // ── Build the balanced pool: 5 from each category ────────────────────────
+  // Use a seeded deterministic shuffle so Refresh produces genuinely different cards
+  const seededShuffle = <T,>(arr: T[], s: number): T[] => {
+    const a = [...arr];
+    let sv = (s + 1) * 2654435761;
+    for (let i = a.length - 1; i > 0; i--) {
+      sv = (sv * 1664525 + 1013904223) >>> 0;
+      const j = sv % (i + 1);
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  const pick5 = <T,>(arr: T[], offset: number): T[] =>
+    seededShuffle(arr, seed + offset).slice(0, 5);
+
+  const balanced: SuggestionCard[] = [
+    ...pick5(researchCards, 0),
+    ...pick5(builderCards, 1),
+    ...pick5(automationCards, 2),
+    ...pick5(biCards, 3),
+    ...pick5(complianceCards, 4),
+  ];
+
+  // ── Dynamic deduplication: if a use-case was already chosen in the wizard,
+  //    replace its category with specific sub-cards ──────────────────────────
   const alreadyChosen = USE_CASE_INTENT_MAP[selectedUseCase];
   if (alreadyChosen) {
-    const others = cards.filter(c => c.intent !== alreadyChosen);
     const specific = buildSpecificCards(alreadyChosen, t0, t1, domain);
-    return [...specific, ...others].slice(0, 5);
+    const others = balanced.filter(c => c.intent !== alreadyChosen).slice(0, 20 - specific.length);
+    return [...specific, ...others];
   }
-  return cards.slice(0, 5);
+
+  return balanced;
 }
 
 function buildTopicQuestion(articles: WikiArticle[], intent: PathType): ChatQuestion {
@@ -559,6 +662,19 @@ export default function PromptBuilder({ corpus, onUsePrompt, onManual }: PromptB
   const [activeCustomTemplateId, setActiveCustomTemplateId] = useState<string | null>(null);
   const [fetchKey, setFetchKey] = useState(0);
   const [displaySeed, setDisplaySeed] = useState(() => Math.floor(Math.random() * 10000));
+  // Per-category collapsed state — persisted in sessionStorage
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(sessionStorage.getItem("pb_collapsed_cats") ?? "[]")); }
+    catch { return new Set(); }
+  });
+  const toggleCategory = (label: string) => {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      try { sessionStorage.setItem("pb_collapsed_cats", JSON.stringify([...next])); } catch { /**/ }
+      return next;
+    });
+  };
 
   useEffect(() => {
     try { const p=JSON.parse(localStorage.getItem("orch_persona")??"{}"); if(p.industry) setIndustry(p.industry); if(p.useCase) setUseCase(p.useCase); } catch{/**/}
@@ -598,18 +714,13 @@ export default function PromptBuilder({ corpus, onUsePrompt, onManual }: PromptB
   useEffect(()=>{chatBottomRef.current?.scrollIntoView({behavior:"smooth",block:"nearest"});},[chatMsgs,showOther]);
 
   const domain      = corpus?.domain_label ?? industry;
-  const fallbackSuggestions = generateSuggestions(wikiArticles, domain, hasSLM, useCase);
+  // Balanced suggestions — seed changes on Refresh for variety
+  const fallbackSuggestions = generateSuggestions(wikiArticles, domain, hasSLM, useCase, displaySeed);
   const allSuggestions = (slmSuggestionSource === "slm" && slmSuggestionItems.length > 0)
-    ? cardsFromSlmSuggestions(slmSuggestionItems, domain)
+    ? [...cardsFromSlmSuggestions(slmSuggestionItems, domain), ...fallbackSuggestions.slice(0, 15)]
     : fallbackSuggestions;
-  // Shuffle for variety: rotate by displaySeed so each load/refresh shows a different order
-  const suggestions = allSuggestions.length > 1
-    ? (() => {
-        const arr = [...allSuggestions];
-        const offset = displaySeed % arr.length;
-        return [...arr.slice(offset), ...arr.slice(0, offset)];
-      })()
-    : allSuggestions;
+  // No extra shuffle needed — generateSuggestions is already seeded for variety
+  const suggestions = allSuggestions;
   const intentMeta  = selectedIntent ? INTENT_META[selectedIntent] : null;
   const totalQs     = queuedQuestions.length;
 
@@ -716,24 +827,84 @@ export default function PromptBuilder({ corpus, onUsePrompt, onManual }: PromptB
           {loadingData ? (
             <div className="space-y-2 mb-3">{[0,1,2,3].map(i=><div key={i} className="h-16 bg-bg3 border border-dborder rounded-card animate-pulse"/>)}</div>
           ) : (
-            <div className="space-y-2 mb-3">
-              {suggestions.map(card=>(
-                <button key={card.id} onClick={()=>startSuggestion(card)}
-                  className="w-full flex items-start gap-3 px-4 py-3 rounded-card border border-dborder bg-card2 hover:border-accent/50 hover:bg-accent/5 transition-all text-left group">
-                  <span className="text-xl mt-0.5 flex-shrink-0">{card.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[12px] font-semibold text-t1 group-hover:text-accent leading-tight">{card.label}</span>
-                      {card.badge && <span className="text-[8px] px-1.5 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded-full font-bold">{card.badge}</span>}
-                      <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full flex-shrink-0"
-                        style={{background:`${INTENT_META[card.intent].color}15`,color:INTENT_META[card.intent].color}}>
-                        {INTENT_META[card.intent].label}
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-t3 leading-snug mt-0.5 line-clamp-2">{card.desc}</div>
+            <div className="space-y-4 mb-3">
+              {(() => {
+                // Group cards by category based on intent
+                const CATEGORY_GROUPS: { label: string; icon: string; intents: PathType[] }[] = [
+                  { label: "Research",                   icon: "🔬", intents: ["RESEARCHER"] },
+                  { label: "Application Development",    icon: "🏗️", intents: ["BUILDER"] },
+                  { label: "Automation & Analysis",      icon: "⚙️", intents: ["ANALYST"] },
+                  { label: "Business Intelligence",      icon: "📊", intents: [] },           // SLM badge cards
+                  { label: "Insights & Summaries",       icon: "📝", intents: ["SUMMARIZER"] },
+                  { label: "Compliance & Audit",         icon: "✅", intents: ["AUDITOR"] },
+                ];
+                // Assign SLM-badged cards to Business Intelligence group
+                const slmCards   = suggestions.filter(c => c.badge === "Custom AI");
+                const nonSlmMap  = new Map<PathType, SuggestionCard[]>();
+                suggestions.filter(c => !c.badge).forEach(c => {
+                  if (!nonSlmMap.has(c.intent)) nonSlmMap.set(c.intent, []);
+                  nonSlmMap.get(c.intent)!.push(c);
+                });
+                const groups: { label: string; icon: string; cards: SuggestionCard[] }[] = [];
+                CATEGORY_GROUPS.forEach(g => {
+                  const cards = g.intents.length > 0
+                    ? g.intents.flatMap(i => nonSlmMap.get(i) ?? [])
+                    : slmCards;
+                  if (cards.length > 0) groups.push({ label: g.label, icon: g.icon, cards });
+                });
+                if (groups.length === 0) {
+                  // Fallback: flat list
+                  return suggestions.map(card => (
+                    <button key={card.id} onClick={()=>startSuggestion(card)}
+                      className="w-full flex items-start gap-3 px-4 py-3 rounded-card border border-dborder bg-card2 hover:border-accent/50 hover:bg-accent/5 transition-all text-left group">
+                      <span className="text-xl mt-0.5 flex-shrink-0">{card.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[12px] font-semibold text-t1 group-hover:text-accent leading-tight">{card.label}</span>
+                          {card.badge && <span className="text-[8px] px-1.5 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded-full font-bold">{card.badge}</span>}
+                        </div>
+                        <div className="text-[10px] text-t3 leading-snug mt-0.5 line-clamp-2">{card.desc}</div>
+                      </div>
+                    </button>
+                  ));
+                }
+                return groups.map(group => {
+                  const isCollapsed = collapsedCategories.has(group.label);
+                  return (
+                  <div key={group.label}>
+                    <button
+                      onClick={() => toggleCategory(group.label)}
+                      className="w-full flex items-center gap-1.5 mb-1.5 group/cat"
+                    >
+                      <span className="text-[9px] text-t3 group-hover/cat:text-accent transition-colors">{isCollapsed ? "▸" : "▾"}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-t3 group-hover/cat:text-accent transition-colors">{group.icon} {group.label}</span>
+                      <span className="text-[9px] text-t3 ml-1">({group.cards.length})</span>
+                    </button>
+                    {!isCollapsed && (
+                      <div className="space-y-1.5 mb-1">
+                        {group.cards.map(card => (
+                          <button key={card.id} onClick={()=>startSuggestion(card)}
+                            className="w-full flex items-start gap-3 px-4 py-3 rounded-card border border-dborder bg-card2 hover:border-accent/50 hover:bg-accent/5 transition-all text-left group">
+                            <span className="text-xl mt-0.5 flex-shrink-0">{card.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[12px] font-semibold text-t1 group-hover:text-accent leading-tight">{card.label}</span>
+                                {card.badge && <span className="text-[8px] px-1.5 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded-full font-bold">{card.badge}</span>}
+                                <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full flex-shrink-0"
+                                  style={{background:`${INTENT_META[card.intent].color}15`,color:INTENT_META[card.intent].color}}>
+                                  {INTENT_META[card.intent].label}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-t3 leading-snug mt-0.5 line-clamp-2">{card.desc}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </button>
-              ))}
+                  );
+                });
+              })()}
             </div>
           )}
           {/* Custom templates section */}

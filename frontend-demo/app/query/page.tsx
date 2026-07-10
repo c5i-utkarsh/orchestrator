@@ -143,11 +143,8 @@ export default function QueryPage() {
       } else {
         setSelectedCorpus({ job_id: jobId, domain_label: domainLbl, file_count: 0, entity_count: 0, created_at: "" });
       }
-    } else if (local.length > 0) {
-      setSelectedCorpus(local[0]);
-      sessionStorage.setItem("job_id", local[0].job_id);
-      sessionStorage.setItem("domain_label", local[0].domain_label);
     }
+    // No else — if no job_id in sessionStorage, default to "All Projects" (null)
   }, []);
 
   // Run Query — streams the orchestrator IN PLACE. Never redirects, never rebuilds
@@ -156,16 +153,18 @@ export default function QueryPage() {
     const q = (overrideQuery ?? query).trim();
     const sp = (overrideSysPrompt ?? systemPrompt).trim();
     if (!q) { setError("Please enter a question or goal"); return; }
-    if (!selectedCorpus) { setError("Select a workspace first"); return; }
     setError(""); setRunning(true); setTimeline([]); setAnswer(""); setAnsweredByLabel(null); setConfidence(null);
     const API = process.env.NEXT_PUBLIC_API_URL ?? "";
-    sessionStorage.setItem("job_id", selectedCorpus.job_id);
-    sessionStorage.setItem("domain_label", selectedCorpus.domain_label);
+    const domain = selectedCorpus?.domain_label ?? "general";
+    if (selectedCorpus) {
+      sessionStorage.setItem("job_id", selectedCorpus.job_id);
+      sessionStorage.setItem("domain_label", selectedCorpus.domain_label);
+    }
     sessionStorage.setItem("query", q);
     try {
       const out = await runOrchestrator(API, {
-        query: q, domain_label: selectedCorpus.domain_label,
-        job_id: selectedCorpus.job_id, system_prompt: sp,
+        query: q, domain_label: domain,
+        job_id: selectedCorpus?.job_id ?? undefined, system_prompt: sp,
       }, (ev) => {
         if (ev.type === "step" || ev.type === "stage") {
           // step_name is at the top level (new) or nested under ev.data (compat)
@@ -206,19 +205,18 @@ export default function QueryPage() {
   return (
     <div>
       {/* Header */}
-      <div className="bg-card border-b border-dborder px-0 py-7 mb-7">
-        <div className="w-full px-8 flex items-start justify-between">
+      <div className="bg-white border-b border-dborder px-8 py-5 mb-6">
+        <div className="flex items-start justify-between">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-t3 mb-1.5 flex items-center gap-2">
-              <span className="inline-block w-4 h-px bg-accent" />
-              Step 3 · Inference Harnessing
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[11px] font-semibold text-t3 uppercase tracking-widest">Step 3</span>
+              <span className="text-t3 text-[11px]">·</span>
+              <span className="text-[11px] font-semibold text-accent uppercase tracking-widest">Inference Harnessing</span>
             </div>
-            <div className="font-sora text-2xl font-semibold text-t1">Ask your domain AI</div>
-            <div className="text-[12px] text-t2 mt-1">Choose your domain, then pick what you want to do</div>
+            <h1 className="text-[20px] font-semibold text-t1 tracking-tight">Ask your domain AI</h1>
+            <p className="text-[13px] text-t3 mt-0.5">Choose your domain, then pick what you want to do</p>
           </div>
-          <button onClick={() => router.push("/")} className="btn btn-sm text-t3 hover:text-t1 mt-2">
-            ← Back
-          </button>
+          <button onClick={() => router.push("/")} className="btn btn-sm text-t3 mt-1">← Back</button>
         </div>
       </div>
 
@@ -226,9 +224,13 @@ export default function QueryPage() {
 
         {/* Workspace / Domain selector — collapsed to a compact chip when already selected */}
         {savedCorpora.length === 0 && !selectedCorpus ? (
-          <div className="px-4 py-4 bg-amber/5 border border-amber/30 rounded-sm text-[12px] text-amber mb-6">
-            No workspace available.{" "}
-            <button onClick={() => router.push("/")} className="underline">Upload files first →</button>
+          <div className="px-4 py-3 bg-accent/5 border border-accent/20 rounded-lg text-[12px] text-t2 mb-6 flex items-center gap-3">
+            <span className="text-lg">🌐</span>
+            <div>
+              <span className="font-semibold text-t1">All Projects Mode</span>
+              <span className="text-t3 ml-2">Queries will automatically route to the most appropriate Domain SLM based on your request.</span>
+              <button onClick={() => router.push("/")} className="underline ml-2 text-accent hover:text-accent/70">Upload files →</button>
+            </div>
           </div>
         ) : selectedCorpus && !manualMode ? (
           /* ── Compact selected-domain bar (shown when domain already resolved) ── */
@@ -252,8 +254,42 @@ export default function QueryPage() {
               Change
             </button>
           </div>
+        ) : !selectedCorpus && !manualMode ? (
+          /* ── All Projects compact bar ── */
+          <div className="flex items-center gap-3 px-4 py-3 mb-6 bg-accent/5 border border-accent/20 rounded-card">
+            <span className="text-xl">🌐</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-accent">All Projects Mode</div>
+              <div className="text-[10px] text-t3 mt-0.5">Queries will automatically route to the most appropriate Domain SLM based on your request</div>
+            </div>
+            {savedCorpora.length > 0 && (
+              <button
+                onClick={() => setManualMode(true)}
+                className="text-[11px] text-t3 hover:text-accent border border-dborder hover:border-accent/30 px-2.5 py-1 rounded-lg transition-colors flex-shrink-0"
+              >
+                Filter
+              </button>
+            )}
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-2 mb-6">
+            {/* All Projects — global routing option */}
+            <div
+              onClick={() => { setSelectedCorpus(null); setManualMode(false); }}
+              className={`flex items-center gap-4 px-4 py-3.5 rounded-card border cursor-pointer transition-all ${
+                !selectedCorpus
+                  ? "bg-accent/10 border-accent/50 shadow-sm"
+                  : "bg-card2 border-dborder hover:border-accent/30 hover:bg-accent/5"
+              }`}
+            >
+              <div className="text-2xl flex-shrink-0 w-8 text-center">🌐</div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-[13px] font-semibold ${!selectedCorpus ? "text-accent" : "text-t1"}`}>All Projects</div>
+                <div className="text-[10px] text-t3 mt-0.5">Global knowledge routing — no project filter</div>
+              </div>
+              {!selectedCorpus && <span className="text-[11px] text-accent font-bold flex-shrink-0">✓</span>}
+            </div>
+
             {savedCorpora.map(c => (
               <div
                 key={c.job_id}
@@ -295,6 +331,34 @@ export default function QueryPage() {
                 </div>
                 <span className="text-[11px] text-accent font-bold flex-shrink-0">✓</span>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Active context display */}
+        {(selectedCorpus || !manualMode) && (
+          <div className="mb-5 flex items-center gap-3 text-[11px] text-t3">
+            {selectedCorpus ? (
+              <>
+                <span className="font-semibold text-t2">Project:</span>
+                <span className="text-t1">{selectedCorpus.project_name || domainLabel(selectedCorpus.domain_label)}</span>
+                {slmStatus === "done" && slmModelId && (
+                  <>
+                    <span className="text-dborder">·</span>
+                    <span className="font-semibold text-t2">SLM:</span>
+                    <span className="text-emerald-400 font-medium">{slmModelId}</span>
+                  </>
+                )}
+                {slmStatus === "building" && (
+                  <span className="text-amber font-semibold">⚙ Building SLM…</span>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-t2">Scope:</span><span className="text-accent">All Projects</span>
+                <span className="text-dborder">·</span>
+                <span className="font-semibold text-t2">Routing:</span><span>Automatic</span>
+              </>
             )}
           </div>
         )}
@@ -347,7 +411,7 @@ export default function QueryPage() {
             )}
             <button
               onClick={() => handleRun()}
-              disabled={!query.trim() || !selectedCorpus || running}
+              disabled={!query.trim() || running}
               className="btn btn-p btn-full py-3 text-sm disabled:opacity-40 mb-4"
             >
               {running ? "Running…" : "Run Query →"}

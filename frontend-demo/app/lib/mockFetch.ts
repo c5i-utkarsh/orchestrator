@@ -23,6 +23,7 @@ import {
   DEMO_PROCESS_STEPS,
   DEMO_EDA_SUMMARY,
   DEMO_ONTOLOGY,
+  DEMO_STORAGE,
 } from "./demoData";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -152,12 +153,12 @@ function makeOrchestratorSSE(domainLabel: string, query: string): Response {
 
   const events: Array<{ data: object; delay: number }> = [
     { delay: 200, data: { type: "start", phase: "orchestrator" } },
-    { delay: 500, data: { type: "step", phase: "task_classify",   step_name: "Task Classification",   status: "done", task_type: "analysis", task_category: "DOMAIN" } },
-    { delay: 400, data: { type: "step", phase: "coverage_check",  step_name: "Coverage Check",         status: "done", coverage_action: "REUSE_SLM" } },
-    { delay: 350, data: { type: "step", phase: "slm_select",      step_name: "SLM Selection",          status: "done", slm_model_id: slm } },
-    { delay: 400, data: { type: "step", phase: "query_decompose", step_name: "Query Decomposition",    status: "done" } },
-    { delay: 350, data: { type: "step", phase: "model_recommend", step_name: "Model Recommendation",  status: "done" } },
-    { delay: 200, data: { type: "step", phase: "execute",         step_name: "Executing Inference",    status: "running" } },
+    { delay: 500, data: { type: "step", step: 1, step_name: "Understanding Query",      status: "done", data: { step_name: "Understanding Query",      explanation: { what_we_found: `Intent: DOMAIN | Task: domain_qa`, decision_made: "Intent: DOMAIN | Task: domain_qa" } } } },
+    { delay: 200, data: { type: "stage", step_name: "Query Complexity",  detail: "SIMPLE — Direct execution (planner skipped) | Token budget: 700" } },
+    { delay: 400, data: { type: "step", step: 2, step_name: "Loading Domain SLM",       status: "done", data: { step_name: "Loading Domain SLM",       explanation: { what: `Routing mode: Domain routing`, decision_made: `Selected: ${slm}`, what_we_found: `Project-exact match → ${slm}` } } } },
+    { delay: 350, data: { type: "step", step: 3, step_name: "SLM Planning",             status: "done", data: { step_name: "SLM Planning",             explanation: { what: "Planner mode: Skipped (SIMPLE — direct execution)", decision_made: "Skipped (SIMPLE — direct execution) | Format: conversational | Token budget: 700/response" } } } },
+    { delay: 400, data: { type: "step", step: 4, step_name: "Validating Model Availability", status: "done", data: { step_name: "Validating Model Availability", explanation: { decision_made: "All 1 model choice(s) confirmed available" } } } },
+    { delay: 200, data: { type: "step", step: 5, step_name: "Generating Response",      status: "running", data: { step_name: "Generating Response", explanation: { what: `Executed 1 subtask(s) | Complexity: SIMPLE | Budget: 700 tokens` } } } },
     ...chunks.map((chunk) => ({
       delay: 55 + Math.random() * 35,
       data: { type: "token", phase: "execute", token: chunk + " " },
@@ -285,7 +286,24 @@ function handleMockRequest(url: string, init: RequestInit = {}): Response | null
 
   // ── POST /slm/approve-install ────────────────────────────────────────────
   if (path === "slm/approve-install" && method === "POST") {
-    return ok({ status: "installed", message: "Model deployed to Ollama (demo mode)" });
+    // display_name accepted but ignored in demo (no persistent storage needed)
+    return ok({ status: "deployed", model_id: "demo-slm", ollama_name: "demo-slm", message: "Model deployed (demo mode)" });
+  }
+
+  // ── PATCH /slm/registry/{modelId}/display-name ───────────────────────────
+  if (path.match(/^slm\/registry\/.+\/display-name$/) && method === "PATCH") {
+    return ok({ model_id: path.split("/")[2], display_name: "Demo Display Name" });
+  }
+
+  // ── GET /data/storage ─────────────────────────────────────────────────────
+  if (path === "data/storage" && method === "GET") {
+    return ok(DEMO_STORAGE);
+  }
+
+  // ── DELETE /data/project/{jobId} ─────────────────────────────────────────
+  if (path.match(/^data\/project\/[^/]+$/) && method === "DELETE") {
+    const jobId = path.replace("data/project/", "");
+    return ok({ job_id: jobId, deleted: true, slms_removed: [], cleanup_errors: [] });
   }
 
   // ── GET /data/corpora ─────────────────────────────────────────────────────
@@ -387,12 +405,6 @@ function handleMockRequest(url: string, init: RequestInit = {}): Response | null
   if (path.startsWith("data/ingest-update/") && method === "POST") {
     const jobId = path.replace("data/ingest-update/", "");
     return ok({ job_id: jobId, status: "queued", reused: false }, 202);
-  }
-
-  // ── DELETE /data/project/{jobId} ─────────────────────────────────────────
-  if (path.startsWith("data/project/") && !path.includes("/file/") && method === "DELETE") {
-    const jobId = path.replace("data/project/", "");
-    return ok({ job_id: jobId, deleted: true });
   }
 
   // ── DELETE /data/project/{jobId}/file/{fileName} ──────────────────────────
